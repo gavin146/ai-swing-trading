@@ -11,6 +11,11 @@ export function ScoreGuide() {
             TradePilot scores are meant to help you compare setups quickly. They are
             decision support, not a command to buy.
           </p>
+          <div className="mt-4 grid gap-2 text-sm font-semibold text-ink/70">
+            <p>80-100: Strong setup worth deeper review.</p>
+            <p>65-79: Watchlist setup that needs good entry discipline.</p>
+            <p>Below 65: Cautious idea; wait for more confirmation.</p>
+          </div>
         </div>
         <div className="grid gap-3 sm:grid-cols-3">
           <div className="rounded-lg bg-mint px-4 py-3 ring-1 ring-pine/10">

@@ -14,6 +14,38 @@ type DashboardOpportunitiesProps = {
   initialOpportunities: Opportunity[];
 };
 
+function listStrength(score: number) {
+  if (score >= 80) {
+    return {
+      label: "Strong",
+      description: "The displayed list has several cleaner, higher-quality setups.",
+      tone: "text-pine",
+    };
+  }
+
+  if (score >= 65) {
+    return {
+      label: "Selective",
+      description: "There are usable ideas, but entries and risk control matter.",
+      tone: "text-pine",
+    };
+  }
+
+  if (score >= 55) {
+    return {
+      label: "Cautious",
+      description: "Most ideas are watchlist quality, not automatic trade candidates.",
+      tone: "text-amber",
+    };
+  }
+
+  return {
+    label: "Wait",
+    description: "The list is weak today; patience may be better than forcing trades.",
+    tone: "text-coral",
+  };
+}
+
 export function DashboardOpportunities({
   initialOpportunities,
 }: DashboardOpportunitiesProps) {
@@ -83,8 +115,24 @@ export function DashboardOpportunities({
               total + Math.abs(Number(opportunity.potentialLoss.replace("%", ""))),
             0,
           ) / dailyPicks.length;
+    const highQualityCount = dailyPicks.filter(
+      (opportunity) => opportunity.opportunityScore >= 75,
+    ).length;
+    const watchlistCount = dailyPicks.filter(
+      (opportunity) =>
+        opportunity.opportunityScore >= 65 && opportunity.opportunityScore < 75,
+    ).length;
+    const strength = listStrength(avgOpportunity);
 
-    return { avgGain, avgLoss, avgOpportunity, lowerRiskCount };
+    return {
+      avgGain,
+      avgLoss,
+      avgOpportunity,
+      highQualityCount,
+      lowerRiskCount,
+      strength,
+      watchlistCount,
+    };
   }, [dailyPicks]);
 
   return (
@@ -107,18 +155,41 @@ export function DashboardOpportunities({
         </div>
       </div>
 
-      <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         <div className="rounded-xl border border-line bg-panel p-4 shadow-[0_10px_30px_rgba(7,20,24,0.05)]">
           <p className="text-xs font-black uppercase tracking-normal text-ink/55">
-            Average score
+            List strength
           </p>
-          <p className="mt-2 text-3xl font-black text-pine">{summary.avgOpportunity}</p>
+          <p className={`mt-2 text-3xl font-black ${summary.strength.tone}`}>
+            {summary.strength.label}
+          </p>
+          <p className="mt-2 text-sm font-semibold leading-6 text-ink/60">
+            {summary.strength.description}
+          </p>
+          <p className="mt-3 text-xs font-bold uppercase tracking-normal text-ink/45">
+            Avg score {summary.avgOpportunity}/100
+          </p>
         </div>
         <div className="rounded-xl border border-line bg-panel p-4 shadow-[0_10px_30px_rgba(7,20,24,0.05)]">
           <p className="text-xs font-black uppercase tracking-normal text-ink/55">
-            Lower risk
+            Cleaner setups
+          </p>
+          <p className="mt-2 text-3xl font-black text-pine">{summary.highQualityCount}</p>
+          <p className="mt-2 text-sm font-semibold leading-6 text-ink/60">
+            Picks scoring 75+ out of 100.
+          </p>
+          <p className="mt-3 text-xs font-bold uppercase tracking-normal text-ink/45">
+            {summary.watchlistCount} watchlist-quality ideas
+          </p>
+        </div>
+        <div className="rounded-xl border border-line bg-panel p-4 shadow-[0_10px_30px_rgba(7,20,24,0.05)]">
+          <p className="text-xs font-black uppercase tracking-normal text-ink/55">
+            Lower-risk ideas
           </p>
           <p className="mt-2 text-3xl font-black text-pine">{summary.lowerRiskCount}</p>
+          <p className="mt-2 text-sm font-semibold leading-6 text-ink/60">
+            Picks with risk scores below 45.
+          </p>
         </div>
         <div className="rounded-xl border border-line bg-panel p-4 shadow-[0_10px_30px_rgba(7,20,24,0.05)]">
           <p className="text-xs font-black uppercase tracking-normal text-ink/55">
@@ -127,6 +198,9 @@ export function DashboardOpportunities({
           <p className="mt-2 text-3xl font-black text-pine">
             +{summary.avgGain.toFixed(1)}%
           </p>
+          <p className="mt-2 text-sm font-semibold leading-6 text-ink/60">
+            Average upside to target.
+          </p>
         </div>
         <div className="rounded-xl border border-line bg-panel p-4 shadow-[0_10px_30px_rgba(7,20,24,0.05)]">
           <p className="text-xs font-black uppercase tracking-normal text-ink/55">
@@ -134,6 +208,9 @@ export function DashboardOpportunities({
           </p>
           <p className="mt-2 text-3xl font-black text-coral">
             -{summary.avgLoss.toFixed(1)}%
+          </p>
+          <p className="mt-2 text-sm font-semibold leading-6 text-ink/60">
+            Average planned downside to stop.
           </p>
         </div>
       </div>
