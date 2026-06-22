@@ -1,7 +1,12 @@
 import {
+  getFmpCompanyProfile,
   getFmpHistoricalCandles,
+  getFmpIncomeStatements,
+  getFmpKeyMetricsTtm,
+  getFmpRatiosTtm,
   hasFmpCredentials,
   type FmpHistoricalCandle,
+  type FmpIncomeStatement,
 } from "@/lib/providers/fmp";
 import { getBlsMacroContext, type BlsMacroContext } from "@/lib/providers/bls";
 import { getFredMacroContext, type FredMacroContext } from "@/lib/providers/fred";
@@ -19,18 +24,36 @@ const defaultSymbols = [
   "AVGO",
   "AMD",
   "TSLA",
+  "LLY",
   "UNH",
   "JPM",
   "V",
+  "MA",
   "COST",
   "WMT",
+  "HD",
   "NFLX",
   "ADBE",
+  "CRM",
+  "NOW",
+  "ORCL",
+  "PANW",
+  "CRWD",
+  "CAT",
   "GE",
   "BA",
   "XOM",
   "CVX",
+  "COP",
+  "FCX",
+  "LIN",
+  "NEE",
+  "PLD",
   "SBUX",
+  "MCD",
+  "TMO",
+  "ISRG",
+  "PGR",
   "UBER",
 ];
 
@@ -43,6 +66,7 @@ type RunFmpOptions = {
 type CandidateBuildResult = {
   candidate: EquityCandidate;
   hasLivePriceData: boolean;
+  hasLiveFinancialData: boolean;
 };
 
 type CombinedMacroContext = FredMacroContext & {
@@ -75,6 +99,12 @@ function percentChange(current: number, previous: number) {
   }
 
   return ((current - previous) / Math.abs(previous)) * 100;
+}
+
+function normalizePercent(value: number | undefined) {
+  if (!Number.isFinite(value)) return 0;
+  const next = Number(value);
+  return Math.abs(next) <= 1 ? next * 100 : next;
 }
 
 function mapSector(value: string | undefined): Sector {
@@ -197,6 +227,68 @@ function buildTechnicalSnapshot(candles: FmpHistoricalCandle[]) {
   };
 }
 
+function statementGrowth(
+  statements: FmpIncomeStatement[],
+  field: keyof Pick<FmpIncomeStatement, "revenue" | "netIncome">,
+) {
+  const sorted = [...statements]
+    .filter((statement) => Number.isFinite(statement[field]))
+    .sort((a, b) => new Date(b.date ?? "").getTime() - new Date(a.date ?? "").getTime());
+
+  if (sorted.length < 2) return 0;
+
+  return percentChange(Number(sorted[0][field]), Number(sorted[1][field]));
+}
+
+function marginTrend(statements: FmpIncomeStatement[]) {
+  const sorted = [...statements]
+    .filter((statement) => Number.isFinite(statement.grossProfitRatio))
+    .sort((a, b) => new Date(b.date ?? "").getTime() - new Date(a.date ?? "").getTime());
+
+  if (sorted.length < 2) return 0;
+
+  return normalizePercent(sorted[0].grossProfitRatio) - normalizePercent(sorted[1].grossProfitRatio);
+}
+
+function buildFinancialSnapshot(args: {
+  incomeStatements: FmpIncomeStatement[];
+  debtToEquity?: number;
+  freeCashFlowYield?: number;
+  peRatio?: number;
+  priceToSalesRatio?: number;
+  fallback: CompanyFinancialSnapshot;
+}) {
+  if (args.incomeStatements.length < 2) {
+    return {
+      financials: args.fallback,
+      isLive: false,
+    };
+  }
+
+  const revenueGrowth = round(statementGrowth(args.incomeStatements, "revenue"), 1);
+  const earningsGrowth = round(statementGrowth(args.incomeStatements, "netIncome"), 1);
+  const freeCashFlowYield = round(normalizePercent(args.freeCashFlowYield), 1);
+  const debtToEquity = round(Number.isFinite(args.debtToEquity) ? Number(args.debtToEquity) : args.fallback.debtToEquity, 2);
+  const peRatio = Number.isFinite(args.peRatio) ? Number(args.peRatio) : 24;
+  const priceToSalesRatio = Number.isFinite(args.priceToSalesRatio)
+    ? Number(args.priceToSalesRatio)
+    : 5;
+  const valuationScore = clamp(100 - peRatio * 1.6 - priceToSalesRatio * 2.2, 20, 90);
+
+  return {
+    financials: {
+      revenueGrowth,
+      earningsGrowth,
+      freeCashFlowYield: freeCashFlowYield || args.fallback.freeCashFlowYield,
+      debtToEquity,
+      marginTrend: round(marginTrend(args.incomeStatements), 1),
+      revisionScore: Math.round(clamp(54 + revenueGrowth * 0.7 + earningsGrowth * 0.35, 25, 90)),
+      valuationScore: Math.round(valuationScore),
+    },
+    isLive: true,
+  };
+}
+
 async function mapWithConcurrency<T, R>(
   items: T[],
   limit: number,
@@ -269,37 +361,54 @@ async function buildFmpCandidate(
   const from = daysAgo(asOf, 430);
   const to = asOf.toISOString().slice(0, 10);
 
-  const candles = await getFmpHistoricalCandles(symbol, from, to);
+  const [candles, profile, incomeStatements, ratios, keyMetrics] = await Promise.all([
+    getFmpHistoricalCandles(symbol, from, to),
+    getFmpCompanyProfile(symbol),
+    getFmpIncomeStatements(symbol, 4),
+    getFmpRatiosTtm(symbol),
+    getFmpKeyMetricsTtm(symbol),
+  ]);
   const technical = buildTechnicalSnapshot(candles);
 
   if (!technical) {
     return null;
   }
 
-  const sector = mapSector(fallback.sector);
-  const averageVolume = fallback.averageVolume || candles.at(-1)?.volume || 0;
-  const financials: CompanyFinancialSnapshot = fallback.financials;
+  const sector = mapSector(profile?.sector ?? fallback.sector);
+  const averageVolume = profile?.volAvg ?? profile?.avgVolume ?? fallback.averageVolume ?? candles.at(-1)?.volume ?? 0;
+  const marketCapBillions = Math.max(0, (profile?.marketCap ?? fallback.marketCapBillions * 1_000_000_000) / 1_000_000_000);
+  const financialResult = buildFinancialSnapshot({
+    incomeStatements,
+    debtToEquity: ratios?.debtEquityRatioTTM,
+    freeCashFlowYield: keyMetrics?.freeCashFlowYieldTTM,
+    peRatio: ratios?.priceEarningsRatioTTM ?? keyMetrics?.peRatioTTM,
+    priceToSalesRatio: ratios?.priceToSalesRatioTTM,
+    fallback: fallback.financials,
+  });
 
   return {
-    symbol,
-    companyName: fallback.companyName,
-    sector,
-    averageVolume,
-    marketCapBillions: fallback.marketCapBillions,
-    technical,
-    financials,
-    news: {
-      sentimentScore: 55,
-      catalystScore: 52,
-      headlineCount: 0,
-      riskFlagCount: 0,
-      summary:
-        "Live news and catalyst scoring is not connected yet; this run uses a neutral placeholder so technical and fundamental data drive the ranking.",
+    candidate: {
+      symbol,
+      companyName: profile?.companyName ?? profile?.companyNameLong ?? fallback.companyName,
+      sector,
+      averageVolume,
+      marketCapBillions,
+      technical,
+      financials: financialResult.financials,
+      news: {
+        sentimentScore: 55,
+        catalystScore: 52,
+        headlineCount: 0,
+        riskFlagCount: 0,
+        summary:
+          "Live news and catalyst scoring is not connected yet; this run uses a neutral placeholder so technical and fundamental data drive the ranking.",
+      },
+      market: {
+        ...buildMarketSnapshot(sector, macro),
+      },
     },
-    market: {
-      ...buildMarketSnapshot(sector, macro),
-    },
-  } satisfies EquityCandidate;
+    hasLiveFinancialData: financialResult.isLive,
+  };
 }
 
 function buildFallbackCandidate(fallback: EquityCandidate, macro: CombinedMacroContext) {
@@ -331,7 +440,7 @@ export async function getFmpEquityUniverse(
   const fallbackBySymbol = new Map(
     getMockEquityUniverse(asOf).map((candidate) => [candidate.symbol, candidate]),
   );
-  const results = await mapWithConcurrency(symbols, 2, async (symbol) => {
+  const results = await mapWithConcurrency<string, CandidateBuildResult | null>(symbols, 2, async (symbol) => {
     const fallback = fallbackBySymbol.get(symbol);
 
     if (!fallback) {
@@ -342,28 +451,33 @@ export async function getFmpEquityUniverse(
       const candidate = await buildFmpCandidate(symbol, asOf, macro, fallback);
 
       if (candidate) {
-        return { candidate, hasLivePriceData: true } satisfies CandidateBuildResult;
+        return {
+          candidate: candidate.candidate,
+          hasLivePriceData: true,
+          hasLiveFinancialData: candidate.hasLiveFinancialData,
+        } satisfies CandidateBuildResult;
       }
     } catch {
       return {
         candidate: buildFallbackCandidate(fallback, macro),
         hasLivePriceData: false,
+        hasLiveFinancialData: false,
       } satisfies CandidateBuildResult;
     }
 
     return {
       candidate: buildFallbackCandidate(fallback, macro),
       hasLivePriceData: false,
+      hasLiveFinancialData: false,
     } satisfies CandidateBuildResult;
   });
 
-  const builtCandidates = results.filter(
-    (result): result is CandidateBuildResult => result !== null,
-  );
+  const builtCandidates = results.filter((result) => result !== null);
 
   return {
     candidates: builtCandidates.map((result) => result.candidate),
     livePriceCount: builtCandidates.filter((result) => result.hasLivePriceData).length,
+    liveFinancialCount: builtCandidates.filter((result) => result.hasLiveFinancialData).length,
   };
 }
 
@@ -379,6 +493,7 @@ export async function runFmpDailyRankingAgent({
   const universe = universeResult.candidates;
   const skippedCount = symbols.length - universe.length;
   const livePriceCount = universeResult.livePriceCount;
+  const liveFinancialCount = universeResult.liveFinancialCount;
 
   return rankEquityCandidates(universe, {
     asOf,
@@ -387,11 +502,17 @@ export async function runFmpDailyRankingAgent({
     dataQuality: {
       priceData:
         livePriceCount === universe.length ? "live" : livePriceCount > 0 ? "partial" : "mock",
-      financialData: "partial",
+      financialData:
+        liveFinancialCount === universe.length
+          ? "live"
+          : liveFinancialCount > 0
+            ? "partial"
+            : "mock",
       macroData: combinedMacro.isLive ? "live" : "partial",
       notes: [
-        "Live FMP daily candles are used for technical scoring. Starter universe metadata and fallback fundamentals are used when low-cost FMP plan limits block company fundamentals.",
+        "Live FMP daily candles are used for technical scoring. FMP profiles, statements, ratios, and key metrics are used for financial scoring when available.",
         `${livePriceCount} of ${universe.length} ranked symbols used live FMP price candles in this run.`,
+        `${liveFinancialCount} of ${universe.length} ranked symbols used live FMP fundamental data in this run.`,
         combinedMacro.isLive
           ? "Live government macro data is connected through FRED and/or BLS."
           : "Government macro data fell back to a neutral placeholder for this run.",
@@ -399,7 +520,9 @@ export async function runFmpDailyRankingAgent({
         ...combinedMacro.notes,
         skippedCount > 0
           ? `${skippedCount} symbols were skipped because no starter fallback was available.`
-          : "All requested symbols were ranked; symbols without live FMP candles used starter technical fallbacks.",
+          : livePriceCount === universe.length
+            ? "All requested symbols were ranked with live FMP price candles."
+            : "All requested symbols were ranked; symbols without live FMP candles used starter technical fallbacks.",
       ],
     },
     summaryPrefix: "FMP-backed morning agent",
