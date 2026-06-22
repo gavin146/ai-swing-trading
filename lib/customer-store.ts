@@ -3,11 +3,13 @@
 import type { RiskProfile } from "./database.types";
 
 export type AlertChannel = "sms" | "email" | "none";
+export type CustomerRole = "admin" | "customer";
 
 export type CustomerProfile = {
   id: string;
   email: string;
   fullName: string;
+  role: CustomerRole;
   phone: string;
   riskProfile: RiskProfile;
   minimumConfidence: number;
@@ -30,6 +32,7 @@ const demoCustomer: StoredCustomer = {
   id: "demo-customer",
   email: "avery@example.com",
   fullName: "Avery Investor",
+  role: "admin",
   phone: "",
   riskProfile: "balanced",
   minimumConfidence: 70,
@@ -47,6 +50,7 @@ function withoutPassword(customer: StoredCustomer): CustomerProfile {
     id: customer.id,
     email: customer.email,
     fullName: customer.fullName,
+    role: customer.role ?? "customer",
     phone: customer.phone,
     riskProfile: customer.riskProfile,
     minimumConfidence: customer.minimumConfidence,
@@ -59,6 +63,13 @@ function withoutPassword(customer: StoredCustomer): CustomerProfile {
   };
 
   return profile;
+}
+
+function normalizeCustomer(customer: StoredCustomer): StoredCustomer {
+  return {
+    ...customer,
+    role: customer.role ?? (customer.email === demoCustomer.email ? "admin" : "customer"),
+  };
 }
 
 function readCustomers(): StoredCustomer[] {
@@ -76,7 +87,7 @@ function readCustomers(): StoredCustomer[] {
 
   try {
     const customers = JSON.parse(stored) as StoredCustomer[];
-    return customers.length > 0 ? customers : [demoCustomer];
+    return customers.length > 0 ? customers.map(normalizeCustomer) : [demoCustomer];
   } catch {
     window.localStorage.setItem(customersKey, JSON.stringify([demoCustomer]));
     window.localStorage.setItem(currentCustomerKey, demoCustomer.id);
@@ -143,6 +154,7 @@ export function signupCustomer(values: {
     id: crypto.randomUUID(),
     email: normalizedEmail,
     fullName: `${values.firstName.trim()} ${values.lastName.trim()}`.trim(),
+    role: "customer",
     phone: values.phone?.trim() ?? "",
     riskProfile: "balanced",
     minimumConfidence: 70,
@@ -182,6 +194,10 @@ export function updateCurrentCustomer(updates: Partial<CustomerProfile>) {
 export function logoutCustomer() {
   window.localStorage.removeItem(currentCustomerKey);
   window.dispatchEvent(new Event("tradepilot-customer-updated"));
+}
+
+export function isAdminCustomer(customer: CustomerProfile | null | undefined) {
+  return customer?.role === "admin";
 }
 
 export function getCustomerDailyPickLimit(customer: CustomerProfile) {

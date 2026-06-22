@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import type { AgentRunResult } from "@/lib/agent";
 import { resetStoredOpportunities, setStoredOpportunityRows } from "@/lib/opportunity-store";
@@ -92,6 +93,12 @@ export function AdminOperationsPanel() {
           >
             Reset picks
           </button>
+          <Link
+            href="/backtests"
+            className="rounded-md border border-line bg-surface px-4 py-3 text-center text-sm font-bold text-ink transition hover:border-pine"
+          >
+            View backtests
+          </Link>
         </div>
       </div>
 

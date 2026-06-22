@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { BacktestSummary } from "@/lib/backtesting";
+import { getCurrentCustomer, isAdminCustomer } from "@/lib/customer-store";
 
 type BacktestState = "idle" | "loading" | "ready" | "error";
 
@@ -18,15 +19,26 @@ function outcomeLabel(value: string) {
 
 export function BacktestPanel() {
   const [status, setStatus] = useState<BacktestState>("idle");
+  const [adminAllowed, setAdminAllowed] = useState(false);
+  const [checkedAccess, setCheckedAccess] = useState(false);
   const [summary, setSummary] = useState<BacktestSummary | null>(null);
   const [message, setMessage] = useState("Ready to verify recent picks");
 
   async function runBacktest() {
+    if (!isAdminCustomer(getCurrentCustomer())) {
+      setStatus("error");
+      setSummary(null);
+      setMessage("Admin access is required to view backtest results.");
+      return;
+    }
+
     setStatus("loading");
     setMessage("Running rolling verification against historical candles...");
 
     try {
-      const response = await fetch("/api/backtests/rolling?windows=5&intervalDays=21&limit=6");
+      const response = await fetch("/api/backtests/rolling?windows=5&intervalDays=21&limit=6", {
+        headers: { "x-tradepilot-admin": "true" },
+      });
 
       if (!response.ok) {
         const payload = (await response.json().catch(() => ({}))) as { error?: string };
@@ -44,13 +56,38 @@ export function BacktestPanel() {
   }
 
   useEffect(() => {
-    void runBacktest();
+    const customer = getCurrentCustomer();
+    const allowed = isAdminCustomer(customer);
+    setAdminAllowed(allowed);
+    setCheckedAccess(true);
+
+    if (allowed) {
+      void runBacktest();
+    } else {
+      setStatus("error");
+      setMessage("Admin access is required to view backtest results.");
+    }
   }, []);
 
   const recentTrades = useMemo(() => summary?.trades.slice(0, 12) ?? [], [summary]);
 
   return (
     <div className="grid gap-6">
+      {checkedAccess && !adminAllowed ? (
+        <section className="rounded-lg border border-line bg-panel p-6 shadow-soft">
+          <p className="text-sm font-bold uppercase tracking-normal text-coral">
+            Admin only
+          </p>
+          <h1 className="mt-3 text-4xl font-bold text-ink">Backtests are restricted</h1>
+          <p className="mt-3 max-w-3xl text-base leading-7 text-ink/65">
+            Model verification results are internal admin analytics. Customer accounts can
+            still use the dashboard, opportunity details, watchlist, and settings.
+          </p>
+        </section>
+      ) : null}
+
+      {!checkedAccess || !adminAllowed ? null : (
+        <>
       <section className="rounded-lg border border-line bg-panel p-6 shadow-soft">
         <div className="grid gap-5 lg:grid-cols-[1fr_auto] lg:items-start">
           <div>
@@ -206,6 +243,8 @@ export function BacktestPanel() {
           </section>
         </>
       ) : null}
+        </>
+      )}
     </div>
   );
 }

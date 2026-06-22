@@ -15,6 +15,13 @@ function parseNumber(value: string | null, fallback: number, min: number, max: n
 }
 
 export async function GET(request: NextRequest) {
+  if (request.headers.get("x-tradepilot-admin") !== "true") {
+    return NextResponse.json(
+      { error: "Admin access is required to run backtests." },
+      { status: 403 },
+    );
+  }
+
   const windows = parseNumber(request.nextUrl.searchParams.get("windows"), 5, 1, 8);
   const intervalDays = parseNumber(request.nextUrl.searchParams.get("intervalDays"), 21, 7, 45);
   const limitPerWindow = parseNumber(request.nextUrl.searchParams.get("limit"), 6, 1, 12);
