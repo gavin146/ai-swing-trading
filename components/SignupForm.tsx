@@ -39,7 +39,8 @@ export function SignupForm() {
       <div className="mt-8">
         <h1 className="text-3xl font-bold text-ink">Create your account</h1>
         <p className="mt-2 text-sm leading-6 text-ink/60">
-          Create a local demo profile now. Supabase auth can replace this store later.
+          Set up your profile for pre-market stock ideas, email alerts, and
+          beginner-friendly trade explanations.
         </p>
       </div>
 
@@ -75,7 +76,7 @@ export function SignupForm() {
           />
         </label>
         <label className="grid gap-2 text-sm font-bold text-ink sm:col-span-2">
-          Phone for SMS alerts
+          Phone
           <input
             name="phone"
             type="tel"
@@ -101,7 +102,7 @@ export function SignupForm() {
         ) : null}
         <button
           type="submit"
-          className="rounded-md bg-pine px-4 py-3 text-sm font-bold text-white transition hover:bg-ink sm:col-span-2"
+          className="rounded-md bg-pine px-4 py-3 text-sm font-bold text-white hover:bg-ink sm:col-span-2"
         >
           Sign up
         </button>

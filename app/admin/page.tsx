@@ -1,5 +1,6 @@
 import { AdminOpportunityPanel } from "@/components/AdminOpportunityPanel";
 import { AdminOperationsPanel } from "@/components/AdminOperationsPanel";
+import { AdminCustomerPanel } from "@/components/AdminCustomerPanel";
 import { AppHeader } from "@/components/AppHeader";
 
 export default function AdminPage() {
@@ -8,6 +9,7 @@ export default function AdminPage() {
       <AppHeader active="admin" />
       <section className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
         <AdminOperationsPanel />
+        <AdminCustomerPanel />
         <AdminOpportunityPanel />
       </section>
     </main>

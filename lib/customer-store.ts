@@ -18,6 +18,7 @@ export type CustomerProfile = {
   alertChannel: AlertChannel;
   alertTime: string;
   timezone: string;
+  lastLoginAt: string | null;
   createdAt: string;
 };
 
@@ -41,6 +42,7 @@ const demoCustomer: StoredCustomer = {
   alertChannel: "email",
   alertTime: "08:30",
   timezone: "America/Chicago",
+  lastLoginAt: "2026-06-20T13:30:00.000Z",
   createdAt: "2026-06-20T04:00:00.000Z",
   password: "demo1234",
 };
@@ -59,6 +61,7 @@ function withoutPassword(customer: StoredCustomer): CustomerProfile {
     alertChannel: customer.alertChannel,
     alertTime: customer.alertTime,
     timezone: customer.timezone,
+    lastLoginAt: customer.lastLoginAt ?? null,
     createdAt: customer.createdAt,
   };
 
@@ -69,6 +72,7 @@ function normalizeCustomer(customer: StoredCustomer): StoredCustomer {
   return {
     ...customer,
     role: customer.role ?? (customer.email === demoCustomer.email ? "admin" : "customer"),
+    lastLoginAt: customer.lastLoginAt ?? null,
   };
 }
 
@@ -131,6 +135,8 @@ export function loginCustomer(email: string, password: string) {
     throw new Error("No customer matched that email and password.");
   }
 
+  customer.lastLoginAt = new Date().toISOString();
+  writeCustomers(customers);
   window.localStorage.setItem(currentCustomerKey, customer.id);
   window.dispatchEvent(new Event("tradepilot-customer-updated"));
   return withoutPassword(customer);
@@ -163,6 +169,7 @@ export function signupCustomer(values: {
     alertChannel: "email",
     alertTime: "08:30",
     timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    lastLoginAt: new Date().toISOString(),
     createdAt: new Date().toISOString(),
     password: values.password,
   };

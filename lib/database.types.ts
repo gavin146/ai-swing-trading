@@ -98,6 +98,30 @@ export type AlertLogRow = {
   created_at: string;
 };
 
+export type EmailLinkEventRow = {
+  id: string;
+  user_id: string;
+  alert_log_id: string | null;
+  opportunity_id: string | null;
+  symbol: string;
+  tracking_id: string;
+  source: string;
+  user_agent: string | null;
+  clicked_at: string;
+  created_at: string;
+};
+
+export type CustomerMonthlyUsageRow = {
+  id: string;
+  user_id: string;
+  month_start: string;
+  email_link_clicks: number;
+  last_email_click_at: string | null;
+  top_symbols: string[];
+  created_at: string;
+  updated_at: string;
+};
+
 export type WatchlistRow = {
   id: string;
   user_id: string;
@@ -162,6 +186,20 @@ export type AlertLogInsert = Omit<AlertLogRow, "id" | "created_at"> & {
   created_at?: string;
 };
 
+export type EmailLinkEventInsert = Omit<EmailLinkEventRow, "id" | "created_at"> & {
+  id?: string;
+  created_at?: string;
+};
+
+export type CustomerMonthlyUsageInsert = Omit<
+  CustomerMonthlyUsageRow,
+  "id" | "created_at" | "updated_at"
+> & {
+  id?: string;
+  created_at?: string;
+  updated_at?: string;
+};
+
 export type WatchlistInsert = Omit<WatchlistRow, "id" | "created_at"> & {
   id?: string;
   created_at?: string;
@@ -183,6 +221,8 @@ export type AgentRunUpdate = Partial<AgentRunInsert>;
 export type OpportunityRankingUpdate = Partial<OpportunityRankingInsert>;
 export type DailyPickUpdate = Partial<DailyPickInsert>;
 export type AlertLogUpdate = Partial<AlertLogInsert>;
+export type EmailLinkEventUpdate = Partial<EmailLinkEventInsert>;
+export type CustomerMonthlyUsageUpdate = Partial<CustomerMonthlyUsageInsert>;
 export type WatchlistUpdate = Partial<WatchlistInsert>;
 export type WatchlistItemUpdate = Partial<WatchlistItemInsert>;
 export type TradeHistoryUpdate = Partial<TradeHistoryInsert>;
@@ -219,6 +259,16 @@ export type Database = {
         Row: AlertLogRow;
         Insert: AlertLogInsert;
         Update: AlertLogUpdate;
+      };
+      email_link_events: {
+        Row: EmailLinkEventRow;
+        Insert: EmailLinkEventInsert;
+        Update: EmailLinkEventUpdate;
+      };
+      customer_monthly_usage: {
+        Row: CustomerMonthlyUsageRow;
+        Insert: CustomerMonthlyUsageInsert;
+        Update: CustomerMonthlyUsageUpdate;
       };
       watchlists: {
         Row: WatchlistRow;

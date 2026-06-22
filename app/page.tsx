@@ -7,8 +7,8 @@ const featured = opportunities.slice(0, 3);
 export default function LandingPage() {
   return (
     <main>
-      <section className="border-b border-line bg-panel">
-        <div className="mx-auto grid min-h-[86vh] max-w-7xl items-center gap-10 px-4 py-8 sm:px-6 lg:grid-cols-[0.9fr_1.1fr] lg:px-8">
+      <section className="border-b border-line bg-panel/90">
+        <div className="mx-auto grid min-h-[88vh] max-w-7xl items-center gap-10 px-4 py-8 sm:px-6 lg:grid-cols-[0.88fr_1.12fr] lg:px-8">
           <div>
             <Link href="/" className="inline-flex items-center gap-3">
               <span className="grid h-11 w-11 place-items-center rounded-md bg-pine text-sm font-bold text-white">
@@ -17,14 +17,15 @@ export default function LandingPage() {
               <span className="text-lg font-bold text-ink">TradePilot AI</span>
             </Link>
             <p className="mt-10 text-sm font-bold uppercase tracking-normal text-pine">
-              Swing trading intelligence
+              Pre-market swing trading intelligence
             </p>
             <h1 className="mt-4 max-w-3xl text-5xl font-bold leading-[1.02] text-ink sm:text-6xl">
-              TradePilot AI
+              Daily trade ideas without the trading-desk confusion
             </h1>
             <p className="mt-6 max-w-2xl text-lg leading-8 text-ink/70">
-              Discover clear, ranked swing trade opportunities across US stocks,
-              ETFs, and crypto with beginner-friendly risk context.
+              TradePilot AI ranks swing opportunities before the market opens, explains
+              the setup in plain English, and sends customers a direct link to the
+              day&apos;s stock analysis.
             </p>
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
               <Link
@@ -35,18 +36,27 @@ export default function LandingPage() {
               </Link>
               <Link
                 href="/dashboard"
-                className="rounded-md border border-line bg-panel px-5 py-3 text-center text-sm font-bold text-ink transition hover:border-pine"
+                className="rounded-md border border-line bg-panel px-5 py-3 text-center text-sm font-bold text-ink hover:border-pine"
               >
                 View demo dashboard
               </Link>
+            </div>
+            <div className="mt-8 grid gap-3 sm:grid-cols-3">
+              {["8:30 AM ET scan", "Plain-English scores", "Tracked email links"].map((item) => (
+                <div key={item} className="rounded-md border border-line bg-surface px-3 py-2 text-sm font-bold text-ink/75">
+                  {item}
+                </div>
+              ))}
             </div>
           </div>
 
           <div className="rounded-lg border border-line bg-surface p-4 shadow-soft">
             <div className="flex items-center justify-between border-b border-line pb-4">
               <div>
-                <p className="text-sm font-bold text-ink">Today&apos;s top opportunities</p>
-                <p className="mt-1 text-xs font-medium text-ink/55">Mock portfolio scan</p>
+                <p className="text-sm font-bold text-ink">Customer morning dashboard</p>
+                <p className="mt-1 text-xs font-medium text-ink/55">
+                  Ranked, explained, and ready to review
+                </p>
               </div>
               <div className="rounded-md bg-mint px-3 py-2 text-sm font-bold text-pine">
                 30 ranked
@@ -75,6 +85,9 @@ export default function LandingPage() {
                       />
                     </div>
                     <p className="mt-3 text-sm text-ink/65">{opportunity.setup}</p>
+                    <p className="mt-2 text-xs font-semibold text-ink/50">
+                      {opportunity.rankingSummary}
+                    </p>
                   </div>
                   <div className="grid grid-cols-3 gap-2 text-center sm:w-56">
                     <div className="rounded-md bg-mint px-3 py-2">
@@ -108,6 +121,12 @@ export default function LandingPage() {
       </section>
 
       <section className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
+        <div className="mb-6">
+          <p className="text-sm font-bold uppercase tracking-normal text-pine">
+            What customers see
+          </p>
+          <h2 className="mt-3 text-3xl font-bold text-ink">Clear picks, no operator controls</h2>
+        </div>
         <div className="grid gap-5 md:grid-cols-3">
           {featured.map((opportunity, index) => (
             <OpportunityCard

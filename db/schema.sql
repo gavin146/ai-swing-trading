@@ -96,6 +96,31 @@ create table alert_logs (
   created_at timestamptz not null default now()
 );
 
+create table email_link_events (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references users(id) on delete cascade,
+  alert_log_id uuid references alert_logs(id) on delete set null,
+  opportunity_id uuid references opportunities(id) on delete set null,
+  symbol text not null,
+  tracking_id text not null,
+  source text not null default 'morning_email',
+  user_agent text,
+  clicked_at timestamptz not null default now(),
+  created_at timestamptz not null default now()
+);
+
+create table customer_monthly_usage (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references users(id) on delete cascade,
+  month_start date not null,
+  email_link_clicks integer not null default 0 check (email_link_clicks >= 0),
+  last_email_click_at timestamptz,
+  top_symbols text[] not null default '{}',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (user_id, month_start)
+);
+
 create table watchlists (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references users(id) on delete cascade,
@@ -142,6 +167,9 @@ create index opportunity_rankings_rank_idx on opportunity_rankings(rank);
 create index daily_picks_user_date_idx on daily_picks(user_id, pick_date desc);
 create index alert_logs_user_id_idx on alert_logs(user_id);
 create index alert_logs_status_idx on alert_logs(status);
+create index email_link_events_user_clicked_idx on email_link_events(user_id, clicked_at desc);
+create index email_link_events_tracking_id_idx on email_link_events(tracking_id);
+create index customer_monthly_usage_user_month_idx on customer_monthly_usage(user_id, month_start desc);
 create index watchlists_user_id_idx on watchlists(user_id);
 create index watchlist_items_watchlist_id_idx on watchlist_items(watchlist_id);
 create index trade_history_user_id_idx on trade_history(user_id);

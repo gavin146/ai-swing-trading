@@ -33,8 +33,13 @@ export function LoginForm() {
       <div className="mt-8">
         <h1 className="text-3xl font-bold text-ink">Welcome back</h1>
         <p className="mt-2 text-sm leading-6 text-ink/60">
-          Demo login: `avery@example.com` with password `demo1234`.
+          Sign in to review today&apos;s ranked opportunities, saved preferences, and
+          morning email settings.
         </p>
+      </div>
+
+      <div className="mt-5 rounded-md bg-sky px-3 py-2 text-sm font-semibold text-ink">
+        Demo access: avery@example.com / demo1234
       </div>
 
       <form onSubmit={handleSubmit} className="mt-8 grid gap-4">
@@ -63,7 +68,7 @@ export function LoginForm() {
         ) : null}
         <button
           type="submit"
-          className="mt-2 rounded-md bg-pine px-4 py-3 text-sm font-bold text-white transition hover:bg-ink"
+          className="mt-2 rounded-md bg-pine px-4 py-3 text-sm font-bold text-white hover:bg-ink"
         >
           Log in
         </button>

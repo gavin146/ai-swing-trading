@@ -11,12 +11,19 @@ function getAppUrl() {
   return url.replace(/\/$/, "");
 }
 
-function getAnalysisUrl(symbol: string) {
-  return `${getAppUrl()}/opportunities/${encodeURIComponent(symbol)}`;
+function getAnalysisUrl(symbol: string, customerId = "demo-customer") {
+  const trackingId = `${customerId}-${symbol}-${new Date().toISOString().slice(0, 10)}`;
+  const params = new URLSearchParams({
+    symbol,
+    customerId,
+  });
+
+  return `${getAppUrl()}/e/${encodeURIComponent(trackingId)}?${params.toString()}`;
 }
 
 export function buildMorningAlertMessage(args: {
   customerName: string;
+  customerId?: string;
   marketRegime: string;
   opportunities: OpportunityRow[];
 }) {
@@ -24,7 +31,7 @@ export function buildMorningAlertMessage(args: {
   const picks = top
     .map(
       (item, index) =>
-        `${index + 1}. ${item.symbol} score ${item.score}, confidence ${item.confidence}, entry $${item.entry_low}-${item.entry_high}, target $${item.target_price}, stop $${item.stop_loss}. Analysis: ${getAnalysisUrl(item.symbol)}`,
+        `${index + 1}. ${item.symbol} score ${item.score}, confidence ${item.confidence}, entry $${item.entry_low}-${item.entry_high}, target $${item.target_price}, stop $${item.stop_loss}. Analysis: ${getAnalysisUrl(item.symbol, args.customerId)}`,
     )
     .join(" | ");
 
@@ -33,6 +40,7 @@ export function buildMorningAlertMessage(args: {
 
 export function buildMorningEmailAlert(args: {
   customerName: string;
+  customerId?: string;
   marketRegime: string;
   opportunities: OpportunityRow[];
 }) {
@@ -41,7 +49,7 @@ export function buildMorningEmailAlert(args: {
     .map(
       (item) => `
         <tr>
-          <td style="padding:12px;border-bottom:1px solid #e6ece8;font-weight:700;"><a href="${getAnalysisUrl(item.symbol)}" style="color:#183f36;">${item.symbol}</a></td>
+          <td style="padding:12px;border-bottom:1px solid #e6ece8;font-weight:700;"><a href="${getAnalysisUrl(item.symbol, args.customerId)}" style="color:#183f36;">${item.symbol}</a></td>
           <td style="padding:12px;border-bottom:1px solid #e6ece8;">${item.score}</td>
           <td style="padding:12px;border-bottom:1px solid #e6ece8;">${item.confidence}</td>
           <td style="padding:12px;border-bottom:1px solid #e6ece8;">${item.risk_score}</td>
@@ -54,7 +62,7 @@ export function buildMorningEmailAlert(args: {
   const textPicks = top
     .map(
       (item, index) =>
-        `${index + 1}. ${item.symbol}: score ${item.score}, confidence ${item.confidence}, risk ${item.risk_score}, entry $${item.entry_low}-${item.entry_high}, target $${item.target_price}, stop $${item.stop_loss}. Analysis: ${getAnalysisUrl(item.symbol)}`,
+        `${index + 1}. ${item.symbol}: score ${item.score}, confidence ${item.confidence}, risk ${item.risk_score}, entry $${item.entry_low}-${item.entry_high}, target $${item.target_price}, stop $${item.stop_loss}. Analysis: ${getAnalysisUrl(item.symbol, args.customerId)}`,
     )
     .join("\n");
 
