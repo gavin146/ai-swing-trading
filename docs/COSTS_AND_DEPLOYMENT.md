@@ -2,7 +2,7 @@
 
 ## Current State
 
-The app supports mock-provider mode and an FMP-backed live-data mode. Mock mode runs the daily ranking agent with deterministic sample data, local customer profiles, local daily picks, and a Twilio-ready alert endpoint. FMP mode calls Financial Modeling Prep when `FMP_API_KEY` is configured and the agent source is set to `fmp`.
+The app supports mock-provider mode and an FMP-backed live-data mode. Mock mode runs the daily ranking agent with deterministic sample data, local customer profiles, local daily picks, and email/SMS-ready alert endpoints. FMP mode calls Financial Modeling Prep when `FMP_API_KEY` is configured and the agent source is set to `fmp`.
 
 ## Low-Cost Agent Strategy
 
@@ -12,7 +12,7 @@ The app supports mock-provider mode and an FMP-backed live-data mode. Mock mode 
 4. Cache the daily agent run once per market day.
 5. Reuse the same ranked opportunity set for all customers.
 6. Personalize customer dashboards with filters, not another expensive agent run.
-7. Send concise SMS alerts with only top 3 picks.
+7. Send concise email alerts first, with SMS reserved for a later paid opt-in channel.
 
 ## Estimated Daily Variable Cost
 
@@ -31,7 +31,7 @@ With 30 selected stocks and one SMS customer, the estimate is roughly:
 - Twilio US SMS: about $0.0083 per customer alert segment.
 - Total: about $0.1028 for the shared daily run plus one customer SMS.
 
-The expensive part at customer scale is SMS, not the analysis, as long as the analysis is cached once per day.
+The expensive part at customer scale is SMS, not the analysis, as long as the analysis is cached once per day. Email should be the first alert channel because it is cheaper and has a lighter compliance burden than SMS.
 
 ## Pricing Sources To Recheck Before Production
 

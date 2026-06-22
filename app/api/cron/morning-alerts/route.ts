@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { buildMorningAlertMessage } from "@/lib/alerts";
-import { runDailyRankingAgent } from "@/lib/agent";
+import { buildMorningAlertMessage, buildMorningEmailAlert } from "@/lib/alerts";
+import { runDailyRankingAgent, runFmpDailyRankingAgent } from "@/lib/agent";
+import { sendEmail } from "@/lib/email";
 import { sendTwilioSms } from "@/lib/twilio";
 
 export const dynamic = "force-dynamic";
@@ -21,31 +22,67 @@ async function runMorningAlerts(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const email = process.env.ALERT_TEST_EMAIL;
   const phone = process.env.ALERT_TEST_PHONE;
   const customerName = process.env.ALERT_TEST_CUSTOMER_NAME ?? "Demo Investor";
-  const result = runDailyRankingAgent({ limit: 30 });
-  const message = buildMorningAlertMessage({
-    customerName,
-    marketRegime: result.marketRegime,
-    opportunities: result.opportunities,
-  });
+  const result =
+    process.env.AGENT_DATA_SOURCE === "fmp"
+      ? await runFmpDailyRankingAgent({ limit: 30 })
+      : runDailyRankingAgent({ limit: 30 });
+  const deliveries = [];
 
-  if (!phone) {
-    return NextResponse.json({
-      sent: 0,
-      mode: "preview",
-      message,
-      note:
-        "Set ALERT_TEST_PHONE for scheduled demo SMS. Supabase customer lookup will replace this env recipient in production.",
+  if (email) {
+    const emailAlert = buildMorningEmailAlert({
+      customerName,
+      marketRegime: result.marketRegime,
+      opportunities: result.opportunities,
+    });
+    const delivery = await sendEmail({
+      to: email,
+      ...emailAlert,
+    });
+
+    deliveries.push({
+      channel: "email",
+      delivery,
+      preview: emailAlert,
     });
   }
 
-  const delivery = await sendTwilioSms(phone, message);
+  if (phone) {
+    const message = buildMorningAlertMessage({
+      customerName,
+      marketRegime: result.marketRegime,
+      opportunities: result.opportunities,
+    });
+    const delivery = await sendTwilioSms(phone, message);
+
+    deliveries.push({
+      channel: "sms",
+      delivery,
+      message,
+    });
+  }
+
+  if (deliveries.length === 0) {
+    const emailAlert = buildMorningEmailAlert({
+      customerName,
+      marketRegime: result.marketRegime,
+      opportunities: result.opportunities,
+    });
+
+    return NextResponse.json({
+      sent: 0,
+      mode: "preview",
+      email: emailAlert,
+      note:
+        "Set ALERT_TEST_EMAIL for scheduled demo email. ALERT_TEST_PHONE is still supported for later SMS testing.",
+    });
+  }
 
   return NextResponse.json({
-    sent: delivery.status === "failed" ? 0 : 1,
-    delivery,
-    message,
+    sent: deliveries.filter((item) => item.delivery.status !== "failed").length,
+    deliveries,
   });
 }
 
