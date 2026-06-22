@@ -274,6 +274,7 @@ Current live-data support:
 - Direct SEC EDGAR submissions fallback
 - FRED rates, inflation, unemployment, yield curve, and broad-market trend data
 - BLS CPI, unemployment, hourly earnings, and supplemental labor/consumer data
+- U.S. Treasury Fiscal Data exchange-rate pressure
 
 Still needs to be connected:
 

@@ -17,6 +17,7 @@ import {
 import { getBlsMacroContext, type BlsMacroContext } from "@/lib/providers/bls";
 import { getFredMacroContext, type FredMacroContext } from "@/lib/providers/fred";
 import { getSecSubmissionsByCik } from "@/lib/providers/sec-edgar";
+import { getTreasuryMacroContext, type TreasuryMacroContext } from "@/lib/providers/treasury";
 import { getMockEquityUniverse } from "./mock-equity-universe";
 import { rankEquityCandidates } from "./ranking-agent";
 import type { AgentRunResult, CompanyFinancialSnapshot, EquityCandidate, Sector } from "./types";
@@ -81,6 +82,7 @@ type CandidateBuildResult = {
 
 type CombinedMacroContext = FredMacroContext & {
   bls: BlsMacroContext;
+  treasury: TreasuryMacroContext;
 };
 
 function clamp(value: number, min = 0, max = 100) {
@@ -466,21 +468,29 @@ async function optionalValue<T>(promise: Promise<T | null>) {
   return promise.catch(() => null);
 }
 
-function combineMacroContexts(fred: FredMacroContext, bls: BlsMacroContext) {
+function combineMacroContexts(
+  fred: FredMacroContext,
+  bls: BlsMacroContext,
+  treasury: TreasuryMacroContext,
+) {
   const economicSurpriseScore = clamp(
-    fred.economicSurpriseScore + bls.economicSurpriseAdjustment,
+    fred.economicSurpriseScore +
+      bls.economicSurpriseAdjustment +
+      treasury.economicSurpriseAdjustment,
     20,
     90,
   );
   const ratesPressureScore = clamp(
-    fred.ratesPressureScore + bls.ratesPressureAdjustment,
+    fred.ratesPressureScore + bls.ratesPressureAdjustment + treasury.ratesPressureAdjustment,
     20,
     95,
   );
   const marketRegimeScore = clamp(
     fred.marketRegimeScore +
       bls.economicSurpriseAdjustment * 0.28 -
-      bls.ratesPressureAdjustment * 0.22,
+      bls.ratesPressureAdjustment * 0.22 +
+      treasury.economicSurpriseAdjustment * 0.18 -
+      treasury.ratesPressureAdjustment * 0.16,
     20,
     90,
   );
@@ -488,12 +498,13 @@ function combineMacroContexts(fred: FredMacroContext, bls: BlsMacroContext) {
   return {
     ...fred,
     bls,
-    isLive: fred.isLive || bls.isLive,
+    treasury,
+    isLive: fred.isLive || bls.isLive || treasury.isLive,
     marketRegimeScore: Math.round(marketRegimeScore),
     economicSurpriseScore: Math.round(economicSurpriseScore),
     ratesPressureScore: Math.round(ratesPressureScore),
-    summary: `${fred.summary} ${bls.summary}`,
-    notes: [...fred.notes, ...bls.notes],
+    summary: `${fred.summary} ${bls.summary} ${treasury.summary}`,
+    notes: [...fred.notes, ...bls.notes, ...treasury.notes],
   } satisfies CombinedMacroContext;
 }
 
@@ -668,7 +679,8 @@ export async function runFmpDailyRankingAgent({
 }: RunFmpOptions = {}): Promise<AgentRunResult> {
   const macro = await getFredMacroContext();
   const bls = await getBlsMacroContext();
-  const combinedMacro = combineMacroContexts(macro, bls);
+  const treasury = await getTreasuryMacroContext();
+  const combinedMacro = combineMacroContexts(macro, bls, treasury);
   const universeResult = await getFmpEquityUniverse(asOf, combinedMacro, symbols);
   const universe = universeResult.candidates;
   const skippedCount = symbols.length - universe.length;

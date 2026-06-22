@@ -5,7 +5,7 @@ The daily agent ranks stocks with a weighted scoring system. It now supports moc
 ## Data Modes
 
 - Mock mode uses a deterministic sample universe and does not call paid APIs.
-- FMP mode uses Financial Modeling Prep daily candles, company profiles, income statements, ratios, key metrics, stock news, earnings data, and SEC filing metadata where available. Direct SEC EDGAR submissions are used as a free fallback when a company CIK is available and FMP filings are missing. When `FRED_API_KEY` is configured, it also uses FRED rates, inflation, unemployment, yield-curve, and broad-market trend data. It also calls the BLS public API for CPI, unemployment, hourly earnings, and supplemental labor/consumer series.
+- FMP mode uses Financial Modeling Prep daily candles, company profiles, income statements, ratios, key metrics, stock news, earnings data, and SEC filing metadata where available. Direct SEC EDGAR submissions are used as a free fallback when a company CIK is available and FMP filings are missing. When `FRED_API_KEY` is configured, it also uses FRED rates, inflation, unemployment, yield-curve, and broad-market trend data. It also calls the BLS public API for CPI, unemployment, hourly earnings, and supplemental labor/consumer series. U.S. Treasury Fiscal Data is used for keyless exchange-rate pressure signals.
 
 Run FMP mode locally with `FMP_API_KEY=your_key npm run dev`, then open `/agent` and click `Run FMP live`, or call `/api/agent/daily-rankings?source=fmp`.
 
