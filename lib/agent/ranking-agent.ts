@@ -181,8 +181,14 @@ function buildOpportunity(
   const { technical } = candidate;
   const entryLow = Math.max(technical.support * 1.005, technical.price * 0.985);
   const entryHigh = technical.price * 1.012;
-  const targetPrice = Math.min(technical.resistance * 0.99, entryLow * 1.18);
-  const stopLoss = technical.support * 0.985;
+  const stopRiskPct = clamp(technical.atrPercent * 1.35, 4, 12) / 100;
+  const technicalStop = entryLow * (1 - stopRiskPct);
+  const structuralStop = technical.support * 0.985;
+  const stopLoss = Math.max(structuralStop, technicalStop);
+  const riskDollars = Math.max(entryLow - stopLoss, entryLow * 0.035);
+  const resistanceTarget = technical.resistance * 0.99;
+  const minimumRewardTarget = entryLow + riskDollars * 1.6;
+  const targetPrice = Math.min(Math.max(resistanceTarget, minimumRewardTarget), entryLow * 1.18);
   const expectedGain = ((targetPrice - entryLow) / entryLow) * 100;
   const expectedLoss = ((entryLow - stopLoss) / entryLow) * 100;
   const holdingPeriodDays = Math.round(clamp(8 + (scores.risk / 100) * 18, 8, 28));

@@ -2,7 +2,7 @@ import Link from "next/link";
 import { CustomerStatus } from "./CustomerStatus";
 
 type AppHeaderProps = {
-  active?: "admin" | "agent" | "dashboard" | "settings" | "themes";
+  active?: "admin" | "agent" | "backtests" | "dashboard" | "settings" | "themes";
 };
 
 export function AppHeader({ active }: AppHeaderProps) {
@@ -45,6 +45,14 @@ export function AppHeader({ active }: AppHeaderProps) {
             }`}
           >
             Agent
+          </Link>
+          <Link
+            href="/backtests"
+            className={`rounded-md px-3 py-2 transition hover:bg-mint hover:text-ink ${
+              active === "backtests" ? "bg-mint text-ink" : ""
+            }`}
+          >
+            Backtests
           </Link>
           <Link
             href="/themes"
