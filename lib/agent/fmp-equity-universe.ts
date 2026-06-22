@@ -16,6 +16,7 @@ import {
 } from "@/lib/providers/fmp";
 import { getBlsMacroContext, type BlsMacroContext } from "@/lib/providers/bls";
 import { getFredMacroContext, type FredMacroContext } from "@/lib/providers/fred";
+import { getSecSubmissionsByCik } from "@/lib/providers/sec-edgar";
 import { getMockEquityUniverse } from "./mock-equity-universe";
 import { rankEquityCandidates } from "./ranking-agent";
 import type { AgentRunResult, CompanyFinancialSnapshot, EquityCandidate, Sector } from "./types";
@@ -457,6 +458,14 @@ async function mapWithConcurrency<T, R>(
   return results;
 }
 
+async function optionalArray<T>(promise: Promise<T[]>) {
+  return promise.catch(() => [] as T[]);
+}
+
+async function optionalValue<T>(promise: Promise<T | null>) {
+  return promise.catch(() => null);
+}
+
 function combineMacroContexts(fred: FredMacroContext, bls: BlsMacroContext) {
   const economicSurpriseScore = clamp(
     fred.economicSurpriseScore + bls.economicSurpriseAdjustment,
@@ -510,25 +519,20 @@ async function buildFmpCandidate(
   const secFrom = daysAgo(asOf, 45);
   const earningsTo = daysAhead(asOf, 90);
 
-  const [
-    candles,
-    profile,
-    incomeStatements,
-    ratios,
-    keyMetrics,
-    news,
-    earnings,
-    secFilings,
-  ] = await Promise.all([
+  const [candles, profile, incomeStatements, ratios, keyMetrics, news, earnings, secFilings] =
+    await Promise.all([
     getFmpHistoricalCandles(symbol, from, to),
-    getFmpCompanyProfile(symbol),
-    getFmpIncomeStatements(symbol, 4),
-    getFmpRatiosTtm(symbol),
-    getFmpKeyMetricsTtm(symbol),
-    getFmpStockNews(symbol, 10),
-    getFmpEarnings(symbol, 8),
-    getFmpSecFilingsBySymbol(symbol, secFrom, earningsTo, 12),
+    optionalValue(getFmpCompanyProfile(symbol)),
+    optionalArray(getFmpIncomeStatements(symbol, 4)),
+    optionalValue(getFmpRatiosTtm(symbol)),
+    optionalValue(getFmpKeyMetricsTtm(symbol)),
+    optionalArray(getFmpStockNews(symbol, 10)),
+    optionalArray(getFmpEarnings(symbol, 8)),
+    optionalArray(getFmpSecFilingsBySymbol(symbol, secFrom, earningsTo, 12)),
   ]);
+  const directSecFilings =
+    secFilings.length > 0 ? [] : await optionalArray(getSecSubmissionsByCik(profile?.cik));
+  const allSecFilings = secFilings.length > 0 ? secFilings : directSecFilings;
   const technical = buildTechnicalSnapshot(candles);
 
   if (!technical) {
@@ -551,7 +555,7 @@ async function buildFmpCandidate(
     asOf,
     news,
     earnings,
-    filings: secFilings,
+    filings: allSecFilings,
   });
 
   return {
@@ -699,7 +703,7 @@ export async function runFmpDailyRankingAgent({
         `${liveFinancialCount} of ${universe.length} ranked symbols used live FMP fundamental data in this run.`,
         `${liveNewsCount} of ${universe.length} ranked symbols used live FMP stock news for catalyst scoring.`,
         `${liveEventCount} of ${universe.length} ranked symbols used live FMP earnings/corporate event data.`,
-        `${liveSecCount} of ${universe.length} ranked symbols used live FMP SEC filing checks.`,
+        `${liveSecCount} of ${universe.length} ranked symbols used live SEC filing checks from FMP or direct SEC EDGAR fallback.`,
         combinedMacro.isLive
           ? "Live government macro data is connected through FRED and/or BLS."
           : "Government macro data fell back to a neutral placeholder for this run.",

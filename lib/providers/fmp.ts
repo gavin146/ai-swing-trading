@@ -10,6 +10,7 @@ export type FmpHistoricalCandle = {
 
 export type FmpCompanyProfile = {
   symbol?: string;
+  cik?: string;
   companyName?: string;
   companyNameLong?: string;
   price?: number;

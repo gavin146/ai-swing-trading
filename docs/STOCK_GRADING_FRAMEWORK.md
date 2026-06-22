@@ -271,12 +271,12 @@ Current live-data support:
 - FMP stock news
 - FMP earnings and corporate event data
 - FMP SEC filing metadata
+- Direct SEC EDGAR submissions fallback
 - FRED rates, inflation, unemployment, yield curve, and broad-market trend data
 - BLS CPI, unemployment, hourly earnings, and supplemental labor/consumer data
 
 Still needs to be connected:
 
-- Direct SEC EDGAR submissions fallback
 - Press releases, if the data plan is upgraded for that endpoint
 - Market breadth data
 - Backtesting
