@@ -78,7 +78,7 @@ export function AdminCustomerPanel() {
         </div>
       </div>
 
-      <div className="mt-6 w-full overflow-x-auto">
+      <div className="mt-6 w-full max-w-full overflow-x-auto">
         <table className="w-full min-w-[980px] border-collapse text-left text-sm">
           <thead>
             <tr className="border-b border-line text-xs uppercase tracking-normal text-ink/55">

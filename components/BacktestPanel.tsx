@@ -72,9 +72,9 @@ export function BacktestPanel() {
   const recentTrades = useMemo(() => summary?.trades.slice(0, 12) ?? [], [summary]);
 
   return (
-    <div className="grid gap-6">
+    <div className="grid min-w-0 gap-6">
       {checkedAccess && !adminAllowed ? (
-        <section className="rounded-lg border border-line bg-panel p-6 shadow-soft">
+        <section className="min-w-0 rounded-xl border border-line bg-panel p-6 shadow-soft">
           <p className="text-sm font-bold uppercase tracking-normal text-coral">
             Admin only
           </p>
@@ -88,7 +88,7 @@ export function BacktestPanel() {
 
       {!checkedAccess || !adminAllowed ? null : (
         <>
-      <section className="rounded-lg border border-line bg-panel p-6 shadow-soft">
+      <section className="min-w-0 rounded-xl border border-line bg-panel p-6 shadow-soft">
         <div className="grid gap-5 lg:grid-cols-[1fr_auto] lg:items-start">
           <div>
             <p className="text-sm font-bold uppercase tracking-normal text-pine">
@@ -119,7 +119,7 @@ export function BacktestPanel() {
 
       {summary ? (
         <>
-          <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+          <section className="grid min-w-0 gap-3 sm:grid-cols-2 lg:grid-cols-5">
             <div className="rounded-lg border border-line bg-panel p-5 shadow-soft">
               <p className="text-xs font-bold uppercase tracking-normal text-ink/55">
                 Target hit rate
@@ -156,9 +156,9 @@ export function BacktestPanel() {
             </div>
           </section>
 
-          <section className="rounded-lg border border-line bg-panel p-6 shadow-soft">
+          <section className="min-w-0 rounded-xl border border-line bg-panel p-6 shadow-soft">
             <h2 className="text-2xl font-bold text-ink">Score bands</h2>
-            <div className="mt-5 w-full overflow-x-auto">
+            <div className="mt-5 w-full max-w-full overflow-x-auto">
               <table className="w-full min-w-[720px] border-collapse text-left text-sm">
                 <thead>
                   <tr className="border-b border-line text-xs uppercase tracking-normal text-ink/55">
@@ -186,7 +186,7 @@ export function BacktestPanel() {
             </div>
           </section>
 
-          <section className="rounded-lg border border-line bg-panel p-6 shadow-soft">
+          <section className="min-w-0 rounded-xl border border-line bg-panel p-6 shadow-soft">
             <div className="grid gap-5 lg:grid-cols-[0.8fr_1.2fr] lg:items-start">
               <div>
                 <p className="text-sm font-bold uppercase tracking-normal text-pine">
@@ -218,9 +218,9 @@ export function BacktestPanel() {
             </div>
           </section>
 
-          <section className="rounded-lg border border-line bg-panel p-6 shadow-soft">
+          <section className="min-w-0 rounded-xl border border-line bg-panel p-6 shadow-soft">
             <h2 className="text-2xl font-bold text-ink">Recent simulated trades</h2>
-            <div className="mt-5 w-full overflow-x-auto">
+            <div className="mt-5 w-full max-w-full overflow-x-auto">
               <table className="w-full min-w-[980px] border-collapse text-left text-sm">
                 <thead>
                   <tr className="border-b border-line text-xs uppercase tracking-normal text-ink/55">
@@ -265,7 +265,7 @@ export function BacktestPanel() {
             </div>
           </section>
 
-          <section className="rounded-lg border border-line bg-panel p-6 shadow-soft">
+          <section className="min-w-0 rounded-xl border border-line bg-panel p-6 shadow-soft">
             <h2 className="text-2xl font-bold text-ink">Method notes</h2>
             <ul className="mt-4 grid gap-2 text-sm leading-6 text-ink/65">
               {summary.notes.map((note) => (
