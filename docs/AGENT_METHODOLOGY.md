@@ -39,7 +39,7 @@ Confidence is based on agreement across the major categories plus a risk adjustm
 
 ## Cost Control
 
-The production plan is to use deterministic scoring for all structured inputs and reserve AI calls for final summaries. This keeps the expensive model work small and predictable.
+The production plan is to use deterministic scoring for all structured inputs and reserve AI calls for final summaries and beginner-friendly explanations. OpenAI is not used to calculate raw scores. This keeps the expensive model work small and predictable.
 
 ## Current Limitations
 

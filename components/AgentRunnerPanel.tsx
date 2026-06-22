@@ -6,6 +6,12 @@ import { setStoredOpportunityRows } from "@/lib/opportunity-store";
 
 type RunState = "idle" | "loading" | "ready" | "error";
 type AgentSource = "mock" | "fmp";
+type ExplanationState = {
+  status: "idle" | "loading" | "ready" | "error";
+  symbol: string | null;
+  text: string | null;
+  message: string | null;
+};
 
 function formatDate(value: string) {
   return new Intl.DateTimeFormat("en-US", {
@@ -19,6 +25,12 @@ export function AgentRunnerPanel() {
   const [result, setResult] = useState<AgentRunResult | null>(null);
   const [message, setMessage] = useState("Ready to run");
   const [source, setSource] = useState<AgentSource>("mock");
+  const [explanation, setExplanation] = useState<ExplanationState>({
+    status: "idle",
+    symbol: null,
+    text: null,
+    message: null,
+  });
 
   async function runAgent(method: "GET" | "POST" = "POST", nextSource: AgentSource = source) {
     setStatus("loading");
@@ -47,6 +59,12 @@ export function AgentRunnerPanel() {
 
       const nextResult = (await response.json()) as AgentRunResult;
       setResult(nextResult);
+      setExplanation({
+        status: "idle",
+        symbol: null,
+        text: null,
+        message: null,
+      });
       setStatus("ready");
       setMessage(
         nextResult.dataSource === "fmp"
@@ -71,6 +89,57 @@ export function AgentRunnerPanel() {
 
     setStoredOpportunityRows(result.opportunities);
     setMessage("Applied top 30 to the dashboard mock store");
+  }
+
+  async function generateExplanation(symbol = result?.rankings[0]?.candidate.symbol) {
+    if (!symbol || !result) return;
+
+    setExplanation({
+      status: "loading",
+      symbol,
+      text: null,
+      message: "Generating AI explanation...",
+    });
+
+    try {
+      const response = await fetch("/api/agent/explain", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          symbol,
+          source: result.dataSource,
+        }),
+      });
+
+      if (!response.ok) {
+        const payload = (await response.json().catch(() => ({}))) as { error?: string };
+        throw new Error(payload.error ?? "AI explanation failed");
+      }
+
+      const payload = (await response.json()) as {
+        explanation: string;
+        mode: string;
+        error?: string | null;
+      };
+
+      setExplanation({
+        status: payload.mode === "openai" ? "ready" : "error",
+        symbol,
+        text: payload.explanation,
+        message:
+          payload.mode === "openai"
+            ? "Generated with OpenAI"
+            : payload.error ?? "OpenAI fallback explanation",
+      });
+    } catch (error) {
+      setExplanation({
+        status: "error",
+        symbol,
+        text: null,
+        message:
+          error instanceof Error ? error.message : "The AI explanation could not be generated.",
+      });
+    }
   }
 
   return (
@@ -113,6 +182,14 @@ export function AgentRunnerPanel() {
               disabled={!result}
             >
               Apply top 30
+            </button>
+            <button
+              type="button"
+              onClick={() => void generateExplanation()}
+              className="rounded-md border border-line bg-surface px-4 py-3 text-sm font-bold text-ink transition hover:border-pine disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={!result || explanation.status === "loading"}
+            >
+              Explain top pick
             </button>
           </div>
         </div>
@@ -288,6 +365,29 @@ export function AgentRunnerPanel() {
               </tbody>
             </table>
           </div>
+        </section>
+      ) : null}
+
+      {result && explanation.status !== "idle" ? (
+        <section className="min-w-0 rounded-lg border border-line bg-panel p-6 shadow-soft">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <p className="text-sm font-bold uppercase tracking-normal text-pine">
+                AI explanation
+              </p>
+              <h2 className="mt-3 text-2xl font-bold text-ink">
+                {explanation.symbol ?? "Top pick"}
+              </h2>
+            </div>
+            <p className="text-sm font-semibold text-ink/55">{explanation.message}</p>
+          </div>
+          {explanation.text ? (
+            <p className="mt-4 max-w-4xl leading-7 text-ink/70">{explanation.text}</p>
+          ) : (
+            <p className="mt-4 max-w-4xl leading-7 text-ink/60">
+              {explanation.message ?? "Waiting for explanation."}
+            </p>
+          )}
         </section>
       ) : null}
 

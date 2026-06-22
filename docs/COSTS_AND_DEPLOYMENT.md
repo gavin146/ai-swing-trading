@@ -13,6 +13,7 @@ The app supports mock-provider mode and an FMP-backed live-data mode. Mock mode 
 5. Reuse the same ranked opportunity set for all customers.
 6. Personalize customer dashboards with filters, not another expensive agent run.
 7. Send concise email alerts first, with SMS reserved for a later paid opt-in channel.
+8. Use OpenAI only for final explanations and summaries, not score calculation.
 
 ## Estimated Daily Variable Cost
 
