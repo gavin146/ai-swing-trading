@@ -1,4 +1,5 @@
 import {
+  getFmpCompanyScreener,
   getFmpCompanyProfile,
   getFmpEarnings,
   getFmpHistoricalCandles,
@@ -7,6 +8,7 @@ import {
   getFmpRatiosTtm,
   getFmpSecFilingsBySymbol,
   getFmpStockNews,
+  type FmpCompanyScreenerRow,
   type FmpEarningsEvent,
   hasFmpCredentials,
   type FmpHistoricalCandle,
@@ -22,7 +24,7 @@ import { getMockEquityUniverse } from "./mock-equity-universe";
 import { rankEquityCandidates } from "./ranking-agent";
 import type { AgentRunResult, CompanyFinancialSnapshot, EquityCandidate, Sector } from "./types";
 
-const defaultSymbols = [
+const starterSymbols = [
   "NVDA",
   "MSFT",
   "AAPL",
@@ -69,6 +71,8 @@ type RunFmpOptions = {
   asOf?: Date;
   limit?: number;
   symbols?: string[];
+  universeLimit?: number;
+  detailedLimit?: number;
 };
 
 type CandidateBuildResult = {
@@ -116,6 +120,16 @@ function average(values: number[]) {
   return values.reduce((total, value) => total + value, 0) / values.length;
 }
 
+function envNumber(name: string, fallback: number, min: number, max: number) {
+  const parsed = Number(process.env[name]);
+
+  if (!Number.isFinite(parsed)) {
+    return fallback;
+  }
+
+  return Math.max(min, Math.min(max, Math.round(parsed)));
+}
+
 function percentChange(current: number, previous: number) {
   if (!Number.isFinite(current) || !Number.isFinite(previous) || previous === 0) {
     return 0;
@@ -153,6 +167,65 @@ function mapSector(value: string | undefined): Sector {
   if (normalized.includes("utilit")) return "Utilities";
 
   return "Information Technology";
+}
+
+function buildNeutralFallbackCandidate(
+  symbol: string,
+  asOf: Date,
+  row?: FmpCompanyScreenerRow,
+): EquityCandidate {
+  const price = Number.isFinite(row?.price) && row?.price ? Number(row.price) : 100;
+  const marketCapBillions =
+    Number.isFinite(row?.marketCap) && row?.marketCap
+      ? Number(row.marketCap) / 1_000_000_000
+      : 5;
+  const averageVolume =
+    Number.isFinite(row?.volume) && row?.volume ? Number(row.volume) : 1_000_000;
+  const sector = mapSector(row?.sector);
+
+  return {
+    symbol,
+    companyName: row?.companyName ?? symbol,
+    sector,
+    averageVolume,
+    marketCapBillions,
+    technical: {
+      price: round(price, 2),
+      sma20: round(price, 2),
+      sma50: round(price * 0.99, 2),
+      sma200: round(price * 0.96, 2),
+      rsi14: 50,
+      atrPercent: 4,
+      relativeStrength90d: 50,
+      support: round(price * 0.94, 2),
+      resistance: round(price * 1.1, 2),
+      volumeTrend: 0,
+    },
+    financials: {
+      revenueGrowth: 8,
+      earningsGrowth: 8,
+      freeCashFlowYield: 3,
+      debtToEquity: 1,
+      marginTrend: 0,
+      revisionScore: 55,
+      valuationScore: 55,
+    },
+    news: {
+      sentimentScore: 55,
+      catalystScore: 52,
+      headlineCount: 0,
+      riskFlagCount: 0,
+      summary: `${symbol} was discovered through the FMP broad market screener.`,
+    },
+    market: {
+      marketRegimeScore: 55,
+      sectorTrendScore: 55,
+      economicSurpriseScore: 55,
+      ratesPressureScore: 55,
+      breadthScore: 55,
+      govDataSummary: `Neutral fallback created ${asOf.toISOString().slice(0, 10)} until live market context is applied.`,
+    },
+  };
 }
 
 function sectorMacroBias(sector: Sector) {
@@ -607,18 +680,96 @@ function buildFallbackCandidate(fallback: EquityCandidate, macro: CombinedMacroC
   } satisfies EquityCandidate;
 }
 
+function rankScreenerRows(rows: FmpCompanyScreenerRow[]) {
+  const seenCompanyKeys = new Set<string>();
+  const excludedNameTerms = [
+    " etf",
+    " fund",
+    " trust",
+    " acquisition",
+    " spac",
+    " warrant",
+    " unit",
+    " notes",
+  ];
+
+  return [...rows]
+    .filter((row) => {
+      const symbol = row.symbol?.toUpperCase() ?? "";
+      const name = row.companyName?.toLowerCase() ?? "";
+      const exchange = row.exchangeShortName?.toUpperCase() ?? row.exchange?.toUpperCase() ?? "";
+
+      return (
+        /^[A-Z]{1,5}$/.test(symbol) &&
+        ["NASDAQ", "NYSE", "AMEX"].includes(exchange) &&
+        row.isEtf !== true &&
+        !excludedNameTerms.some((term) => name.includes(term))
+      );
+    })
+    .sort((a, b) => {
+      const aScore =
+        Math.log10(Math.max(Number(a.marketCap ?? 0), 1)) * 0.62 +
+        Math.log10(Math.max(Number(a.volume ?? 0), 1)) * 0.38;
+      const bScore =
+        Math.log10(Math.max(Number(b.marketCap ?? 0), 1)) * 0.62 +
+        Math.log10(Math.max(Number(b.volume ?? 0), 1)) * 0.38;
+
+      return bScore - aScore;
+    })
+    .filter((row) => {
+      const companyKey = (row.companyName ?? row.symbol ?? "")
+        .toLowerCase()
+        .replace(/\b(class|ordinary|common|stock|shares|share|inc|corp|corporation|company|co|ltd|plc|nv|sa)\b/g, "")
+        .replace(/[^a-z0-9]/g, "");
+
+      if (!companyKey) return true;
+      if (seenCompanyKeys.has(companyKey)) return false;
+
+      seenCompanyKeys.add(companyKey);
+      return true;
+    });
+}
+
+async function getBroadFmpScreenerRows(limit: number) {
+  try {
+    const rows = await getFmpCompanyScreener(limit);
+    return rankScreenerRows(rows);
+  } catch {
+    return [] as FmpCompanyScreenerRow[];
+  }
+}
+
 export async function getFmpEquityUniverse(
   asOf: Date,
   macro: CombinedMacroContext,
-  symbols = defaultSymbols,
+  symbols: string[],
+  screenerRows: FmpCompanyScreenerRow[] = [],
+  allowFallbackForMissing = true,
 ) {
   if (!hasFmpCredentials()) {
     throw new Error("FMP_API_KEY is not configured.");
   }
 
-  const fallbackBySymbol = new Map(
+  const screenerBySymbol = new Map(
+    screenerRows
+      .filter((row) => row.symbol)
+      .map((row) => [String(row.symbol).toUpperCase(), row] as const),
+  );
+  const fallbackBySymbol = new Map<string, EquityCandidate>(
     getMockEquityUniverse(asOf).map((candidate) => [candidate.symbol, candidate]),
   );
+
+  symbols.forEach((symbol) => {
+    const normalized = symbol.toUpperCase();
+
+    if (!fallbackBySymbol.has(normalized)) {
+      fallbackBySymbol.set(
+        normalized,
+        buildNeutralFallbackCandidate(normalized, asOf, screenerBySymbol.get(normalized)),
+      );
+    }
+  });
+
   const results = await mapWithConcurrency<string, CandidateBuildResult | null>(symbols, 2, async (symbol) => {
     const fallback = fallbackBySymbol.get(symbol);
 
@@ -640,6 +791,10 @@ export async function getFmpEquityUniverse(
         } satisfies CandidateBuildResult;
       }
     } catch {
+      if (!allowFallbackForMissing) {
+        return null;
+      }
+
       return {
         candidate: buildFallbackCandidate(fallback, macro),
         hasLivePriceData: false,
@@ -648,6 +803,10 @@ export async function getFmpEquityUniverse(
         hasLiveEventData: false,
         hasLiveSecData: false,
       } satisfies CandidateBuildResult;
+    }
+
+    if (!allowFallbackForMissing) {
+      return null;
     }
 
     return {
@@ -675,15 +834,31 @@ export async function getFmpEquityUniverse(
 export async function runFmpDailyRankingAgent({
   asOf = new Date(),
   limit = 30,
-  symbols = defaultSymbols,
+  symbols,
+  universeLimit = envNumber("FMP_UNIVERSE_LIMIT", 160, 40, 500),
+  detailedLimit = envNumber("FMP_DETAILED_LIMIT", 90, 30, 200),
 }: RunFmpOptions = {}): Promise<AgentRunResult> {
   const macro = await getFredMacroContext();
   const bls = await getBlsMacroContext();
   const treasury = await getTreasuryMacroContext();
   const combinedMacro = combineMacroContexts(macro, bls, treasury);
-  const universeResult = await getFmpEquityUniverse(asOf, combinedMacro, symbols);
+  const screenerRows = symbols ? [] : await getBroadFmpScreenerRows(universeLimit);
+  const universeSymbols =
+    symbols?.map((symbol) => symbol.toUpperCase()) ??
+    (screenerRows.length > 0
+      ? rankScreenerRows(screenerRows)
+          .slice(0, detailedLimit)
+          .map((row) => String(row.symbol).toUpperCase())
+      : starterSymbols);
+  const universeResult = await getFmpEquityUniverse(
+    asOf,
+    combinedMacro,
+    universeSymbols,
+    screenerRows,
+    Boolean(symbols),
+  );
   const universe = universeResult.candidates;
-  const skippedCount = symbols.length - universe.length;
+  const skippedCount = universeSymbols.length - universe.length;
   const livePriceCount = universeResult.livePriceCount;
   const liveFinancialCount = universeResult.liveFinancialCount;
   const liveNewsCount = universeResult.liveNewsCount;
@@ -711,6 +886,11 @@ export async function runFmpDailyRankingAgent({
       secData: liveSecCount === universe.length ? "live" : liveSecCount > 0 ? "partial" : "mock",
       notes: [
         "Live FMP daily candles are used for technical scoring. FMP profiles, statements, ratios, and key metrics are used for financial scoring when available.",
+        symbols
+          ? `This run used ${universeSymbols.length} explicitly requested symbols.`
+          : screenerRows.length > 0
+            ? `FMP broad screener reviewed ${screenerRows.length} liquid US candidates and deeply analyzed ${universeSymbols.length} symbols before selecting the top ${limit}.`
+            : `FMP screener was unavailable, so the agent fell back to the ${starterSymbols.length}-symbol starter universe.`,
         `${livePriceCount} of ${universe.length} ranked symbols used live FMP price candles in this run.`,
         `${liveFinancialCount} of ${universe.length} ranked symbols used live FMP fundamental data in this run.`,
         `${liveNewsCount} of ${universe.length} ranked symbols used live FMP stock news for catalyst scoring.`,

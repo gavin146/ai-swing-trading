@@ -21,6 +21,23 @@ export type FmpCompanyProfile = {
   isEtf?: boolean;
 };
 
+export type FmpCompanyScreenerRow = {
+  symbol?: string;
+  companyName?: string;
+  marketCap?: number;
+  sector?: string;
+  industry?: string;
+  beta?: number;
+  price?: number;
+  lastAnnualDividend?: number;
+  volume?: number;
+  exchange?: string;
+  exchangeShortName?: string;
+  country?: string;
+  isEtf?: boolean;
+  isActivelyTrading?: boolean;
+};
+
 export type FmpIncomeStatement = {
   date?: string;
   revenue?: number;
@@ -164,6 +181,18 @@ export async function getFmpHistoricalCandles(symbol: string, from: string, to: 
 export async function getFmpCompanyProfile(symbol: string) {
   const rows = await getFmpArray<FmpCompanyProfile>("/stable/profile", { symbol });
   return rows[0] ?? null;
+}
+
+export async function getFmpCompanyScreener(limit = 160) {
+  return getFmpArray<FmpCompanyScreenerRow>("/stable/company-screener", {
+    country: "US",
+    isEtf: "false",
+    isActivelyTrading: "true",
+    priceMoreThan: 5,
+    marketCapMoreThan: 2_000_000_000,
+    volumeMoreThan: 500_000,
+    limit,
+  });
 }
 
 export async function getFmpIncomeStatements(symbol: string, limit = 4) {
