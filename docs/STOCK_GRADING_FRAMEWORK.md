@@ -85,7 +85,7 @@ The model is designed to look for:
 - Unusual risk flags
 - Upcoming earnings dates
 
-Current status: this category is partly placeholder in the first FMP-backed version. Live news, earnings-calendar risk, and corporate event scoring still need to be connected before this score is fully verified.
+Current status: FMP stock news, earnings data, and SEC filing metadata are connected. The model counts recent headlines, positive/negative catalyst terms, earnings proximity, recent earnings surprise, and selected filing forms as catalyst/risk inputs. Press releases are still unavailable on the current FMP plan.
 
 ## Macro Score
 
@@ -268,14 +268,16 @@ Current live-data support:
 - FMP income statements
 - FMP ratios
 - FMP key metrics
+- FMP stock news
+- FMP earnings and corporate event data
+- FMP SEC filing metadata
 - FRED rates, inflation, unemployment, yield curve, and broad-market trend data
 - BLS CPI, unemployment, hourly earnings, and supplemental labor/consumer data
 
 Still needs to be connected:
 
-- Live news and catalyst scoring
-- Earnings calendar risk
-- SEC filing checks
+- Direct SEC EDGAR submissions fallback
+- Press releases, if the data plan is upgraded for that endpoint
 - Market breadth data
 - Backtesting
 - Forward outcome tracking

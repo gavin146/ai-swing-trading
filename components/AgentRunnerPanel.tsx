@@ -181,6 +181,10 @@ export function AgentRunnerPanel() {
                 {result.dataQuality.financialData} / Macro data:{" "}
                 {result.dataQuality.macroData}
               </p>
+              <p className="mt-1 text-sm font-bold text-ink">
+                News: {result.dataQuality.newsData} / Events:{" "}
+                {result.dataQuality.eventData} / SEC: {result.dataQuality.secData}
+              </p>
               <ul className="mt-3 grid gap-2 text-sm leading-6 text-ink/60">
                 {result.dataQuality.notes.map((note) => (
                   <li key={note}>{note}</li>

@@ -42,6 +42,37 @@ export type FmpKeyMetricsTtm = {
   revenuePerShareTTM?: number;
 };
 
+export type FmpStockNews = {
+  symbol?: string;
+  publishedDate?: string;
+  publisher?: string;
+  title?: string;
+  text?: string;
+  url?: string;
+  site?: string;
+};
+
+export type FmpEarningsEvent = {
+  symbol?: string;
+  date?: string;
+  epsActual?: number | null;
+  epsEstimated?: number | null;
+  revenueActual?: number | null;
+  revenueEstimated?: number | null;
+  lastUpdated?: string;
+};
+
+export type FmpSecFiling = {
+  symbol?: string;
+  cik?: string;
+  filingDate?: string;
+  acceptedDate?: string;
+  formType?: string;
+  hasFinancials?: boolean;
+  link?: string;
+  finalLink?: string;
+};
+
 type FmpResponseShape<T> = T[] | { historical?: T[] } | { data?: T[] } | { error?: string };
 
 const fmpBaseUrl = "https://financialmodelingprep.com";
@@ -150,4 +181,32 @@ export async function getFmpRatiosTtm(symbol: string) {
 export async function getFmpKeyMetricsTtm(symbol: string) {
   const rows = await getFmpArray<FmpKeyMetricsTtm>("/stable/key-metrics-ttm", { symbol });
   return rows[0] ?? null;
+}
+
+export async function getFmpStockNews(symbol: string, limit = 8) {
+  return getFmpArray<FmpStockNews>("/stable/news/stock", {
+    symbols: symbol,
+    limit,
+  });
+}
+
+export async function getFmpEarnings(symbol: string, limit = 8) {
+  return getFmpArray<FmpEarningsEvent>("/stable/earnings", {
+    symbol,
+    limit,
+  });
+}
+
+export async function getFmpSecFilingsBySymbol(
+  symbol: string,
+  from: string,
+  to: string,
+  limit = 12,
+) {
+  return getFmpArray<FmpSecFiling>("/stable/sec-filings-search/symbol", {
+    symbol,
+    from,
+    to,
+    limit,
+  });
 }

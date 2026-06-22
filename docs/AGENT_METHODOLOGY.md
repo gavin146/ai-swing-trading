@@ -5,13 +5,13 @@ The daily agent ranks stocks with a weighted scoring system. It now supports moc
 ## Data Modes
 
 - Mock mode uses a deterministic sample universe and does not call paid APIs.
-- FMP mode uses Financial Modeling Prep daily candles, company profiles, income statements, ratios, and key metrics where available. When `FRED_API_KEY` is configured, it also uses FRED rates, inflation, unemployment, yield-curve, and broad-market trend data. It also calls the BLS public API for CPI, unemployment, hourly earnings, and supplemental labor/consumer series.
+- FMP mode uses Financial Modeling Prep daily candles, company profiles, income statements, ratios, key metrics, stock news, earnings data, and SEC filing metadata where available. When `FRED_API_KEY` is configured, it also uses FRED rates, inflation, unemployment, yield-curve, and broad-market trend data. It also calls the BLS public API for CPI, unemployment, hourly earnings, and supplemental labor/consumer series.
 
 Run FMP mode locally with `FMP_API_KEY=your_key npm run dev`, then open `/agent` and click `Run FMP live`, or call `/api/agent/daily-rankings?source=fmp`.
 
 For the scheduled Vercel job, set `AGENT_DATA_SOURCE=fmp` and `FMP_API_KEY=your_key`. Set `FRED_API_KEY=your_key` to enable FRED macro scoring. `BLS_API_KEY` is optional; keyless BLS requests work but have lower limits.
 
-News, SEC filing checks, and corporate event risk are still placeholders in this first FMP-backed slice.
+News, SEC filing checks, and earnings/corporate event risk are connected through FMP in the first live-data slice.
 
 ## Score Inputs
 

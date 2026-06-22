@@ -95,6 +95,9 @@ export type AgentRunResult = {
     priceData: "mock" | "live" | "partial";
     financialData: "mock" | "live" | "partial";
     macroData: "mock" | "live" | "partial";
+    newsData: "mock" | "live" | "partial";
+    eventData: "mock" | "live" | "partial";
+    secData: "mock" | "live" | "partial";
     notes: string[];
   };
   universeCount: number;

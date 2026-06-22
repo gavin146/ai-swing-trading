@@ -1,12 +1,18 @@
 import {
   getFmpCompanyProfile,
+  getFmpEarnings,
   getFmpHistoricalCandles,
   getFmpIncomeStatements,
   getFmpKeyMetricsTtm,
   getFmpRatiosTtm,
+  getFmpSecFilingsBySymbol,
+  getFmpStockNews,
+  type FmpEarningsEvent,
   hasFmpCredentials,
   type FmpHistoricalCandle,
   type FmpIncomeStatement,
+  type FmpSecFiling,
+  type FmpStockNews,
 } from "@/lib/providers/fmp";
 import { getBlsMacroContext, type BlsMacroContext } from "@/lib/providers/bls";
 import { getFredMacroContext, type FredMacroContext } from "@/lib/providers/fred";
@@ -67,6 +73,9 @@ type CandidateBuildResult = {
   candidate: EquityCandidate;
   hasLivePriceData: boolean;
   hasLiveFinancialData: boolean;
+  hasLiveNewsData: boolean;
+  hasLiveEventData: boolean;
+  hasLiveSecData: boolean;
 };
 
 type CombinedMacroContext = FredMacroContext & {
@@ -88,6 +97,17 @@ function daysAgo(date: Date, days: number) {
   return next.toISOString().slice(0, 10);
 }
 
+function daysAhead(date: Date, days: number) {
+  const next = new Date(date);
+  next.setDate(next.getDate() + days);
+  return next.toISOString().slice(0, 10);
+}
+
+function daysBetween(start: Date, end: Date) {
+  const msPerDay = 24 * 60 * 60 * 1000;
+  return Math.round((end.getTime() - start.getTime()) / msPerDay);
+}
+
 function average(values: number[]) {
   if (values.length === 0) return 0;
   return values.reduce((total, value) => total + value, 0) / values.length;
@@ -99,6 +119,11 @@ function percentChange(current: number, previous: number) {
   }
 
   return ((current - previous) / Math.abs(previous)) * 100;
+}
+
+function containsAny(value: string, keywords: string[]) {
+  const lower = value.toLowerCase();
+  return keywords.some((keyword) => lower.includes(keyword));
 }
 
 function normalizePercent(value: number | undefined) {
@@ -289,6 +314,128 @@ function buildFinancialSnapshot(args: {
   };
 }
 
+function buildNewsAndCatalystSnapshot(args: {
+  symbol: string;
+  asOf: Date;
+  news: FmpStockNews[];
+  earnings: FmpEarningsEvent[];
+  filings: FmpSecFiling[];
+}) {
+  const positiveKeywords = [
+    "beat",
+    "beats",
+    "raise",
+    "raises",
+    "raised",
+    "upgrade",
+    "upgraded",
+    "approval",
+    "approved",
+    "partnership",
+    "launch",
+    "record",
+    "growth",
+    "expands",
+    "contract",
+    "guidance",
+  ];
+  const negativeKeywords = [
+    "miss",
+    "misses",
+    "downgrade",
+    "downgraded",
+    "lawsuit",
+    "investigation",
+    "probe",
+    "recall",
+    "breach",
+    "hack",
+    "cut",
+    "cuts",
+    "warns",
+    "warning",
+    "bankruptcy",
+    "subpoena",
+  ];
+  const riskyForms = new Set(["8-K", "S-1", "S-3", "424B5", "NT 10-K", "NT 10-Q"]);
+  const recentNews = args.news.filter((item) => {
+    if (!item.publishedDate) return false;
+    return Math.abs(daysBetween(new Date(item.publishedDate), args.asOf)) <= 14;
+  });
+  const positiveCount = recentNews.filter((item) =>
+    containsAny(`${item.title ?? ""} ${item.text ?? ""}`, positiveKeywords),
+  ).length;
+  const negativeCount = recentNews.filter((item) =>
+    containsAny(`${item.title ?? ""} ${item.text ?? ""}`, negativeKeywords),
+  ).length;
+  const sortedEarnings = [...args.earnings]
+    .filter((item) => item.date)
+    .sort((a, b) => new Date(a.date ?? "").getTime() - new Date(b.date ?? "").getTime());
+  const nextEarnings = sortedEarnings.find(
+    (item) => daysBetween(args.asOf, new Date(item.date ?? "")) >= 0,
+  );
+  const priorEarnings = [...sortedEarnings]
+    .reverse()
+    .find((item) => daysBetween(new Date(item.date ?? ""), args.asOf) >= 0);
+  const daysToEarnings = nextEarnings?.date
+    ? daysBetween(args.asOf, new Date(nextEarnings.date))
+    : null;
+  const epsSurprise =
+    priorEarnings?.epsActual !== null &&
+    priorEarnings?.epsActual !== undefined &&
+    priorEarnings?.epsEstimated
+      ? ((priorEarnings.epsActual - priorEarnings.epsEstimated) /
+          Math.abs(priorEarnings.epsEstimated)) *
+        100
+      : 0;
+  const recentFilings = args.filings.filter((filing) => {
+    if (!filing.filingDate) return false;
+    return daysBetween(new Date(filing.filingDate), args.asOf) <= 30;
+  });
+  const riskFilingCount = recentFilings.filter((filing) =>
+    riskyForms.has(filing.formType ?? ""),
+  ).length;
+  const earningsRisk = daysToEarnings !== null && daysToEarnings <= 7 ? 2 : daysToEarnings !== null && daysToEarnings <= 14 ? 1 : 0;
+  const riskFlagCount = Math.max(0, negativeCount + riskFilingCount + earningsRisk);
+  const sentimentScore = clamp(55 + positiveCount * 8 - negativeCount * 11 + Math.min(recentNews.length, 8) * 1.5);
+  const catalystScore = clamp(
+    48 +
+      positiveCount * 9 +
+      Math.max(0, epsSurprise) * 0.35 +
+      (daysToEarnings !== null && daysToEarnings <= 21 ? 5 : 0) -
+      negativeCount * 8 -
+      riskFilingCount * 5,
+  );
+  const summaryParts = [
+    `${args.symbol} has ${recentNews.length} recent FMP news item${recentNews.length === 1 ? "" : "s"}`,
+    `${positiveCount} positive catalyst signal${positiveCount === 1 ? "" : "s"}`,
+    `${negativeCount} negative risk signal${negativeCount === 1 ? "" : "s"}`,
+  ];
+
+  if (daysToEarnings !== null) {
+    summaryParts.push(`next earnings in ${daysToEarnings} day${daysToEarnings === 1 ? "" : "s"}`);
+  }
+
+  if (recentFilings.length > 0) {
+    summaryParts.push(
+      `${recentFilings.length} recent SEC filing${recentFilings.length === 1 ? "" : "s"}`,
+    );
+  }
+
+  return {
+    snapshot: {
+      sentimentScore: Math.round(sentimentScore),
+      catalystScore: Math.round(catalystScore),
+      headlineCount: recentNews.length,
+      riskFlagCount,
+      summary: `${summaryParts.join(", ")}.`,
+    },
+    hasLiveNewsData: args.news.length > 0,
+    hasLiveEventData: args.earnings.length > 0,
+    hasLiveSecData: args.filings.length > 0,
+  };
+}
+
 async function mapWithConcurrency<T, R>(
   items: T[],
   limit: number,
@@ -360,13 +507,27 @@ async function buildFmpCandidate(
 ) {
   const from = daysAgo(asOf, 430);
   const to = asOf.toISOString().slice(0, 10);
+  const secFrom = daysAgo(asOf, 45);
+  const earningsTo = daysAhead(asOf, 90);
 
-  const [candles, profile, incomeStatements, ratios, keyMetrics] = await Promise.all([
+  const [
+    candles,
+    profile,
+    incomeStatements,
+    ratios,
+    keyMetrics,
+    news,
+    earnings,
+    secFilings,
+  ] = await Promise.all([
     getFmpHistoricalCandles(symbol, from, to),
     getFmpCompanyProfile(symbol),
     getFmpIncomeStatements(symbol, 4),
     getFmpRatiosTtm(symbol),
     getFmpKeyMetricsTtm(symbol),
+    getFmpStockNews(symbol, 10),
+    getFmpEarnings(symbol, 8),
+    getFmpSecFilingsBySymbol(symbol, secFrom, earningsTo, 12),
   ]);
   const technical = buildTechnicalSnapshot(candles);
 
@@ -385,6 +546,13 @@ async function buildFmpCandidate(
     priceToSalesRatio: ratios?.priceToSalesRatioTTM,
     fallback: fallback.financials,
   });
+  const newsResult = buildNewsAndCatalystSnapshot({
+    symbol,
+    asOf,
+    news,
+    earnings,
+    filings: secFilings,
+  });
 
   return {
     candidate: {
@@ -395,19 +563,15 @@ async function buildFmpCandidate(
       marketCapBillions,
       technical,
       financials: financialResult.financials,
-      news: {
-        sentimentScore: 55,
-        catalystScore: 52,
-        headlineCount: 0,
-        riskFlagCount: 0,
-        summary:
-          "Live news and catalyst scoring is not connected yet; this run uses a neutral placeholder so technical and fundamental data drive the ranking.",
-      },
+      news: newsResult.snapshot,
       market: {
         ...buildMarketSnapshot(sector, macro),
       },
     },
     hasLiveFinancialData: financialResult.isLive,
+    hasLiveNewsData: newsResult.hasLiveNewsData,
+    hasLiveEventData: newsResult.hasLiveEventData,
+    hasLiveSecData: newsResult.hasLiveSecData,
   };
 }
 
@@ -455,6 +619,9 @@ export async function getFmpEquityUniverse(
           candidate: candidate.candidate,
           hasLivePriceData: true,
           hasLiveFinancialData: candidate.hasLiveFinancialData,
+          hasLiveNewsData: candidate.hasLiveNewsData,
+          hasLiveEventData: candidate.hasLiveEventData,
+          hasLiveSecData: candidate.hasLiveSecData,
         } satisfies CandidateBuildResult;
       }
     } catch {
@@ -462,6 +629,9 @@ export async function getFmpEquityUniverse(
         candidate: buildFallbackCandidate(fallback, macro),
         hasLivePriceData: false,
         hasLiveFinancialData: false,
+        hasLiveNewsData: false,
+        hasLiveEventData: false,
+        hasLiveSecData: false,
       } satisfies CandidateBuildResult;
     }
 
@@ -469,6 +639,9 @@ export async function getFmpEquityUniverse(
       candidate: buildFallbackCandidate(fallback, macro),
       hasLivePriceData: false,
       hasLiveFinancialData: false,
+      hasLiveNewsData: false,
+      hasLiveEventData: false,
+      hasLiveSecData: false,
     } satisfies CandidateBuildResult;
   });
 
@@ -478,6 +651,9 @@ export async function getFmpEquityUniverse(
     candidates: builtCandidates.map((result) => result.candidate),
     livePriceCount: builtCandidates.filter((result) => result.hasLivePriceData).length,
     liveFinancialCount: builtCandidates.filter((result) => result.hasLiveFinancialData).length,
+    liveNewsCount: builtCandidates.filter((result) => result.hasLiveNewsData).length,
+    liveEventCount: builtCandidates.filter((result) => result.hasLiveEventData).length,
+    liveSecCount: builtCandidates.filter((result) => result.hasLiveSecData).length,
   };
 }
 
@@ -494,6 +670,9 @@ export async function runFmpDailyRankingAgent({
   const skippedCount = symbols.length - universe.length;
   const livePriceCount = universeResult.livePriceCount;
   const liveFinancialCount = universeResult.liveFinancialCount;
+  const liveNewsCount = universeResult.liveNewsCount;
+  const liveEventCount = universeResult.liveEventCount;
+  const liveSecCount = universeResult.liveSecCount;
 
   return rankEquityCandidates(universe, {
     asOf,
@@ -509,14 +688,21 @@ export async function runFmpDailyRankingAgent({
             ? "partial"
             : "mock",
       macroData: combinedMacro.isLive ? "live" : "partial",
+      newsData:
+        liveNewsCount === universe.length ? "live" : liveNewsCount > 0 ? "partial" : "mock",
+      eventData:
+        liveEventCount === universe.length ? "live" : liveEventCount > 0 ? "partial" : "mock",
+      secData: liveSecCount === universe.length ? "live" : liveSecCount > 0 ? "partial" : "mock",
       notes: [
         "Live FMP daily candles are used for technical scoring. FMP profiles, statements, ratios, and key metrics are used for financial scoring when available.",
         `${livePriceCount} of ${universe.length} ranked symbols used live FMP price candles in this run.`,
         `${liveFinancialCount} of ${universe.length} ranked symbols used live FMP fundamental data in this run.`,
+        `${liveNewsCount} of ${universe.length} ranked symbols used live FMP stock news for catalyst scoring.`,
+        `${liveEventCount} of ${universe.length} ranked symbols used live FMP earnings/corporate event data.`,
+        `${liveSecCount} of ${universe.length} ranked symbols used live FMP SEC filing checks.`,
         combinedMacro.isLive
           ? "Live government macro data is connected through FRED and/or BLS."
           : "Government macro data fell back to a neutral placeholder for this run.",
-        "News, earnings calendar, and SEC filing checks are still placeholders in this live-data slice.",
         ...combinedMacro.notes,
         skippedCount > 0
           ? `${skippedCount} symbols were skipped because no starter fallback was available.`

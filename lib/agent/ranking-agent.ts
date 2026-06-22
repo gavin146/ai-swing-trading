@@ -159,7 +159,7 @@ function buildReasons(candidate: EquityCandidate, scores: ScoreBreakdown) {
   const reasons = [
     `Technical setup scores ${scores.technical}/100 with price near ${round(candidate.technical.price, 2)} and 90-day relative strength at ${candidate.technical.relativeStrength90d}.`,
     `Financial quality scores ${scores.financial}/100, supported by ${candidate.financials.revenueGrowth}% revenue growth and ${candidate.financials.earningsGrowth}% earnings growth.`,
-    `News and catalyst tone scores ${scores.news}/100 with ${candidate.news.headlineCount} tracked mock headlines and ${candidate.news.riskFlagCount} risk flags.`,
+    `News and catalyst tone scores ${scores.news}/100 with ${candidate.news.headlineCount} tracked headlines and ${candidate.news.riskFlagCount} risk flags.`,
     `Macro backdrop scores ${scores.macro}/100 for ${candidate.sector}, using market breadth, rates pressure, and government-data placeholders.`,
   ];
 
@@ -250,6 +250,9 @@ export function runDailyRankingAgent({
       priceData: "mock",
       financialData: "mock",
       macroData: "mock",
+      newsData: "mock",
+      eventData: "mock",
+      secData: "mock",
       notes: [
         "Mock provider mode is active. No external market-data provider was called.",
         "Use /api/agent/daily-rankings?source=fmp after adding FMP_API_KEY to run with live FMP inputs.",
@@ -269,6 +272,9 @@ export function rankEquityCandidates(
       priceData: "mock",
       financialData: "mock",
       macroData: "mock",
+      newsData: "mock",
+      eventData: "mock",
+      secData: "mock",
       notes: ["Mock provider mode is active."],
     },
     summaryPrefix,
