@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
+import { BrandMark } from "@/components/BrandMark";
 import { signupCustomer } from "@/lib/customer-store";
 
 export function SignupForm() {
@@ -28,13 +29,8 @@ export function SignupForm() {
   }
 
   return (
-    <section className="w-full max-w-xl rounded-lg border border-line bg-panel p-6 shadow-soft">
-      <Link href="/" className="flex items-center gap-3">
-        <span className="grid h-10 w-10 place-items-center rounded-md bg-pine text-sm font-bold text-white">
-          TP
-        </span>
-        <span className="text-lg font-bold text-ink">TradePilot AI</span>
-      </Link>
+    <section className="premium-panel w-full max-w-xl rounded-xl p-6">
+      <BrandMark />
 
       <div className="mt-8">
         <h1 className="text-3xl font-bold text-ink">Create your account</h1>
@@ -102,7 +98,7 @@ export function SignupForm() {
         ) : null}
         <button
           type="submit"
-          className="rounded-md bg-pine px-4 py-3 text-sm font-bold text-white hover:bg-ink sm:col-span-2"
+          className="rounded-lg bg-ink px-4 py-3 text-sm font-black text-white shadow-[0_14px_34px_rgba(7,20,24,0.16)] hover:bg-pine sm:col-span-2"
         >
           Sign up
         </button>

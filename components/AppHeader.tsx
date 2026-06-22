@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { getCurrentCustomer, isAdminCustomer, type CustomerProfile } from "@/lib/customer-store";
+import { BrandMark } from "./BrandMark";
 import { CustomerStatus } from "./CustomerStatus";
 
 type AppHeaderProps = {
@@ -26,35 +27,28 @@ export function AppHeader({ active }: AppHeaderProps) {
     };
   }, []);
 
-  return (
-    <header className="sticky top-0 z-40 border-b border-line bg-panel/90 backdrop-blur">
-      <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-4 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
-        <Link href="/" className="flex items-center gap-3">
-          <span className="grid h-10 w-10 place-items-center rounded-md bg-pine text-sm font-bold text-white">
-            TP
-          </span>
-          <span>
-            <span className="block text-base font-bold text-ink">TradePilot AI</span>
-            <span className="block text-xs font-medium text-ink/55">
-              Swing trade discovery
-            </span>
-          </span>
-        </Link>
+  const navClass = (key: AppHeaderProps["active"]) =>
+    `rounded-lg px-3 py-2 transition ${
+      active === key
+        ? "bg-ink text-white shadow-[0_12px_26px_rgba(7,20,24,0.18)]"
+        : "text-ink/68 hover:bg-panel hover:text-ink hover:shadow-soft"
+    }`;
 
-        <nav className="flex flex-wrap items-center gap-2 text-sm font-semibold text-ink/70">
+  return (
+    <header className="sticky top-0 z-40 border-b border-line/80 bg-surface/75 backdrop-blur-xl">
+      <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-4 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
+        <BrandMark />
+
+        <nav className="flex flex-wrap items-center gap-2 rounded-xl border border-line/80 bg-white/65 p-1 text-sm font-bold shadow-[0_10px_35px_rgba(7,20,24,0.06)]">
           <Link
             href="/dashboard"
-            className={`rounded-md px-3 py-2 transition hover:bg-mint hover:text-ink ${
-              active === "dashboard" ? "bg-mint text-ink" : ""
-            }`}
+            className={navClass("dashboard")}
           >
             Dashboard
           </Link>
           <Link
             href="/settings"
-            className={`rounded-md px-3 py-2 transition hover:bg-mint hover:text-ink ${
-              active === "settings" ? "bg-mint text-ink" : ""
-            }`}
+            className={navClass("settings")}
           >
             Settings
           </Link>
@@ -62,17 +56,13 @@ export function AppHeader({ active }: AppHeaderProps) {
             <>
               <Link
                 href="/admin"
-                className={`rounded-md px-3 py-2 transition hover:bg-mint hover:text-ink ${
-                  active === "admin" ? "bg-mint text-ink" : ""
-                }`}
+                className={navClass("admin")}
               >
                 Admin
               </Link>
               <Link
                 href="/agent"
-                className={`rounded-md px-3 py-2 transition hover:bg-mint hover:text-ink ${
-                  active === "agent" ? "bg-mint text-ink" : ""
-                }`}
+                className={navClass("agent")}
               >
                 Agent
               </Link>

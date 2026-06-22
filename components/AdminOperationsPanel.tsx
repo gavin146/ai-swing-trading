@@ -55,13 +55,14 @@ export function AdminOperationsPanel() {
   }
 
   return (
-    <section className="mb-6 rounded-lg border border-line bg-panel p-6 shadow-soft">
+    <section className="premium-panel mb-6 rounded-xl p-6">
+      <div className="signal-line mb-5 h-1.5 max-w-48 rounded-full" />
       <div className="grid gap-5 lg:grid-cols-[1fr_auto] lg:items-start">
         <div>
           <p className="text-sm font-bold uppercase tracking-normal text-pine">
             Admin operations
           </p>
-          <h1 className="mt-3 text-3xl font-bold text-ink">System controls</h1>
+            <h1 className="mt-3 text-3xl font-black text-ink">System controls</h1>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-ink/60">
             Run the daily agent, apply rankings, and check production integrations.
             Recommended schedule: 8:30 AM Eastern, before the 9:30 AM market open,
@@ -72,7 +73,7 @@ export function AdminOperationsPanel() {
           <button
             type="button"
             onClick={() => void runAgent()}
-            className="rounded-md bg-pine px-4 py-3 text-sm font-bold text-white transition hover:bg-ink"
+            className="rounded-lg bg-ink px-4 py-3 text-sm font-black text-white shadow-[0_14px_34px_rgba(7,20,24,0.16)] hover:bg-pine"
           >
             Run agent
           </button>
@@ -80,7 +81,7 @@ export function AdminOperationsPanel() {
             type="button"
             onClick={applyLatest}
             disabled={!latestRun}
-            className="rounded-md border border-line bg-surface px-4 py-3 text-sm font-bold text-ink transition hover:border-pine disabled:cursor-not-allowed disabled:opacity-60"
+            className="rounded-lg border border-line bg-surface px-4 py-3 text-sm font-bold text-ink hover:border-pine disabled:cursor-not-allowed disabled:opacity-60"
           >
             Apply latest
           </button>
@@ -90,13 +91,13 @@ export function AdminOperationsPanel() {
               resetStoredOpportunities();
               setMessage("Reset dashboard mock data to current agent seed.");
             }}
-            className="rounded-md border border-line bg-surface px-4 py-3 text-sm font-bold text-ink transition hover:border-pine"
+            className="rounded-lg border border-line bg-surface px-4 py-3 text-sm font-bold text-ink hover:border-pine"
           >
             Reset picks
           </button>
           <Link
             href="/backtests"
-            className="rounded-md border border-line bg-surface px-4 py-3 text-center text-sm font-bold text-ink transition hover:border-pine"
+            className="rounded-lg border border-line bg-surface px-4 py-3 text-center text-sm font-bold text-ink hover:border-pine"
           >
             View backtests
           </Link>

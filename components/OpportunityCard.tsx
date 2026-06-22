@@ -15,11 +15,12 @@ function scoreTone(score: number) {
 
 export function OpportunityCard({ opportunity, rank }: OpportunityCardProps) {
   return (
-    <article className="flex h-full flex-col rounded-lg border border-line bg-panel p-5 shadow-soft transition hover:-translate-y-0.5 hover:border-pine/35 hover:shadow-[0_24px_60px_rgba(18,33,31,0.12)]">
+    <article className="flex h-full flex-col rounded-xl border border-line bg-panel p-5 shadow-soft transition hover:-translate-y-1 hover:border-pine/35 hover:shadow-lift">
+      <div className="signal-line mb-4 h-1 rounded-full" />
       <div className="flex items-start justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
-            <span className="rounded-md bg-ink px-2 py-1 text-xs font-bold text-white">
+            <span className="rounded-md bg-ink px-2 py-1 text-xs font-black text-white">
               #{rank}
             </span>
             <span className="rounded-md bg-surface px-2 py-1 text-xs font-semibold text-ink/65">
@@ -28,15 +29,15 @@ export function OpportunityCard({ opportunity, rank }: OpportunityCardProps) {
           </div>
           <h2 className="mt-4 text-2xl font-bold text-ink">{opportunity.symbol}</h2>
           <p className="mt-1 text-sm font-medium text-ink/60">{opportunity.name}</p>
-          <p className="mt-3 rounded-md bg-sky/70 px-3 py-2 text-sm font-bold text-ink">
+          <p className="mt-3 rounded-lg bg-sky/80 px-3 py-2 text-sm font-bold text-ink">
             {opportunity.scoreLabel}
           </p>
         </div>
-        <div className="min-w-20 rounded-md border border-line bg-surface p-3 text-center">
-          <p className="text-[11px] font-bold uppercase tracking-normal text-ink/55">
+        <div className="min-w-20 rounded-lg border border-line bg-surface p-3 text-center">
+          <p className="text-[11px] font-black uppercase tracking-normal text-ink/55">
             Score
           </p>
-          <p className="mt-1 text-2xl font-bold text-pine">
+          <p className="mt-1 text-2xl font-black text-pine">
             {opportunity.opportunityScore}
           </p>
         </div>
@@ -84,7 +85,7 @@ export function OpportunityCard({ opportunity, rank }: OpportunityCardProps) {
 
       <Link
         href={`/opportunities/${opportunity.symbol}`}
-        className="mt-auto rounded-md bg-pine px-4 py-3 text-center text-sm font-bold text-white transition hover:bg-ink"
+        className="mt-auto rounded-lg bg-ink px-4 py-3 text-center text-sm font-black text-white shadow-[0_14px_34px_rgba(7,20,24,0.16)] hover:bg-pine"
       >
         View analysis
       </Link>

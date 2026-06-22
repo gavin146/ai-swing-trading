@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
+import { BrandMark } from "@/components/BrandMark";
 import { loginCustomer } from "@/lib/customer-store";
 
 export function LoginForm() {
@@ -22,13 +23,8 @@ export function LoginForm() {
   }
 
   return (
-    <section className="w-full max-w-md rounded-lg border border-line bg-panel p-6 shadow-soft">
-      <Link href="/" className="flex items-center gap-3">
-        <span className="grid h-10 w-10 place-items-center rounded-md bg-pine text-sm font-bold text-white">
-          TP
-        </span>
-        <span className="text-lg font-bold text-ink">TradePilot AI</span>
-      </Link>
+    <section className="premium-panel w-full max-w-md rounded-xl p-6">
+      <BrandMark />
 
       <div className="mt-8">
         <h1 className="text-3xl font-bold text-ink">Welcome back</h1>
@@ -38,7 +34,7 @@ export function LoginForm() {
         </p>
       </div>
 
-      <div className="mt-5 rounded-md bg-sky px-3 py-2 text-sm font-semibold text-ink">
+      <div className="mt-5 rounded-lg bg-sky px-3 py-2 text-sm font-semibold text-ink">
         Demo access: avery@example.com / demo1234
       </div>
 
@@ -68,7 +64,7 @@ export function LoginForm() {
         ) : null}
         <button
           type="submit"
-          className="mt-2 rounded-md bg-pine px-4 py-3 text-sm font-bold text-white hover:bg-ink"
+          className="mt-2 rounded-lg bg-ink px-4 py-3 text-sm font-black text-white shadow-[0_14px_34px_rgba(7,20,24,0.16)] hover:bg-pine"
         >
           Log in
         </button>

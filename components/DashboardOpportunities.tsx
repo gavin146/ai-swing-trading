@@ -89,7 +89,7 @@ export function DashboardOpportunities({
 
   return (
     <>
-      <div className="mt-6 rounded-lg border border-line bg-panel p-5 shadow-soft">
+      <div className="mt-6 rounded-xl border border-line bg-panel p-5 shadow-soft">
         <div className="grid gap-3 lg:grid-cols-[1fr_auto] lg:items-center">
           <div>
             <p className="text-sm font-bold text-ink">
@@ -100,7 +100,7 @@ export function DashboardOpportunities({
               {" "}agent-ranked opportunities.
             </p>
           </div>
-          <div className="rounded-md bg-surface px-3 py-2 text-sm font-bold text-ink/70">
+          <div className="rounded-lg bg-surface px-3 py-2 text-sm font-bold text-ink/70">
             Min confidence {customer?.minimumConfidence ?? 0} / Max risk{" "}
             {customer?.maxRiskScore ?? 100}
           </div>
@@ -108,31 +108,31 @@ export function DashboardOpportunities({
       </div>
 
       <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <div className="rounded-lg border border-line bg-panel p-4">
-          <p className="text-xs font-bold uppercase tracking-normal text-ink/55">
+        <div className="rounded-xl border border-line bg-panel p-4 shadow-[0_10px_30px_rgba(7,20,24,0.05)]">
+          <p className="text-xs font-black uppercase tracking-normal text-ink/55">
             Average score
           </p>
-          <p className="mt-2 text-3xl font-bold text-pine">{summary.avgOpportunity}</p>
+          <p className="mt-2 text-3xl font-black text-pine">{summary.avgOpportunity}</p>
         </div>
-        <div className="rounded-lg border border-line bg-panel p-4">
-          <p className="text-xs font-bold uppercase tracking-normal text-ink/55">
+        <div className="rounded-xl border border-line bg-panel p-4 shadow-[0_10px_30px_rgba(7,20,24,0.05)]">
+          <p className="text-xs font-black uppercase tracking-normal text-ink/55">
             Lower risk
           </p>
-          <p className="mt-2 text-3xl font-bold text-pine">{summary.lowerRiskCount}</p>
+          <p className="mt-2 text-3xl font-black text-pine">{summary.lowerRiskCount}</p>
         </div>
-        <div className="rounded-lg border border-line bg-panel p-4">
-          <p className="text-xs font-bold uppercase tracking-normal text-ink/55">
+        <div className="rounded-xl border border-line bg-panel p-4 shadow-[0_10px_30px_rgba(7,20,24,0.05)]">
+          <p className="text-xs font-black uppercase tracking-normal text-ink/55">
             Avg upside
           </p>
-          <p className="mt-2 text-3xl font-bold text-pine">
+          <p className="mt-2 text-3xl font-black text-pine">
             +{summary.avgGain.toFixed(1)}%
           </p>
         </div>
-        <div className="rounded-lg border border-line bg-panel p-4">
-          <p className="text-xs font-bold uppercase tracking-normal text-ink/55">
+        <div className="rounded-xl border border-line bg-panel p-4 shadow-[0_10px_30px_rgba(7,20,24,0.05)]">
+          <p className="text-xs font-black uppercase tracking-normal text-ink/55">
             Avg downside
           </p>
-          <p className="mt-2 text-3xl font-bold text-coral">
+          <p className="mt-2 text-3xl font-black text-coral">
             -{summary.avgLoss.toFixed(1)}%
           </p>
         </div>

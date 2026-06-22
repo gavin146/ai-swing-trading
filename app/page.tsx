@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { opportunities } from "@/lib/opportunities";
+import { BrandMark } from "@/components/BrandMark";
 import { OpportunityCard } from "@/components/OpportunityCard";
 
 const featured = opportunities.slice(0, 3);
@@ -7,15 +8,10 @@ const featured = opportunities.slice(0, 3);
 export default function LandingPage() {
   return (
     <main>
-      <section className="border-b border-line bg-panel/90">
-        <div className="mx-auto grid min-h-[88vh] max-w-7xl items-center gap-10 px-4 py-8 sm:px-6 lg:grid-cols-[0.88fr_1.12fr] lg:px-8">
+      <section className="border-b border-line/80 bg-panel/80">
+        <div className="mx-auto grid min-h-[88vh] max-w-7xl items-center gap-10 px-4 py-8 sm:px-6 lg:grid-cols-[0.9fr_1.1fr] lg:px-8">
           <div>
-            <Link href="/" className="inline-flex items-center gap-3">
-              <span className="grid h-11 w-11 place-items-center rounded-md bg-pine text-sm font-bold text-white">
-                TP
-              </span>
-              <span className="text-lg font-bold text-ink">TradePilot AI</span>
-            </Link>
+            <BrandMark />
             <p className="mt-10 text-sm font-bold uppercase tracking-normal text-pine">
               Pre-market swing trading intelligence
             </p>
@@ -30,27 +26,28 @@ export default function LandingPage() {
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
               <Link
                 href="/signup"
-                className="rounded-md bg-pine px-5 py-3 text-center text-sm font-bold text-white transition hover:bg-ink"
+                className="rounded-lg bg-ink px-5 py-3 text-center text-sm font-black text-white shadow-[0_18px_42px_rgba(7,20,24,0.2)] hover:bg-pine"
               >
                 Create account
               </Link>
               <Link
                 href="/dashboard"
-                className="rounded-md border border-line bg-panel px-5 py-3 text-center text-sm font-bold text-ink hover:border-pine"
+                className="rounded-lg border border-line bg-panel px-5 py-3 text-center text-sm font-bold text-ink hover:border-pine hover:shadow-soft"
               >
                 View demo dashboard
               </Link>
             </div>
             <div className="mt-8 grid gap-3 sm:grid-cols-3">
               {["8:30 AM ET scan", "Plain-English scores", "Tracked email links"].map((item) => (
-                <div key={item} className="rounded-md border border-line bg-surface px-3 py-2 text-sm font-bold text-ink/75">
+                <div key={item} className="rounded-lg border border-line bg-white/70 px-3 py-2 text-sm font-bold text-ink/75 shadow-[0_8px_22px_rgba(7,20,24,0.04)]">
                   {item}
                 </div>
               ))}
             </div>
           </div>
 
-          <div className="rounded-lg border border-line bg-surface p-4 shadow-soft">
+          <div className="premium-panel rounded-xl p-4">
+            <div className="signal-line mb-4 h-1.5 rounded-full" />
             <div className="flex items-center justify-between border-b border-line pb-4">
               <div>
                 <p className="text-sm font-bold text-ink">Customer morning dashboard</p>
@@ -58,7 +55,7 @@ export default function LandingPage() {
                   Ranked, explained, and ready to review
                 </p>
               </div>
-              <div className="rounded-md bg-mint px-3 py-2 text-sm font-bold text-pine">
+              <div className="rounded-lg bg-lime px-3 py-2 text-sm font-black text-ink">
                 30 ranked
               </div>
             </div>
@@ -66,7 +63,7 @@ export default function LandingPage() {
               {featured.map((opportunity, index) => (
                 <div
                   key={opportunity.symbol}
-                  className="grid gap-4 rounded-lg border border-line bg-panel p-4 sm:grid-cols-[1fr_auto]"
+                  className="grid gap-4 rounded-xl border border-line bg-panel p-4 shadow-[0_12px_34px_rgba(7,20,24,0.06)] sm:grid-cols-[1fr_auto]"
                 >
                   <div>
                     <div className="flex items-center gap-2">
@@ -80,7 +77,7 @@ export default function LandingPage() {
                     </div>
                     <div className="mt-4 h-2 overflow-hidden rounded-full bg-surface">
                       <div
-                        className="h-full rounded-full bg-pine"
+                        className="h-full rounded-full bg-[linear-gradient(90deg,#b7f34b,#0b3d3f)]"
                         style={{ width: `${opportunity.opportunityScore}%` }}
                       />
                     </div>

@@ -50,30 +50,30 @@ export function AdminCustomerPanel() {
   const activeCustomers = usage.filter((item) => item.emailLinkClicks > 0).length;
 
   return (
-    <section className="mb-6 rounded-lg border border-line bg-panel p-6 shadow-soft">
+    <section className="premium-panel mb-6 rounded-xl p-6">
       <div className="grid gap-5 lg:grid-cols-[1fr_auto] lg:items-start">
         <div>
           <p className="text-sm font-bold uppercase tracking-normal text-pine">
             Customer analytics
           </p>
-          <h2 className="mt-3 text-3xl font-bold text-ink">Email engagement</h2>
+          <h2 className="mt-3 text-3xl font-black text-ink">Email engagement</h2>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-ink/60">
             Track customer profiles, alert preferences, last login, and how many times
             each customer opens emailed stock-analysis links this month.
           </p>
         </div>
         <div className="grid grid-cols-2 gap-3 sm:min-w-72">
-          <div className="rounded-md bg-mint px-4 py-3">
-            <p className="text-xs font-bold uppercase tracking-normal text-pine/70">
+          <div className="rounded-lg bg-mint px-4 py-3 ring-1 ring-pine/10">
+            <p className="text-xs font-black uppercase tracking-normal text-pine/70">
               Monthly clicks
             </p>
-            <p className="mt-1 text-2xl font-bold text-pine">{totalClicks}</p>
+            <p className="mt-1 text-2xl font-black text-pine">{totalClicks}</p>
           </div>
-          <div className="rounded-md bg-sky px-4 py-3">
-            <p className="text-xs font-bold uppercase tracking-normal text-ink/55">
+          <div className="rounded-lg bg-sky px-4 py-3 ring-1 ring-ink/5">
+            <p className="text-xs font-black uppercase tracking-normal text-ink/55">
               Active users
             </p>
-            <p className="mt-1 text-2xl font-bold text-ink">{activeCustomers}</p>
+            <p className="mt-1 text-2xl font-black text-ink">{activeCustomers}</p>
           </div>
         </div>
       </div>

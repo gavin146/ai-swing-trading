@@ -8,12 +8,13 @@ export default function DashboardPage() {
     <main className="min-h-screen">
       <AppHeader active="dashboard" />
       <section className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-        <div className="rounded-lg border border-line bg-panel p-6 shadow-soft">
+        <div className="premium-panel rounded-xl p-6">
+          <div className="signal-line mb-5 h-1.5 max-w-48 rounded-full" />
           <div>
             <p className="text-sm font-bold uppercase tracking-normal text-pine">
               Today&apos;s pre-market brief
             </p>
-            <h1 className="mt-3 text-4xl font-bold text-ink">
+            <h1 className="mt-3 text-4xl font-black text-ink">
               Swing trade ideas, ranked for clarity
             </h1>
             <p className="mt-3 max-w-3xl text-base leading-7 text-ink/65">
