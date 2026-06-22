@@ -1,5 +1,6 @@
 import { AppHeader } from "@/components/AppHeader";
 import { DashboardOpportunities } from "@/components/DashboardOpportunities";
+import { ScoreGuide } from "@/components/ScoreGuide";
 import { opportunities } from "@/lib/opportunities";
 
 export default function DashboardPage() {
@@ -7,17 +8,24 @@ export default function DashboardPage() {
     <main className="min-h-screen">
       <AppHeader active="dashboard" />
       <section className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-        <div className="grid gap-4 lg:grid-cols-[1fr_auto] lg:items-end">
+        <div className="rounded-lg border border-line bg-panel p-6 shadow-soft">
           <div>
             <p className="text-sm font-bold uppercase tracking-normal text-pine">
-              Opportunity dashboard
+              Today&apos;s pre-market brief
             </p>
-            <h1 className="mt-3 text-4xl font-bold text-ink">Top 30 trade ideas</h1>
+            <h1 className="mt-3 text-4xl font-bold text-ink">
+              Swing trade ideas, ranked for clarity
+            </h1>
             <p className="mt-3 max-w-3xl text-base leading-7 text-ink/65">
-              Morning agent rankings combine trend strength, financial quality,
-              macro context, news tone, technical setup, and beginner-friendly risk levels.
+              The system runs before the market opens, filters opportunities to your
+              profile, and emails a link to the day&apos;s stock analysis. Use the cards
+              below to compare setup quality, confidence, risk, entry, target, and stop.
             </p>
           </div>
+        </div>
+
+        <div className="mt-5">
+          <ScoreGuide />
         </div>
 
         <DashboardOpportunities initialOpportunities={opportunities} />

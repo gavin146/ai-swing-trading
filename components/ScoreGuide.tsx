@@ -1,0 +1,47 @@
+export function ScoreGuide() {
+  return (
+    <section className="rounded-lg border border-line bg-panel p-5 shadow-soft">
+      <div className="grid gap-5 lg:grid-cols-[0.9fr_1.1fr] lg:items-start">
+        <div>
+          <p className="text-sm font-bold uppercase tracking-normal text-pine">
+            Score guide
+          </p>
+          <h2 className="mt-3 text-2xl font-bold text-ink">How to read today&apos;s picks</h2>
+          <p className="mt-3 text-sm leading-6 text-ink/65">
+            TradePilot scores are meant to help you compare setups quickly. They are
+            decision support, not a command to buy.
+          </p>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-3">
+          <div className="rounded-md bg-mint px-4 py-3">
+            <p className="text-xs font-bold uppercase tracking-normal text-pine/70">
+              Opportunity
+            </p>
+            <p className="mt-2 text-sm font-semibold leading-6 text-ink">
+              Higher means stronger trend, fundamentals, catalyst tone, macro fit, and
+              reward/risk.
+            </p>
+          </div>
+          <div className="rounded-md bg-sky px-4 py-3">
+            <p className="text-xs font-bold uppercase tracking-normal text-ink/55">
+              Confidence
+            </p>
+            <p className="mt-2 text-sm font-semibold leading-6 text-ink">
+              Higher means the ranking has cleaner supporting data and fewer missing
+              inputs.
+            </p>
+          </div>
+          <div className="rounded-md bg-coral/20 px-4 py-3">
+            <p className="text-xs font-bold uppercase tracking-normal text-ink/55">
+              Risk
+            </p>
+            <p className="mt-2 text-sm font-semibold leading-6 text-ink">
+              Lower is better. Higher means more volatility, wider stops, or more event
+              risk.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}

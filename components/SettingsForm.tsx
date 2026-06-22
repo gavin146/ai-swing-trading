@@ -9,18 +9,9 @@ import {
 } from "@/lib/customer-store";
 import type { RiskProfile } from "@/lib/database.types";
 
-type AlertStatus = {
-  message: string;
-  tone: "neutral" | "success" | "error";
-};
-
 export function SettingsForm() {
   const [customer, setCustomer] = useState<CustomerProfile | null>(null);
   const [saved, setSaved] = useState(false);
-  const [alertStatus, setAlertStatus] = useState<AlertStatus>({
-    message: "No alert sent yet",
-    tone: "neutral",
-  });
 
   useEffect(() => {
     setCustomer(getCurrentCustomer());
@@ -45,42 +36,6 @@ export function SettingsForm() {
     setCustomer(next);
     setSaved(true);
     window.setTimeout(() => setSaved(false), 2500);
-  }
-
-  async function sendTestAlert() {
-    if (!customer) return;
-
-    setAlertStatus({ message: "Sending morning alert preview...", tone: "neutral" });
-
-    const response = await fetch("/api/alerts/morning", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        customerName: customer.fullName,
-        phone: customer.phone,
-      }),
-    });
-    const payload = (await response.json()) as {
-      error?: string;
-      delivery?: { mode: string; status: string; error?: string };
-      message?: string;
-    };
-
-    if (!response.ok) {
-      setAlertStatus({
-        message: payload.error ?? "Alert failed",
-        tone: "error",
-      });
-      return;
-    }
-
-    setAlertStatus({
-      message:
-        payload.delivery?.mode === "mock"
-          ? `Preview mode: ${payload.message}`
-          : `Twilio status: ${payload.delivery?.status}`,
-      tone: payload.delivery?.status === "failed" ? "error" : "success",
-    });
   }
 
   if (!customer) {
@@ -188,8 +143,9 @@ export function SettingsForm() {
           <div>
             <h2 className="text-xl font-bold text-ink">Morning alerts</h2>
             <p className="mt-2 text-sm leading-6 text-ink/60">
-              SMS alerts use Twilio when credentials are configured. Without keys,
-              the endpoint returns the exact message preview.
+              TradePilot runs the ranking check before the market opens, then emails
+              your daily stock analysis link. 8:30 AM Eastern gives you time to review
+              before the 9:30 AM open.
             </p>
           </div>
           <label className="inline-flex cursor-pointer items-center gap-3 self-start rounded-md border border-line bg-surface px-4 py-3 text-sm font-bold text-ink">
@@ -211,8 +167,7 @@ export function SettingsForm() {
               defaultValue={customer.alertChannel}
               className="rounded-md border border-line bg-surface px-4 py-3 font-medium outline-none transition focus:border-pine focus:bg-panel"
             >
-              <option value="sms">SMS</option>
-              <option value="email">Email later</option>
+              <option value="email">Email</option>
               <option value="none">None</option>
             </select>
           </label>
@@ -234,25 +189,11 @@ export function SettingsForm() {
           >
             Save settings
           </button>
-          <button
-            type="button"
-            onClick={() => void sendTestAlert()}
-            className="rounded-md border border-line bg-surface px-4 py-3 text-sm font-bold text-ink transition hover:border-pine"
-          >
-            Send test alert
-          </button>
         </div>
 
-        <p
-          className={`mt-4 rounded-md px-3 py-2 text-sm font-semibold ${
-            alertStatus.tone === "error"
-              ? "bg-coral/20 text-ink"
-              : alertStatus.tone === "success"
-                ? "bg-mint text-pine"
-                : "bg-surface text-ink/65"
-          }`}
-        >
-          {alertStatus.message}
+        <p className="mt-4 rounded-md bg-surface px-3 py-2 text-sm font-semibold text-ink/65">
+          Customers do not manually run the agent. Admins schedule the pre-market job,
+          and enabled customers receive the email automatically.
         </p>
       </section>
     </form>

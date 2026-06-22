@@ -63,8 +63,9 @@ export function AdminOperationsPanel() {
           </p>
           <h1 className="mt-3 text-3xl font-bold text-ink">System controls</h1>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-ink/60">
-            Run the daily agent, apply rankings, and check which production integrations
-            are configured.
+            Run the daily agent, apply rankings, and check production integrations.
+            Recommended schedule: 8:30 AM Eastern, before the 9:30 AM market open,
+            then email all enabled customers their daily analysis links.
           </p>
         </div>
         <div className="flex flex-col gap-3 sm:flex-row lg:flex-col">

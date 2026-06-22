@@ -10,6 +10,10 @@ export type Opportunity = {
   opportunityScore: number;
   confidenceScore: number;
   riskScore: number;
+  scoreLabel: string;
+  confidenceLabel: string;
+  riskLabel: string;
+  rankingSummary: string;
   entryRange: string;
   targetPrice: string;
   stopLoss: string;
@@ -120,6 +124,39 @@ function getThesis(row: OpportunityRow) {
   return `${row.symbol} ranks ${row.score}/100 with ${row.confidence}/100 confidence and ${row.risk_score}/100 risk, giving beginners a structured setup to review before placing any trade.`;
 }
 
+function getScoreLabel(score: number) {
+  if (score >= 85) return "High-conviction setup";
+  if (score >= 75) return "Strong setup";
+  if (score >= 65) return "Watchlist quality";
+  return "Speculative watch";
+}
+
+function getConfidenceLabel(confidence: number) {
+  if (confidence >= 85) return "Very strong data support";
+  if (confidence >= 75) return "Good data support";
+  if (confidence >= 65) return "Moderate data support";
+  return "Needs confirmation";
+}
+
+function getRiskLabel(riskScore: number) {
+  if (riskScore <= 35) return "Lower volatility";
+  if (riskScore <= 55) return "Moderate risk";
+  if (riskScore <= 70) return "Elevated risk";
+  return "High risk";
+}
+
+function getRankingSummary(row: OpportunityRow) {
+  const reward = row.expected_gain;
+  const risk = row.expected_loss;
+  const rewardRisk = risk > 0 ? reward / risk : 0;
+  const setup =
+    row.score >= 75
+      ? "ranks near the top because trend, data quality, and upside potential are aligned"
+      : "is on the list because it has a defined trade plan, but it needs cleaner confirmation";
+
+  return `${row.symbol} ${setup}. The model sees about ${reward.toFixed(1)}% potential upside versus ${risk.toFixed(1)}% planned downside, or roughly ${rewardRisk.toFixed(1)}R reward/risk.`;
+}
+
 function getHistoricalPerformance(row: OpportunityRow): Opportunity["historicalPerformance"] {
   const winRate = Math.max(45, Math.min(72, row.confidence - Math.round(row.risk_score / 5)));
 
@@ -163,6 +200,10 @@ export function opportunityFromRow(row: OpportunityRow): Opportunity {
     opportunityScore: row.score,
     confidenceScore: row.confidence,
     riskScore: row.risk_score,
+    scoreLabel: getScoreLabel(row.score),
+    confidenceLabel: getConfidenceLabel(row.confidence),
+    riskLabel: getRiskLabel(row.risk_score),
+    rankingSummary: getRankingSummary(row),
     entryRange: `${formatCurrency(row.entry_low)} - ${formatCurrency(row.entry_high)}`,
     targetPrice: formatCurrency(row.target_price),
     stopLoss: formatCurrency(row.stop_loss),

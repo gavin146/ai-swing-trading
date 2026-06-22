@@ -150,6 +150,11 @@ export function OpportunityDetailView({
           </div>
 
           <section className="mt-6 rounded-lg border border-line bg-surface p-5">
+            <h2 className="text-lg font-bold text-ink">Why this ranked here</h2>
+            <p className="mt-4 leading-7 text-ink/70">{opportunity.rankingSummary}</p>
+          </section>
+
+          <section className="mt-6 rounded-lg border border-line bg-surface p-5">
             <h2 className="text-lg font-bold text-ink">AI explanation</h2>
             <p className="mt-4 leading-7 text-ink/70">{opportunity.aiExplanation}</p>
             <p className="mt-4 leading-7 text-ink/70">{opportunity.thesis}</p>
@@ -172,10 +177,29 @@ export function OpportunityDetailView({
           </section>
 
           <section className="rounded-lg border border-line bg-panel p-5 shadow-soft">
+            <h2 className="text-lg font-bold text-ink">Score translation</h2>
+            <div className="mt-4 grid gap-3 text-sm">
+              <div className="rounded-md bg-mint px-3 py-2">
+                <p className="font-bold text-pine">Opportunity</p>
+                <p className="mt-1 leading-6 text-ink/70">{opportunity.scoreLabel}</p>
+              </div>
+              <div className="rounded-md bg-sky px-3 py-2">
+                <p className="font-bold text-ink">Confidence</p>
+                <p className="mt-1 leading-6 text-ink/70">{opportunity.confidenceLabel}</p>
+              </div>
+              <div className="rounded-md bg-coral/20 px-3 py-2">
+                <p className="font-bold text-ink">Risk</p>
+                <p className="mt-1 leading-6 text-ink/70">{opportunity.riskLabel}</p>
+              </div>
+            </div>
+          </section>
+
+          <section className="rounded-lg border border-line bg-panel p-5 shadow-soft">
             <h2 className="text-lg font-bold text-ink">Beginner risk note</h2>
             <p className="mt-4 text-sm leading-6 text-ink/65">
-              Mock data is for product development only. Real trading requires
-              live market data, position sizing rules, and independent judgment.
+              Use the entry, target, and stop as a plan to review. The scores help you
+              compare setups, but they do not remove market risk or replace position
+              sizing.
             </p>
           </section>
         </aside>

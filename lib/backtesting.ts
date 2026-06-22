@@ -46,6 +46,12 @@ export type BacktestSummary = {
     averageReturnPct: number;
     averageRiskScore: number;
   }[];
+  learningFeedback: {
+    confidence: "low" | "medium" | "high";
+    summary: string;
+    calibrationRules: string[];
+    openAiInstruction: string;
+  };
   trades: BacktestTrade[];
   notes: string[];
 };
@@ -272,6 +278,73 @@ function buildScoreBands(trades: BacktestTrade[]) {
   });
 }
 
+function buildLearningFeedback(args: {
+  trades: BacktestTrade[];
+  scoreBands: BacktestSummary["scoreBands"];
+  targetHitRate: number;
+  stopHitRate: number;
+  averageReturnPct: number;
+}) {
+  const highScoreTrades = args.trades.filter((trade) => trade.score >= 70);
+  const highScoreStopRate = highScoreTrades.length
+    ? (highScoreTrades.filter((trade) => trade.outcome === "stop_hit").length /
+        highScoreTrades.length) *
+      100
+    : 0;
+  const weakBandOutperforming = args.scoreBands.find(
+    (band) => band.label === "Below 60" && band.count >= 3 && band.averageReturnPct > 0,
+  );
+  const rules: string[] = [];
+
+  if (highScoreStopRate >= 25) {
+    rules.push(
+      "Reduce confidence on high-score setups when recent stop-out rates are elevated; require cleaner support distance and lower event risk before labeling them high conviction.",
+    );
+  }
+
+  if (args.stopHitRate >= 30) {
+    rules.push(
+      "Penalize setups with tight entry-to-stop distance when volatility is expanding because recent backtests show higher stop-out risk.",
+    );
+  }
+
+  if (args.targetHitRate < 45) {
+    rules.push(
+      "Be more conservative on targets and do not overstate upside when recent target-hit rates are below acceptable swing-trading thresholds.",
+    );
+  }
+
+  if (weakBandOutperforming) {
+    rules.push(
+      "Investigate why lower score-band trades produced positive returns; avoid dismissing moderate-score setups when reward/risk and drawdown behavior are strong.",
+    );
+  }
+
+  if (args.averageReturnPct <= 0) {
+    rules.push(
+      "Tighten ranking thresholds because the tested basket did not produce positive average returns.",
+    );
+  }
+
+  if (rules.length === 0) {
+    rules.push(
+      "Keep the current weighting stable, but continue monitoring score bands before increasing confidence language.",
+    );
+  }
+
+  const confidence =
+    args.trades.length >= 60 ? "high" : args.trades.length >= 25 ? "medium" : "low";
+  const summary = `Backtest learning confidence is ${confidence}; ${args.trades.length} usable trades showed ${args.targetHitRate}% target hits, ${args.stopHitRate}% stop hits, and ${args.averageReturnPct}% average return.`;
+
+  return {
+    confidence,
+    summary,
+    calibrationRules: rules,
+    openAiInstruction:
+      "Use the backtest calibration rules as guardrails. When explaining picks, explicitly lower conviction where recent similar setups stopped out, avoid promising precision, and highlight what must improve before a trade deserves higher confidence.",
+  } satisfies BacktestSummary["learningFeedback"];
+}
+
 export async function runRollingBacktest(args: {
   windows?: number;
   intervalDays?: number;
@@ -316,16 +389,21 @@ export async function runRollingBacktest(args: {
   const stopHits = usableTrades.filter((trade) => trade.outcome === "stop_hit").length;
   const expired = usableTrades.filter((trade) => trade.outcome === "expired").length;
 
+  const scoreBands = buildScoreBands(usableTrades);
+  const targetHitRate = usableTrades.length ? round((targetHits / usableTrades.length) * 100) : 0;
+  const stopHitRate = usableTrades.length ? round((stopHits / usableTrades.length) * 100) : 0;
+  const averageReturnPct = round(average(usableTrades.map((trade) => trade.returnPct)), 2);
+
   return {
     runId: `backtest-${Date.now()}`,
     generatedAt: new Date().toISOString(),
     symbols,
     windowsTested: windows,
     tradesTested: usableTrades.length,
-    targetHitRate: usableTrades.length ? round((targetHits / usableTrades.length) * 100) : 0,
-    stopHitRate: usableTrades.length ? round((stopHits / usableTrades.length) * 100) : 0,
+    targetHitRate,
+    stopHitRate,
     expiredRate: usableTrades.length ? round((expired / usableTrades.length) * 100) : 0,
-    averageReturnPct: round(average(usableTrades.map((trade) => trade.returnPct)), 2),
+    averageReturnPct,
     averageMaxGainPct: round(average(usableTrades.map((trade) => trade.maxGainPct)), 2),
     averageMaxDrawdownPct: round(average(usableTrades.map((trade) => trade.maxDrawdownPct)), 2),
     averageRewardRiskRatio: round(
@@ -333,7 +411,14 @@ export async function runRollingBacktest(args: {
       2,
     ),
     averageScore: round(average(usableTrades.map((trade) => trade.score)), 1),
-    scoreBands: buildScoreBands(usableTrades),
+    scoreBands,
+    learningFeedback: buildLearningFeedback({
+      trades: usableTrades,
+      scoreBands,
+      targetHitRate,
+      stopHitRate,
+      averageReturnPct,
+    }),
     trades: usableTrades,
     notes: [
       "This is a rolling historical outcome simulation using FMP candles and the current ranking engine.",

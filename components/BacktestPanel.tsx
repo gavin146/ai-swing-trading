@@ -187,6 +187,38 @@ export function BacktestPanel() {
           </section>
 
           <section className="rounded-lg border border-line bg-panel p-6 shadow-soft">
+            <div className="grid gap-5 lg:grid-cols-[0.8fr_1.2fr] lg:items-start">
+              <div>
+                <p className="text-sm font-bold uppercase tracking-normal text-pine">
+                  Model learning
+                </p>
+                <h2 className="mt-3 text-2xl font-bold text-ink">
+                  Backtest feedback loop
+                </h2>
+                <p className="mt-3 text-sm leading-6 text-ink/65">
+                  {summary.learningFeedback.summary}
+                </p>
+                <p className="mt-3 rounded-md bg-sky px-3 py-2 text-sm font-bold text-ink">
+                  Learning confidence: {summary.learningFeedback.confidence}
+                </p>
+              </div>
+              <div className="rounded-lg border border-line bg-surface p-4">
+                <p className="text-xs font-bold uppercase tracking-normal text-ink/55">
+                  Calibration rules for future analysis
+                </p>
+                <ul className="mt-3 grid gap-2 text-sm leading-6 text-ink/70">
+                  {summary.learningFeedback.calibrationRules.map((rule) => (
+                    <li key={rule}>{rule}</li>
+                  ))}
+                </ul>
+                <p className="mt-4 rounded-md bg-panel px-3 py-2 text-sm font-semibold leading-6 text-ink/65">
+                  {summary.learningFeedback.openAiInstruction}
+                </p>
+              </div>
+            </div>
+          </section>
+
+          <section className="rounded-lg border border-line bg-panel p-6 shadow-soft">
             <h2 className="text-2xl font-bold text-ink">Recent simulated trades</h2>
             <div className="mt-5 w-full overflow-x-auto">
               <table className="w-full min-w-[980px] border-collapse text-left text-sm">

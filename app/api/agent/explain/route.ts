@@ -8,6 +8,11 @@ export const runtime = "nodejs";
 type ExplainRequest = {
   symbol?: string;
   source?: "mock" | "fmp";
+  backtestLearning?: {
+    summary?: string;
+    calibrationRules?: string[];
+    openAiInstruction?: string;
+  };
 };
 
 async function runConfiguredAgent(source: "mock" | "fmp") {
@@ -59,6 +64,16 @@ export async function POST(request: NextRequest) {
           news: ranking.candidate.news,
           market: ranking.candidate.market,
           dataQuality: result.dataQuality,
+          backtestLearning: body.backtestLearning ?? {
+            summary:
+              process.env.BACKTEST_CALIBRATION_SUMMARY ??
+              "No persisted backtest calibration has been supplied yet.",
+            calibrationRules: process.env.BACKTEST_CALIBRATION_RULES
+              ? process.env.BACKTEST_CALIBRATION_RULES.split("|").map((rule) => rule.trim())
+              : [],
+            openAiInstruction:
+              "If backtest calibration is available, use it to temper conviction, explain failure modes, and make the analysis more precise.",
+          },
         }),
       },
     ],

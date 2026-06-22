@@ -17,12 +17,21 @@ function isAuthorized(request: NextRequest) {
   return request.headers.get("authorization") === `Bearer ${secret}`;
 }
 
+function getEmailRecipients() {
+  const configured = process.env.ALERT_CUSTOMER_EMAILS ?? process.env.ALERT_TEST_EMAIL ?? "";
+
+  return configured
+    .split(",")
+    .map((email) => email.trim())
+    .filter(Boolean);
+}
+
 async function runMorningAlerts(request: NextRequest) {
   if (!isAuthorized(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const email = process.env.ALERT_TEST_EMAIL;
+  const emails = getEmailRecipients();
   const phone = process.env.ALERT_TEST_PHONE;
   const customerName = process.env.ALERT_TEST_CUSTOMER_NAME ?? "Demo Investor";
   const result =
@@ -31,22 +40,26 @@ async function runMorningAlerts(request: NextRequest) {
       : runDailyRankingAgent({ limit: 30 });
   const deliveries = [];
 
-  if (email) {
+  if (emails.length > 0) {
     const emailAlert = buildMorningEmailAlert({
       customerName,
       marketRegime: result.marketRegime,
       opportunities: result.opportunities,
     });
-    const delivery = await sendEmail({
-      to: email,
-      ...emailAlert,
-    });
 
-    deliveries.push({
-      channel: "email",
-      delivery,
-      preview: emailAlert,
-    });
+    for (const email of emails) {
+      const delivery = await sendEmail({
+        to: email,
+        ...emailAlert,
+      });
+
+      deliveries.push({
+        channel: "email",
+        to: email,
+        delivery,
+        preview: emailAlert,
+      });
+    }
   }
 
   if (phone) {
@@ -76,7 +89,7 @@ async function runMorningAlerts(request: NextRequest) {
       mode: "preview",
       email: emailAlert,
       note:
-        "Set ALERT_TEST_EMAIL for scheduled demo email. ALERT_TEST_PHONE is still supported for later SMS testing.",
+        "Set ALERT_CUSTOMER_EMAILS as a comma-separated list for scheduled customer email. ALERT_TEST_PHONE is still supported for later SMS testing.",
     });
   }
 

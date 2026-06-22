@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { AgentRunResult } from "@/lib/agent";
+import { getCurrentCustomer, isAdminCustomer } from "@/lib/customer-store";
 import { setStoredOpportunityRows } from "@/lib/opportunity-store";
 
 type RunState = "idle" | "loading" | "ready" | "error";
@@ -22,6 +23,8 @@ function formatDate(value: string) {
 
 export function AgentRunnerPanel() {
   const [status, setStatus] = useState<RunState>("idle");
+  const [adminAllowed, setAdminAllowed] = useState(false);
+  const [checkedAccess, setCheckedAccess] = useState(false);
   const [result, setResult] = useState<AgentRunResult | null>(null);
   const [message, setMessage] = useState("Ready to run");
   const [source, setSource] = useState<AgentSource>("mock");
@@ -33,6 +36,12 @@ export function AgentRunnerPanel() {
   });
 
   async function runAgent(method: "GET" | "POST" = "POST", nextSource: AgentSource = source) {
+    if (!isAdminCustomer(getCurrentCustomer())) {
+      setStatus("error");
+      setMessage("Admin access is required to run the ranking agent.");
+      return;
+    }
+
     setStatus("loading");
     setSource(nextSource);
     setMessage(
@@ -78,7 +87,16 @@ export function AgentRunnerPanel() {
   }
 
   useEffect(() => {
-    void runAgent("GET", "mock");
+    const allowed = isAdminCustomer(getCurrentCustomer());
+    setAdminAllowed(allowed);
+    setCheckedAccess(true);
+
+    if (allowed) {
+      void runAgent("GET", "mock");
+    } else {
+      setStatus("error");
+      setMessage("Admin access is required to run the ranking agent.");
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -144,6 +162,21 @@ export function AgentRunnerPanel() {
 
   return (
     <div className="grid min-w-0 gap-6">
+      {checkedAccess && !adminAllowed ? (
+        <section className="min-w-0 rounded-lg border border-line bg-panel p-6 shadow-soft">
+          <p className="text-sm font-bold uppercase tracking-normal text-coral">
+            Admin only
+          </p>
+          <h1 className="mt-3 text-4xl font-bold text-ink">Agent controls are restricted</h1>
+          <p className="mt-3 max-w-3xl text-base leading-7 text-ink/65">
+            Customers receive the morning brief automatically by email. Manual agent runs
+            are reserved for admins so customers have a simple daily-picks experience.
+          </p>
+        </section>
+      ) : null}
+
+      {!checkedAccess || !adminAllowed ? null : (
+        <>
       <section className="min-w-0 rounded-lg border border-line bg-panel p-6 shadow-soft">
         <div className="grid gap-5 lg:grid-cols-[1fr_auto] lg:items-start">
           <div>
@@ -152,10 +185,9 @@ export function AgentRunnerPanel() {
             </p>
             <h1 className="mt-3 text-4xl font-bold text-ink">Top 30 stock selector</h1>
             <p className="mt-3 max-w-3xl text-base leading-7 text-ink/65">
-              The agent scores a US stock universe using technical setup, company
-              financials, news and catalyst tone, market trend, government macro
-              placeholders, liquidity, and risk. Run mock mode for demos or FMP mode
-              when your API key is configured.
+              The system should run before the market opens, around 8:30 AM Eastern,
+              then send customers an email linking to the daily analysis. Manual runs
+              stay admin-only for testing, support, and operations.
             </p>
           </div>
           <div className="flex flex-col gap-3 sm:flex-row lg:flex-col">
@@ -423,6 +455,8 @@ export function AgentRunnerPanel() {
           ))}
         </section>
       ) : null}
+        </>
+      )}
     </div>
   );
 }

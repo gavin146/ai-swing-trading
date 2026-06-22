@@ -15,7 +15,7 @@ function scoreTone(score: number) {
 
 export function OpportunityCard({ opportunity, rank }: OpportunityCardProps) {
   return (
-    <article className="flex h-full flex-col rounded-lg border border-line bg-panel p-5 shadow-soft">
+    <article className="flex h-full flex-col rounded-lg border border-line bg-panel p-5 shadow-soft transition hover:-translate-y-0.5 hover:border-pine/35 hover:shadow-[0_24px_60px_rgba(18,33,31,0.12)]">
       <div className="flex items-start justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
@@ -28,6 +28,9 @@ export function OpportunityCard({ opportunity, rank }: OpportunityCardProps) {
           </div>
           <h2 className="mt-4 text-2xl font-bold text-ink">{opportunity.symbol}</h2>
           <p className="mt-1 text-sm font-medium text-ink/60">{opportunity.name}</p>
+          <p className="mt-3 rounded-md bg-sky/70 px-3 py-2 text-sm font-bold text-ink">
+            {opportunity.scoreLabel}
+          </p>
         </div>
         <div className="min-w-20 rounded-md border border-line bg-surface p-3 text-center">
           <p className="text-[11px] font-bold uppercase tracking-normal text-ink/55">
@@ -51,6 +54,8 @@ export function OpportunityCard({ opportunity, rank }: OpportunityCardProps) {
           tone={opportunity.riskScore >= 55 ? "risk" : "positive"}
         />
       </div>
+
+      <p className="mt-4 text-sm leading-6 text-ink/65">{opportunity.rankingSummary}</p>
 
       <dl className="mt-5 grid gap-3 text-sm">
         <div className="flex items-center justify-between gap-4 border-t border-line pt-3">
@@ -79,9 +84,9 @@ export function OpportunityCard({ opportunity, rank }: OpportunityCardProps) {
 
       <Link
         href={`/opportunities/${opportunity.symbol}`}
-        className="mt-6 rounded-md bg-pine px-4 py-3 text-center text-sm font-bold text-white transition hover:bg-ink"
+        className="mt-auto rounded-md bg-pine px-4 py-3 text-center text-sm font-bold text-white transition hover:bg-ink"
       >
-        View trade details
+        View analysis
       </Link>
     </article>
   );

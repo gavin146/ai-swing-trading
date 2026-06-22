@@ -1,4 +1,8 @@
+"use client";
+
 import Link from "next/link";
+import { useEffect, useState } from "react";
+import { getCurrentCustomer, isAdminCustomer, type CustomerProfile } from "@/lib/customer-store";
 import { CustomerStatus } from "./CustomerStatus";
 
 type AppHeaderProps = {
@@ -6,8 +10,24 @@ type AppHeaderProps = {
 };
 
 export function AppHeader({ active }: AppHeaderProps) {
+  const [customer, setCustomer] = useState<CustomerProfile | null>(null);
+  const isAdmin = isAdminCustomer(customer);
+
+  useEffect(() => {
+    const refresh = () => setCustomer(getCurrentCustomer());
+
+    refresh();
+    window.addEventListener("tradepilot-customer-updated", refresh);
+    window.addEventListener("storage", refresh);
+
+    return () => {
+      window.removeEventListener("tradepilot-customer-updated", refresh);
+      window.removeEventListener("storage", refresh);
+    };
+  }, []);
+
   return (
-    <header className="border-b border-line bg-panel/90 backdrop-blur">
+    <header className="sticky top-0 z-40 border-b border-line bg-panel/90 backdrop-blur">
       <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-4 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
         <Link href="/" className="flex items-center gap-3">
           <span className="grid h-10 w-10 place-items-center rounded-md bg-pine text-sm font-bold text-white">
@@ -38,30 +58,26 @@ export function AppHeader({ active }: AppHeaderProps) {
           >
             Settings
           </Link>
-          <Link
-            href="/agent"
-            className={`rounded-md px-3 py-2 transition hover:bg-mint hover:text-ink ${
-              active === "agent" ? "bg-mint text-ink" : ""
-            }`}
-          >
-            Agent
-          </Link>
-          <Link
-            href="/themes"
-            className={`rounded-md px-3 py-2 transition hover:bg-mint hover:text-ink ${
-              active === "themes" ? "bg-mint text-ink" : ""
-            }`}
-          >
-            Themes
-          </Link>
-          <Link
-            href="/admin"
-            className={`rounded-md px-3 py-2 transition hover:bg-mint hover:text-ink ${
-              active === "admin" ? "bg-mint text-ink" : ""
-            }`}
-          >
-            Admin
-          </Link>
+          {isAdmin ? (
+            <>
+              <Link
+                href="/admin"
+                className={`rounded-md px-3 py-2 transition hover:bg-mint hover:text-ink ${
+                  active === "admin" ? "bg-mint text-ink" : ""
+                }`}
+              >
+                Admin
+              </Link>
+              <Link
+                href="/agent"
+                className={`rounded-md px-3 py-2 transition hover:bg-mint hover:text-ink ${
+                  active === "agent" ? "bg-mint text-ink" : ""
+                }`}
+              >
+                Agent
+              </Link>
+            </>
+          ) : null}
           <CustomerStatus />
         </nav>
       </div>
