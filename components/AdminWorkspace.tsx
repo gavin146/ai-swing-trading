@@ -92,7 +92,7 @@ export function AdminWorkspace() {
 
   if (!loaded) {
     return (
-      <section className="premium-panel rounded-xl p-6">
+      <section className="premium-panel rounded-3xl p-6">
         <p className="text-sm font-bold text-ink">Checking admin access...</p>
       </section>
     );
@@ -100,7 +100,7 @@ export function AdminWorkspace() {
 
   if (!customer || !isAdminCustomer(customer)) {
     return (
-      <section className="premium-panel rounded-xl p-6">
+      <section className="premium-panel rounded-3xl p-6">
         <div className="signal-line mb-5 h-1.5 max-w-48 rounded-full" />
         <p className="text-sm font-bold uppercase tracking-normal text-pine">
           Admin account required
@@ -121,13 +121,13 @@ export function AdminWorkspace() {
         <div className="mt-6 flex flex-col gap-3 sm:flex-row">
           <Link
             href="/signup"
-            className="rounded-lg bg-ink px-4 py-3 text-center text-sm font-black text-white shadow-[0_14px_34px_rgba(7,20,24,0.16)] hover:bg-pine"
+            className="rounded-2xl bg-ink px-4 py-3 text-center text-sm font-black text-white shadow-[0_14px_34px_rgba(7,20,24,0.16)] hover:bg-pine"
           >
             Create admin account
           </Link>
           <Link
             href="/login"
-            className="rounded-lg border border-line bg-surface px-4 py-3 text-center text-sm font-bold text-ink hover:border-pine"
+            className="rounded-2xl border border-line bg-surface px-4 py-3 text-center text-sm font-bold text-ink hover:border-pine"
           >
             Log in
           </Link>
@@ -140,8 +140,8 @@ export function AdminWorkspace() {
 
   return (
     <div className="grid min-w-0 gap-5 lg:grid-cols-[280px_minmax(0,1fr)] lg:gap-6">
-      <aside className="premium-panel min-w-0 rounded-xl p-3 sm:p-4 lg:sticky lg:top-24 lg:self-start">
-        <div className="rounded-lg bg-ink p-4 text-white sm:grid sm:grid-cols-[1fr_auto] sm:items-start sm:gap-4 lg:block">
+      <aside className="premium-panel min-w-0 rounded-3xl p-3 sm:p-4 lg:sticky lg:top-24 lg:self-start">
+        <div className="rounded-2xl bg-ink p-4 text-white sm:grid sm:grid-cols-[1fr_auto] sm:items-start sm:gap-4 lg:block">
           <div className="min-w-0">
           <p className="text-xs font-black uppercase tracking-normal text-white/60">
             SwingFi admin
@@ -151,7 +151,7 @@ export function AdminWorkspace() {
             Full access to operations, alerts, customers, and opportunity management.
           </p>
           </div>
-          <span className="mt-3 inline-flex w-fit rounded-md bg-white/10 px-2 py-1 text-xs font-black text-white sm:mt-0 lg:mt-3">
+          <span className="mt-3 inline-flex w-fit rounded-full bg-white/10 px-3 py-1 text-xs font-black text-white sm:mt-0 lg:mt-3">
             Admin
           </span>
         </div>
@@ -165,7 +165,7 @@ export function AdminWorkspace() {
                 key={tab.key}
                 type="button"
                 onClick={() => setActiveTab(tab.key)}
-                className={`min-h-[74px] rounded-lg border px-3 py-3 text-left transition sm:px-4 ${
+                className={`min-h-[74px] rounded-2xl border px-3 py-3 text-left transition sm:px-4 ${
                   isActive
                     ? "border-pine bg-mint text-ink shadow-soft"
                     : "border-transparent bg-transparent text-ink/68 hover:border-line hover:bg-surface"
@@ -180,7 +180,7 @@ export function AdminWorkspace() {
           })}
         </nav>
 
-        <div className="mt-3 rounded-lg border border-line bg-surface p-3 sm:mt-4 sm:p-4">
+        <div className="mt-3 rounded-2xl border border-line bg-surface p-3 sm:mt-4 sm:p-4">
           <p className="text-xs font-black uppercase tracking-normal text-ink/55">
             Access rule
           </p>
