@@ -11,6 +11,7 @@ export type SetupPreference = "steady" | "balanced" | "momentum";
 
 export type CustomerProfile = {
   id: string;
+  authUserId?: string | null;
   email: string;
   fullName: string;
   role: CustomerRole;
@@ -128,6 +129,7 @@ export function isAdminEmail(email: string | null | undefined) {
 function withoutPassword(customer: StoredCustomer): CustomerProfile {
   const profile: CustomerProfile = {
     id: customer.id,
+    authUserId: customer.authUserId ?? null,
     email: customer.email,
     fullName: customer.fullName,
     role: customer.role ?? "customer",
@@ -158,6 +160,7 @@ function normalizeCustomer(customer: StoredCustomer): StoredCustomer {
     email,
     role: isAdminEmail(email) ? "admin" : "customer",
     phone: customer.phone ?? "",
+    authUserId: customer.authUserId ?? null,
     riskProfile: customer.riskProfile ?? "balanced",
     accountBudget: customer.accountBudget ?? "not_set",
     investingExperience: customer.investingExperience ?? "beginner",
@@ -213,6 +216,19 @@ function writeCustomers(customers: StoredCustomer[]) {
   window.dispatchEvent(new Event("tradepilot-customer-updated"));
 }
 
+function applySyncedRole(customerId: string, role: CustomerRole | undefined) {
+  if (!role || (role !== "admin" && role !== "customer")) return;
+
+  const customers = readCustomers();
+  const nextCustomers = customers.map((customer) =>
+    customer.id === customerId ? { ...customer, role } : customer,
+  );
+
+  if (JSON.stringify(customers) !== JSON.stringify(nextCustomers)) {
+    writeCustomers(nextCustomers);
+  }
+}
+
 function syncCustomerProfile(customer: CustomerProfile | null) {
   if (!customer || typeof window === "undefined") return;
 
@@ -220,9 +236,19 @@ function syncCustomerProfile(customer: CustomerProfile | null) {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(customer),
-  }).catch((error) => {
-    console.warn("SwingFi customer sync failed", error);
-  });
+  })
+    .then(async (response) => {
+      if (!response.ok) return;
+
+      const payload = (await response.json().catch(() => null)) as {
+        customer?: { role?: CustomerRole };
+      } | null;
+
+      applySyncedRole(customer.id, payload?.customer?.role);
+    })
+    .catch((error) => {
+      console.warn("SwingFi customer sync failed", error);
+    });
 }
 
 export function getCustomerProfiles() {
@@ -332,6 +358,69 @@ export function signupCustomer(values: {
   };
 
   writeCustomers([nextCustomer, ...customers]);
+  window.localStorage.setItem(currentCustomerKey, nextCustomer.id);
+  window.dispatchEvent(new Event("tradepilot-customer-updated"));
+  const profile = withoutPassword(nextCustomer);
+  syncCustomerProfile(profile);
+  return profile;
+}
+
+export function rememberAuthenticatedCustomer(values: {
+  accountBudget?: AccountBudget;
+  authUserId?: string | null;
+  email: string;
+  fullName: string;
+  investingExperience?: InvestingExperience;
+  password?: string;
+  phone?: string;
+  positionSizePreference?: PositionSizePreference;
+  riskProfile?: RiskProfile;
+  setupPreference?: SetupPreference;
+}) {
+  const customers = readCustomers();
+  const normalizedEmail = normalizeEmail(values.email);
+  const existing = customers.find((customer) => normalizeEmail(customer.email) === normalizedEmail);
+  const existingIndex = customers.findIndex(
+    (customer) => normalizeEmail(customer.email) === normalizedEmail,
+  );
+  const riskProfile = values.riskProfile ?? existing?.riskProfile ?? "balanced";
+  const nextCustomer: StoredCustomer = normalizeCustomer({
+    id: existing?.id ?? crypto.randomUUID(),
+    authUserId: values.authUserId ?? existing?.authUserId ?? null,
+    email: normalizedEmail,
+    fullName: values.fullName.trim() || existing?.fullName || normalizedEmail,
+    role: isAdminEmail(normalizedEmail) ? "admin" : "customer",
+    phone: values.phone?.trim() ?? existing?.phone ?? "",
+    riskProfile,
+    accountBudget: values.accountBudget ?? existing?.accountBudget ?? "not_set",
+    investingExperience: values.investingExperience ?? existing?.investingExperience ?? "beginner",
+    positionSizePreference:
+      values.positionSizePreference ?? existing?.positionSizePreference ?? "small",
+    setupPreference: values.setupPreference ?? existing?.setupPreference ?? "balanced",
+    minimumConfidence:
+      existing?.minimumConfidence ??
+      (riskProfile === "conservative" ? 78 : riskProfile === "aggressive" ? 62 : 70),
+    maxRiskScore:
+      existing?.maxRiskScore ??
+      (riskProfile === "conservative" ? 45 : riskProfile === "aggressive" ? 78 : 65),
+    morningAlertsEnabled: existing?.morningAlertsEnabled ?? true,
+    alertChannel: existing?.alertChannel ?? "email",
+    alertTime: existing?.alertTime ?? "08:30",
+    timezone:
+      existing?.timezone ??
+      (typeof Intl !== "undefined"
+        ? Intl.DateTimeFormat().resolvedOptions().timeZone
+        : "America/Chicago"),
+    lastLoginAt: new Date().toISOString(),
+    createdAt: existing?.createdAt ?? new Date().toISOString(),
+    password: values.password ?? existing?.password ?? "",
+  });
+  const nextCustomers =
+    existingIndex >= 0
+      ? customers.map((customer, index) => (index === existingIndex ? nextCustomer : customer))
+      : [nextCustomer, ...customers];
+
+  writeCustomers(nextCustomers);
   window.localStorage.setItem(currentCustomerKey, nextCustomer.id);
   window.dispatchEvent(new Event("tradepilot-customer-updated"));
   const profile = withoutPassword(nextCustomer);

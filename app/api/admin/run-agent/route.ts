@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { runFmpDailyRankingAgent } from "@/lib/agent";
 import { getAdminUnauthorizedResponse, isAdminApiRequest } from "@/lib/auth/admin";
+import { sendAdminFailureAlert } from "@/lib/email";
 import { persistAgentRun, recordAppEvent, summarizeCalibration } from "@/lib/persistence";
 
 export const dynamic = "force-dynamic";
@@ -41,6 +42,12 @@ export async function POST(request: NextRequest) {
         message: "Manual admin ranking run completed but was not persisted.",
         metadata: { reason: persistence.reason, error: persistence.error, runId: result.runId },
       });
+      await sendAdminFailureAlert({
+        source: "admin-run-agent",
+        message: "Manual admin ranking run completed but was not persisted.",
+        error: persistence.error ?? persistence.reason,
+        metadata: { runId: result.runId },
+      });
     }
 
     return NextResponse.json({
@@ -50,16 +57,23 @@ export async function POST(request: NextRequest) {
       persistence,
     });
   } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
     await recordAppEvent({
       level: "error",
       source: "admin-run-agent",
       message: "Manual admin ranking run failed.",
-      metadata: { error: error instanceof Error ? error.message : String(error), source },
+      metadata: { error: errorMessage, source },
+    });
+    await sendAdminFailureAlert({
+      source: "admin-run-agent",
+      message: "Manual admin ranking run failed.",
+      error: errorMessage,
+      metadata: { source },
     });
 
     return NextResponse.json(
       {
-        error: error instanceof Error ? error.message : "Manual admin ranking run failed.",
+        error: errorMessage || "Manual admin ranking run failed.",
         source,
       },
       { status: 503 },

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { buildMorningAlertMessage, buildMorningEmailAlert } from "@/lib/alerts";
 import { runFmpDailyRankingAgent } from "@/lib/agent";
-import { sendEmail } from "@/lib/email";
+import { sendAdminFailureAlert, sendEmail } from "@/lib/email";
 import {
   getMorningAlertRecipients,
   persistAgentRun,
@@ -40,90 +40,113 @@ async function runMorningAlerts(request: NextRequest) {
     );
   }
 
-  const result = await runFmpDailyRankingAgent({ limit: 90 });
-  const persistence = await persistAgentRun(result);
-  const deliveries = [];
+  try {
+    const result = await runFmpDailyRankingAgent({ limit: 90 });
+    const persistence = await persistAgentRun(result);
+    const deliveries = [];
 
-  if (recipients.length > 0) {
-    for (const recipient of recipients) {
-      const emailAlert = buildMorningEmailAlert({
-        customerName: recipient.fullName,
-        customerId: recipient.userId ?? undefined,
+    if (recipients.length > 0) {
+      for (const recipient of recipients) {
+        const emailAlert = buildMorningEmailAlert({
+          customerName: recipient.fullName,
+          customerId: recipient.userId ?? undefined,
+          marketRegime: result.marketRegime,
+          opportunities: result.opportunities,
+        });
+        const delivery = await sendEmail({
+          to: recipient.email,
+          ...emailAlert,
+        });
+        await persistAlertLog({
+          userId: recipient.userId,
+          agentRunId: result.runId,
+          channel: "email",
+          status: delivery.status,
+          recipient: recipient.email,
+          message: emailAlert.text,
+          providerMessageId: delivery.id,
+          errorMessage: "error" in delivery ? delivery.error : null,
+        });
+
+        deliveries.push({
+          channel: "email",
+          to: recipient.email,
+          delivery,
+          preview: emailAlert,
+        });
+      }
+    }
+
+    if (phone) {
+      const message = buildMorningAlertMessage({
+        customerName,
         marketRegime: result.marketRegime,
         opportunities: result.opportunities,
       });
-      const delivery = await sendEmail({
-        to: recipient.email,
-        ...emailAlert,
-      });
-      await persistAlertLog({
-        userId: recipient.userId,
-        agentRunId: result.runId,
-        channel: "email",
-        status: delivery.status,
-        recipient: recipient.email,
-        message: emailAlert.text,
-        providerMessageId: delivery.id,
-        errorMessage: "error" in delivery ? delivery.error : null,
-      });
+      const delivery = await sendTwilioSms(phone, message);
 
       deliveries.push({
-        channel: "email",
-        to: recipient.email,
+        channel: "sms",
         delivery,
-        preview: emailAlert,
+        message,
       });
     }
-  }
 
-  if (phone) {
-    const message = buildMorningAlertMessage({
-      customerName,
-      marketRegime: result.marketRegime,
-      opportunities: result.opportunities,
-    });
-    const delivery = await sendTwilioSms(phone, message);
+    if (deliveries.length === 0) {
+      const emailAlert = buildMorningEmailAlert({
+        customerName,
+        marketRegime: result.marketRegime,
+        opportunities: result.opportunities,
+      });
 
-    deliveries.push({
-      channel: "sms",
-      delivery,
-      message,
-    });
-  }
+      return NextResponse.json({
+        sent: 0,
+        mode: "preview",
+        email: emailAlert,
+        persistence,
+        recipients: recipientResult,
+        note:
+          "No alert recipients were found. Add users with email alerts enabled in Supabase, or set ALERT_CUSTOMER_EMAILS while Supabase is not configured.",
+      });
+    }
 
-  if (deliveries.length === 0) {
-    const emailAlert = buildMorningEmailAlert({
-      customerName,
-      marketRegime: result.marketRegime,
-      opportunities: result.opportunities,
-    });
+    if (!persistence.persisted) {
+      await recordAppEvent({
+        level: "warning",
+        source: "morning-alerts-cron",
+        message: "Morning alerts sent but the ranking run was not persisted.",
+        metadata: { reason: persistence.reason, error: persistence.error, runId: result.runId },
+      });
+      await sendAdminFailureAlert({
+        source: "morning-alerts-cron",
+        message: "Morning alerts sent but the ranking run was not persisted.",
+        error: persistence.error ?? persistence.reason,
+        metadata: { runId: result.runId },
+      });
+    }
 
     return NextResponse.json({
-      sent: 0,
-      mode: "preview",
-      email: emailAlert,
+      sent: deliveries.filter((item) => item.delivery.status !== "failed").length,
+      deliveries,
       persistence,
-      recipients: recipientResult,
-      note:
-        "No alert recipients were found. Add users with email alerts enabled in Supabase, or set ALERT_CUSTOMER_EMAILS while Supabase is not configured.",
+      recipientSource: recipientResult.source,
     });
-  }
-
-  if (!persistence.persisted) {
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
     await recordAppEvent({
-      level: "warning",
+      level: "error",
       source: "morning-alerts-cron",
-      message: "Morning alerts sent but the ranking run was not persisted.",
-      metadata: { reason: persistence.reason, error: persistence.error, runId: result.runId },
+      message: "Morning alert cron failed.",
+      metadata: { error: errorMessage },
     });
-  }
+    await sendAdminFailureAlert({
+      source: "morning-alerts-cron",
+      message: "Morning alert cron failed.",
+      error: errorMessage,
+    });
 
-  return NextResponse.json({
-    sent: deliveries.filter((item) => item.delivery.status !== "failed").length,
-    deliveries,
-    persistence,
-    recipientSource: recipientResult.source,
-  });
+    return NextResponse.json({ error: errorMessage }, { status: 503 });
+  }
 }
 
 export async function GET(request: NextRequest) {

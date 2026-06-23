@@ -83,3 +83,53 @@ export async function sendEmail(args: SendEmailArgs): Promise<SendEmailResult> {
     from,
   };
 }
+
+export async function sendAdminFailureAlert(args: {
+  source: string;
+  message: string;
+  error?: string;
+  metadata?: Record<string, unknown>;
+}) {
+  const recipients = (process.env.ADMIN_ALERT_EMAILS ?? "")
+    .split(",")
+    .map((email) => email.trim())
+    .filter(Boolean);
+
+  if (!recipients.length) {
+    return [];
+  }
+
+  const details = [
+    `Source: ${args.source}`,
+    `Message: ${args.message}`,
+    args.error ? `Error: ${args.error}` : null,
+    args.metadata ? `Metadata: ${JSON.stringify(args.metadata, null, 2)}` : null,
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+
+  return Promise.all(
+    recipients.map((to) =>
+      sendEmail({
+        to,
+        subject: `SwingFi production alert: ${args.source}`,
+        text: details,
+        html: `<div style="font-family:Inter,Arial,sans-serif;color:#071418;line-height:1.5">
+          <h1 style="font-size:20px;margin:0 0 12px">SwingFi production alert</h1>
+          <p><strong>Source:</strong> ${args.source}</p>
+          <p><strong>Message:</strong> ${args.message}</p>
+          ${args.error ? `<p><strong>Error:</strong> ${args.error}</p>` : ""}
+          ${
+            args.metadata
+              ? `<pre style="white-space:pre-wrap;background:#f4f7f4;border:1px solid #dfe7df;border-radius:8px;padding:12px">${JSON.stringify(
+                  args.metadata,
+                  null,
+                  2,
+                )}</pre>`
+              : ""
+          }
+        </div>`,
+      }),
+    ),
+  );
+}

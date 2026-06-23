@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { runFmpDailyRankingAgent } from "@/lib/agent";
+import { sendAdminFailureAlert } from "@/lib/email";
 import { persistAgentRun, recordAppEvent, summarizeCalibration } from "@/lib/persistence";
 
 export const dynamic = "force-dynamic";
@@ -40,6 +41,12 @@ async function runCron(request: NextRequest) {
         message: "Daily ranking run completed but was not persisted.",
         metadata: { reason: persistence.reason, error: persistence.error, runId: result.runId },
       });
+      await sendAdminFailureAlert({
+        source: "daily-rankings-cron",
+        message: "Daily ranking run completed but was not persisted.",
+        error: persistence.error ?? persistence.reason,
+        metadata: { runId: result.runId },
+      });
     }
 
     return NextResponse.json({
@@ -52,16 +59,23 @@ async function runCron(request: NextRequest) {
         : "Daily rankings completed but were not saved because Supabase persistence is not configured or failed.",
     });
   } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
     await recordAppEvent({
       level: "error",
       source: "daily-rankings-cron",
       message: "Daily ranking cron failed.",
-      metadata: { error: error instanceof Error ? error.message : String(error), source },
+      metadata: { error: errorMessage, source },
+    });
+    await sendAdminFailureAlert({
+      source: "daily-rankings-cron",
+      message: "Daily ranking cron failed.",
+      error: errorMessage,
+      metadata: { source },
     });
 
     return NextResponse.json(
       {
-        error: error instanceof Error ? error.message : "Daily ranking cron failed",
+        error: errorMessage || "Daily ranking cron failed",
         source,
       },
       { status: 503 },

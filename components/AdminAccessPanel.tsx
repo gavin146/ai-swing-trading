@@ -2,8 +2,10 @@
 
 import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
+import { getAdminHeaders } from "@/lib/admin-client";
 import {
   getAdminAccessRecords,
+  getCurrentCustomer,
   grantAdminAccess,
   revokeAdminAccess,
   TRADEPILOT_ADMIN_EMAIL,
@@ -23,43 +25,121 @@ export function AdminAccessPanel() {
   const [records, setRecords] = useState<AdminAccessRecord[]>([]);
   const [message, setMessage] = useState("Add an email before that person creates an account.");
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  const refreshRecords = () => setRecords(getAdminAccessRecords());
+  async function refreshRecords() {
+    setLoading(true);
+    try {
+      const response = await fetch("/api/admin/access", {
+        headers: getAdminHeaders(),
+      });
+      const payload = (await response.json()) as {
+        error?: string;
+        records?: AdminAccessRecord[];
+      };
+
+      if (!response.ok || payload.error) {
+        throw new Error(payload.error ?? "Admin access could not be loaded.");
+      }
+
+      setRecords(payload.records ?? []);
+    } catch {
+      setRecords(getAdminAccessRecords());
+    } finally {
+      setLoading(false);
+    }
+  }
 
   useEffect(() => {
     refreshRecords();
-    window.addEventListener("tradepilot-customer-updated", refreshRecords);
-    window.addEventListener("storage", refreshRecords);
+    const refresh = () => void refreshRecords();
+    window.addEventListener("tradepilot-customer-updated", refresh);
+    window.addEventListener("storage", refresh);
+    window.addEventListener("tradepilot-admin-token-updated", refresh);
 
     return () => {
-      window.removeEventListener("tradepilot-customer-updated", refreshRecords);
-      window.removeEventListener("storage", refreshRecords);
+      window.removeEventListener("tradepilot-customer-updated", refresh);
+      window.removeEventListener("storage", refresh);
+      window.removeEventListener("tradepilot-admin-token-updated", refresh);
     };
   }, []);
 
-  function handleGrant(event: FormEvent<HTMLFormElement>) {
+  async function handleGrant(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
     const formData = new FormData(event.currentTarget);
     const email = String(formData.get("email") ?? "");
 
     try {
-      setRecords(grantAdminAccess(email));
+      const current = getCurrentCustomer();
+      const response = await fetch("/api/admin/access", {
+        method: "POST",
+        headers: getAdminHeaders({ "Content-Type": "application/json" }),
+        body: JSON.stringify({
+          createdByEmail: current?.email,
+          email,
+        }),
+      });
+      const payload = (await response.json()) as {
+        error?: string;
+        records?: AdminAccessRecord[];
+      };
+
+      if (!response.ok || payload.error) {
+        throw new Error(payload.error ?? "Admin access could not be updated.");
+      }
+
+      setRecords(payload.records ?? grantAdminAccess(email));
       setMessage(`${email.trim().toLowerCase()} can now create an admin account.`);
       event.currentTarget.reset();
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Admin access could not be updated.");
+      try {
+        setRecords(grantAdminAccess(email));
+        setMessage(`${email.trim().toLowerCase()} can now create an admin account locally.`);
+      } catch (fallbackError) {
+        setError(
+          fallbackError instanceof Error
+            ? fallbackError.message
+            : caught instanceof Error
+              ? caught.message
+              : "Admin access could not be updated.",
+        );
+      }
     }
   }
 
-  function handleRevoke(email: string) {
+  async function handleRevoke(email: string) {
     setError("");
 
     try {
-      setRecords(revokeAdminAccess(email));
+      const response = await fetch(`/api/admin/access?email=${encodeURIComponent(email)}`, {
+        method: "DELETE",
+        headers: getAdminHeaders(),
+      });
+      const payload = (await response.json()) as {
+        error?: string;
+        records?: AdminAccessRecord[];
+      };
+
+      if (!response.ok || payload.error) {
+        throw new Error(payload.error ?? "Admin access could not be removed.");
+      }
+
+      setRecords(payload.records ?? revokeAdminAccess(email));
       setMessage(`${email} no longer has admin access.`);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Admin access could not be removed.");
+      try {
+        setRecords(revokeAdminAccess(email));
+        setMessage(`${email} no longer has admin access locally.`);
+      } catch (fallbackError) {
+        setError(
+          fallbackError instanceof Error
+            ? fallbackError.message
+            : caught instanceof Error
+              ? caught.message
+              : "Admin access could not be removed.",
+        );
+      }
     }
   }
 
@@ -84,6 +164,11 @@ export function AdminAccessPanel() {
           Account signup
         </Link>
       </div>
+      {loading ? (
+        <p className="mt-4 rounded-md bg-surface px-3 py-2 text-sm font-bold text-ink/60">
+          Loading admin access records...
+        </p>
+      ) : null}
 
       <form onSubmit={handleGrant} className="mt-6 grid gap-3 rounded-lg bg-surface p-4 md:grid-cols-[1fr_auto]">
         <label className="grid gap-2 text-sm font-bold text-ink">

@@ -4,29 +4,88 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
 import { BrandMark } from "@/components/BrandMark";
-import { isAdminCustomer, loginCustomer } from "@/lib/customer-store";
+import {
+  isAdminCustomer,
+  loginCustomer,
+  rememberAuthenticatedCustomer,
+} from "@/lib/customer-store";
+import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 
 export function LoginForm() {
   const router = useRouter();
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setLoading(true);
     setError("");
     const formData = new FormData(event.currentTarget);
+    const email = String(formData.get("email") ?? "");
+    const password = String(formData.get("password") ?? "");
 
     try {
-      const customer = loginCustomer(
-        String(formData.get("email") ?? ""),
-        String(formData.get("password") ?? ""),
-      );
+      const supabase = createSupabaseBrowserClient();
+      let customer;
+
+      if (supabase) {
+        const { data, error: authError } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
+
+        if (authError || !data.user) {
+          customer = loginCustomer(email, password);
+        } else {
+          customer = rememberAuthenticatedCustomer({
+            authUserId: data.user.id,
+            email: data.user.email ?? email,
+            fullName:
+              typeof data.user.user_metadata?.full_name === "string"
+                ? data.user.user_metadata.full_name
+                : email,
+            password,
+          });
+        }
+      } else {
+        customer = loginCustomer(email, password);
+      }
+
       router.push(isAdminCustomer(customer) ? "/admin" : "/dashboard");
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Login failed.");
       setLoading(false);
     }
+  }
+
+  async function handlePasswordReset() {
+    const emailInput = document.querySelector<HTMLInputElement>('input[name="email"]');
+    const email = emailInput?.value.trim() ?? "";
+
+    if (!email) {
+      setError("Enter your email first, then request a reset link.");
+      return;
+    }
+
+    const supabase = createSupabaseBrowserClient();
+    if (!supabase) {
+      setError("Password reset is not configured yet.");
+      return;
+    }
+
+    setLoading(true);
+    setError("");
+    const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/login`,
+    });
+    setLoading(false);
+
+    if (resetError) {
+      setError(resetError.message);
+      return;
+    }
+
+    setError("Password reset email sent. Check your inbox.");
   }
 
   return (
@@ -71,6 +130,14 @@ export function LoginForm() {
           className="mt-2 rounded-lg bg-ink px-4 py-3 text-sm font-black text-white shadow-[0_14px_34px_rgba(7,20,24,0.16)] hover:bg-pine disabled:cursor-not-allowed disabled:opacity-70"
         >
           {loading ? "Opening dashboard..." : "Log in"}
+        </button>
+        <button
+          type="button"
+          onClick={handlePasswordReset}
+          disabled={loading}
+          className="rounded-lg border border-line bg-panel px-4 py-3 text-sm font-bold text-ink hover:border-pine hover:shadow-soft disabled:cursor-not-allowed disabled:opacity-70"
+        >
+          Send password reset
         </button>
       </form>
 

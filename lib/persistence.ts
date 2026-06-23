@@ -4,7 +4,15 @@ import type {
   RankingCalibrationRule,
 } from "@/lib/agent";
 import type { BacktestSummary } from "@/lib/backtesting";
-import type { AlertChannel, AlertStatus, Json } from "@/lib/database.types";
+import type {
+  AccountBudget,
+  AlertChannel,
+  AlertStatus,
+  Json,
+  OpportunityRow,
+  RiskProfile,
+  SetupPreference,
+} from "@/lib/database.types";
 import { createSupabaseAdminClient, hasSupabaseAdminConfig } from "@/lib/supabase/server";
 
 type PersistenceResult = {
@@ -39,6 +47,156 @@ function isUuid(value: string | null | undefined) {
 
 function cleanUserId(value: string | null | undefined) {
   return isUuid(value) ? value : null;
+}
+
+type PickUserPreference = {
+  id: string;
+  account_budget: AccountBudget;
+  max_risk_score: number;
+  minimum_confidence: number;
+  position_size_preference: "small" | "moderate" | "aggressive";
+  risk_profile: RiskProfile;
+  setup_preference: SetupPreference;
+};
+
+function dailyPickLimit(user: PickUserPreference) {
+  const riskLimit =
+    user.risk_profile === "conservative" ? 12 : user.risk_profile === "aggressive" ? 30 : 20;
+  const budgetLimit =
+    user.account_budget === "under_1000"
+      ? 12
+      : user.account_budget === "1000_5000"
+        ? 16
+        : 30;
+
+  return Math.min(riskLimit, budgetLimit);
+}
+
+function personalizedPickScore(opportunity: OpportunityRow, user: PickUserPreference) {
+  const confidenceGap = Math.max(0, user.minimum_confidence - opportunity.confidence);
+  const riskGap = Math.max(0, opportunity.risk_score - user.max_risk_score);
+  let penalty = confidenceGap * 1.1 + riskGap * 1.25;
+
+  if (user.risk_profile === "conservative") {
+    penalty += Math.max(0, opportunity.risk_score - 45) * 0.35;
+    penalty -= opportunity.confidence >= 78 && opportunity.risk_score <= 45 ? 5 : 0;
+  }
+
+  if (user.risk_profile === "aggressive") {
+    penalty -= opportunity.score >= 75 && opportunity.expected_gain >= 7 ? 4 : 0;
+    penalty += opportunity.confidence < 62 ? 6 : 0;
+  }
+
+  if (user.position_size_preference === "small") {
+    penalty += Math.max(0, opportunity.risk_score - 55) * 0.3;
+  }
+
+  if (user.position_size_preference === "aggressive") {
+    penalty -= opportunity.score >= 72 && opportunity.expected_gain >= 6 ? 2 : 0;
+  }
+
+  if (user.setup_preference === "steady") {
+    penalty += Math.max(0, opportunity.risk_score - 50) * 0.35;
+    penalty -= opportunity.confidence >= 75 && opportunity.risk_score <= 50 ? 3 : 0;
+  }
+
+  if (user.setup_preference === "momentum") {
+    penalty -= opportunity.score >= 75 && opportunity.expected_gain >= 8 ? 4 : 0;
+    penalty += opportunity.confidence < 65 ? 4 : 0;
+  }
+
+  if (user.account_budget === "under_1000") {
+    penalty += Math.max(0, opportunity.risk_score - 50) * 0.25;
+  }
+
+  if (user.account_budget === "1000_5000") {
+    penalty += Math.max(0, opportunity.risk_score - 60) * 0.15;
+  }
+
+  return opportunity.score * 1.15 + opportunity.confidence * 0.3 - opportunity.risk_score * 0.22 - penalty;
+}
+
+async function persistPersonalizedDailyPicks(result: AgentRunResult) {
+  const supabase = createSupabaseAdminClient();
+
+  if (!supabase) return notConfigured();
+
+  const { data: users, error: userError } = await supabase
+    .from("users")
+    .select(
+      "id,risk_profile,account_budget,position_size_preference,setup_preference,minimum_confidence,max_risk_score",
+    )
+    .is("email_unsubscribed_at", null)
+    .limit(1000);
+
+  if (userError) {
+    return { persisted: false, error: userError.message } satisfies PersistenceResult;
+  }
+
+  if (!users?.length) {
+    return { persisted: true, reason: "No users available for personalized daily picks." };
+  }
+
+  const pickDate = result.asOf.slice(0, 10);
+  const { error: deleteError } = await supabase
+    .from("daily_picks")
+    .delete()
+    .eq("pick_date", pickDate);
+
+  if (deleteError) {
+    return { persisted: false, error: deleteError.message } satisfies PersistenceResult;
+  }
+
+  const rows = users.flatMap((user) => {
+    const preferences = {
+      id: String(user.id),
+      account_budget: (user.account_budget ?? "not_set") as AccountBudget,
+      max_risk_score: Number(user.max_risk_score ?? 65),
+      minimum_confidence: Number(user.minimum_confidence ?? 70),
+      position_size_preference: (user.position_size_preference ?? "small") as PickUserPreference["position_size_preference"],
+      risk_profile: (user.risk_profile ?? "balanced") as RiskProfile,
+      setup_preference: (user.setup_preference ?? "balanced") as SetupPreference,
+    } satisfies PickUserPreference;
+    const ranked = result.rankings
+      .map((item, index) => {
+        const opportunity = item.opportunity;
+        const directMatch =
+          opportunity.confidence >= preferences.minimum_confidence &&
+          opportunity.risk_score <= preferences.max_risk_score;
+
+        return {
+          directMatch,
+          index,
+          item,
+          score: personalizedPickScore(opportunity, preferences),
+        };
+      })
+      .sort((a, b) => {
+        if (a.directMatch !== b.directMatch) return a.directMatch ? -1 : 1;
+        if (b.score !== a.score) return b.score - a.score;
+        return a.index - b.index;
+      })
+      .slice(0, dailyPickLimit(preferences));
+
+    return ranked.map((entry, index) => ({
+      user_id: preferences.id,
+      opportunity_id: entry.item.opportunity.id,
+      agent_run_id: result.runId,
+      rank: index + 1,
+      pick_date: pickDate,
+    }));
+  });
+
+  if (rows.length === 0) {
+    return { persisted: true, reason: "No personalized daily pick rows generated." };
+  }
+
+  const { error: insertError } = await supabase.from("daily_picks").insert(rows);
+
+  return {
+    persisted: !insertError,
+    error: insertError?.message,
+  } satisfies PersistenceResult;
 }
 
 export function isPersistenceConfigured() {
@@ -143,6 +301,11 @@ export async function persistAgentRun(result: AgentRunResult) {
 
   if (rankingError) {
     return { persisted: false, error: rankingError.message } satisfies PersistenceResult;
+  }
+
+  const dailyPicks = await persistPersonalizedDailyPicks(result);
+  if (!dailyPicks.persisted) {
+    return { persisted: false, error: dailyPicks.error } satisfies PersistenceResult;
   }
 
   return { persisted: true } satisfies PersistenceResult;

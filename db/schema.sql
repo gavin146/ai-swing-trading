@@ -305,3 +305,176 @@ create index watchlists_user_id_idx on watchlists(user_id);
 create index watchlist_items_watchlist_id_idx on watchlist_items(watchlist_id);
 create index trade_history_user_id_idx on trade_history(user_id);
 create index trade_history_symbol_idx on trade_history(symbol);
+
+alter table users enable row level security;
+alter table admin_access_grants enable row level security;
+alter table opportunities enable row level security;
+alter table agent_runs enable row level security;
+alter table opportunity_rankings enable row level security;
+alter table backtest_runs enable row level security;
+alter table backtest_trades enable row level security;
+alter table ranking_calibration_rules enable row level security;
+alter table subscriptions enable row level security;
+alter table daily_picks enable row level security;
+alter table alert_logs enable row level security;
+alter table email_link_events enable row level security;
+alter table app_event_logs enable row level security;
+alter table customer_monthly_usage enable row level security;
+alter table watchlists enable row level security;
+alter table watchlist_items enable row level security;
+alter table trade_history enable row level security;
+
+create or replace function current_app_user_id()
+returns uuid
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select id from users where auth_user_id = auth.uid() limit 1
+$$;
+
+create or replace function current_app_user_is_admin()
+returns boolean
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select exists (
+    select 1 from users
+    where auth_user_id = auth.uid()
+      and role = 'admin'
+  )
+$$;
+
+create or replace function current_app_user_can_read_public_data()
+returns boolean
+language sql
+stable
+as $$
+  select auth.role() = 'authenticated' or current_app_user_is_admin()
+$$;
+
+drop policy if exists users_select_own_or_admin on users;
+create policy users_select_own_or_admin on users
+for select using (id = current_app_user_id() or current_app_user_is_admin());
+
+drop policy if exists users_update_own on users;
+create policy users_update_own on users
+for update using (id = current_app_user_id()) with check (id = current_app_user_id());
+
+drop policy if exists admin_access_grants_admin_all on admin_access_grants;
+create policy admin_access_grants_admin_all on admin_access_grants
+for all using (current_app_user_is_admin()) with check (current_app_user_is_admin());
+
+drop policy if exists opportunities_authenticated_read on opportunities;
+create policy opportunities_authenticated_read on opportunities
+for select using (current_app_user_can_read_public_data());
+
+drop policy if exists agent_runs_authenticated_read on agent_runs;
+create policy agent_runs_authenticated_read on agent_runs
+for select using (current_app_user_can_read_public_data());
+
+drop policy if exists opportunity_rankings_authenticated_read on opportunity_rankings;
+create policy opportunity_rankings_authenticated_read on opportunity_rankings
+for select using (current_app_user_can_read_public_data());
+
+drop policy if exists backtest_runs_admin_read on backtest_runs;
+create policy backtest_runs_admin_read on backtest_runs
+for select using (current_app_user_is_admin());
+
+drop policy if exists backtest_trades_admin_read on backtest_trades;
+create policy backtest_trades_admin_read on backtest_trades
+for select using (current_app_user_is_admin());
+
+drop policy if exists ranking_calibration_rules_admin_read on ranking_calibration_rules;
+create policy ranking_calibration_rules_admin_read on ranking_calibration_rules
+for select using (current_app_user_is_admin());
+
+drop policy if exists subscriptions_own_or_admin_read on subscriptions;
+create policy subscriptions_own_or_admin_read on subscriptions
+for select using (user_id = current_app_user_id() or current_app_user_is_admin());
+
+drop policy if exists daily_picks_own_or_admin_read on daily_picks;
+create policy daily_picks_own_or_admin_read on daily_picks
+for select using (user_id = current_app_user_id() or current_app_user_is_admin());
+
+drop policy if exists alert_logs_own_or_admin_read on alert_logs;
+create policy alert_logs_own_or_admin_read on alert_logs
+for select using (user_id = current_app_user_id() or current_app_user_is_admin());
+
+drop policy if exists email_link_events_own_or_admin_read on email_link_events;
+create policy email_link_events_own_or_admin_read on email_link_events
+for select using (user_id = current_app_user_id() or current_app_user_is_admin());
+
+drop policy if exists app_event_logs_admin_read on app_event_logs;
+create policy app_event_logs_admin_read on app_event_logs
+for select using (current_app_user_is_admin());
+
+drop policy if exists customer_monthly_usage_own_or_admin_read on customer_monthly_usage;
+create policy customer_monthly_usage_own_or_admin_read on customer_monthly_usage
+for select using (user_id = current_app_user_id() or current_app_user_is_admin());
+
+drop policy if exists watchlists_own_select on watchlists;
+create policy watchlists_own_select on watchlists
+for select using (user_id = current_app_user_id() or current_app_user_is_admin());
+
+drop policy if exists watchlists_own_insert on watchlists;
+create policy watchlists_own_insert on watchlists
+for insert with check (user_id = current_app_user_id());
+
+drop policy if exists watchlists_own_update on watchlists;
+create policy watchlists_own_update on watchlists
+for update using (user_id = current_app_user_id()) with check (user_id = current_app_user_id());
+
+drop policy if exists watchlists_own_delete on watchlists;
+create policy watchlists_own_delete on watchlists
+for delete using (user_id = current_app_user_id());
+
+drop policy if exists watchlist_items_own_select on watchlist_items;
+create policy watchlist_items_own_select on watchlist_items
+for select using (
+  current_app_user_is_admin()
+  or exists (
+    select 1 from watchlists
+    where watchlists.id = watchlist_items.watchlist_id
+      and watchlists.user_id = current_app_user_id()
+  )
+);
+
+drop policy if exists watchlist_items_own_insert on watchlist_items;
+create policy watchlist_items_own_insert on watchlist_items
+for insert with check (
+  exists (
+    select 1 from watchlists
+    where watchlists.id = watchlist_items.watchlist_id
+      and watchlists.user_id = current_app_user_id()
+  )
+);
+
+drop policy if exists watchlist_items_own_delete on watchlist_items;
+create policy watchlist_items_own_delete on watchlist_items
+for delete using (
+  exists (
+    select 1 from watchlists
+    where watchlists.id = watchlist_items.watchlist_id
+      and watchlists.user_id = current_app_user_id()
+  )
+);
+
+drop policy if exists trade_history_own_select on trade_history;
+create policy trade_history_own_select on trade_history
+for select using (user_id = current_app_user_id() or current_app_user_is_admin());
+
+drop policy if exists trade_history_own_insert on trade_history;
+create policy trade_history_own_insert on trade_history
+for insert with check (user_id = current_app_user_id());
+
+drop policy if exists trade_history_own_update on trade_history;
+create policy trade_history_own_update on trade_history
+for update using (user_id = current_app_user_id()) with check (user_id = current_app_user_id());
+
+drop policy if exists trade_history_own_delete on trade_history;
+create policy trade_history_own_delete on trade_history
+for delete using (user_id = current_app_user_id());

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { getCurrentCustomer, logoutCustomer, type CustomerProfile } from "@/lib/customer-store";
+import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 
 export function CustomerStatus() {
   const [customer, setCustomer] = useState<CustomerProfile | null>(null);
@@ -31,6 +32,12 @@ export function CustomerStatus() {
     );
   }
 
+  async function handleLogout() {
+    const supabase = createSupabaseBrowserClient();
+    await supabase?.auth.signOut();
+    logoutCustomer();
+  }
+
   return (
     <div className="flex items-center gap-2">
       <Link
@@ -41,7 +48,7 @@ export function CustomerStatus() {
       </Link>
       <button
         type="button"
-        onClick={logoutCustomer}
+        onClick={handleLogout}
         className="rounded-lg border border-line bg-panel px-3 py-2 text-sm font-bold text-ink hover:border-pine hover:shadow-soft"
       >
         Log out

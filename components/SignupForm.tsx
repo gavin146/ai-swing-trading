@@ -6,6 +6,7 @@ import { FormEvent, useState } from "react";
 import { BrandMark } from "@/components/BrandMark";
 import {
   isAdminCustomer,
+  rememberAuthenticatedCustomer,
   signupCustomer,
   TRADEPILOT_ADMIN_EMAIL,
   type AccountBudget,
@@ -14,35 +15,93 @@ import {
   type SetupPreference,
 } from "@/lib/customer-store";
 import type { RiskProfile } from "@/lib/database.types";
+import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 
 export function SignupForm() {
   const router = useRouter();
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setLoading(true);
     setError("");
     const formData = new FormData(event.currentTarget);
+    const accountBudget = String(formData.get("accountBudget") ?? "not_set") as AccountBudget;
+    const firstName = String(formData.get("firstName") ?? "");
+    const lastName = String(formData.get("lastName") ?? "");
+    const email = String(formData.get("email") ?? "");
+    const fullName = `${firstName.trim()} ${lastName.trim()}`.trim();
+    const investingExperience = String(
+      formData.get("investingExperience") ?? "beginner",
+    ) as InvestingExperience;
+    const password = String(formData.get("password") ?? "");
+    const phone = String(formData.get("phone") ?? "");
+    const positionSizePreference = String(
+      formData.get("positionSizePreference") ?? "small",
+    ) as PositionSizePreference;
+    const riskProfile = String(formData.get("riskProfile") ?? "balanced") as RiskProfile;
+    const setupPreference = String(formData.get("setupPreference") ?? "balanced") as SetupPreference;
 
     try {
-      const customer = signupCustomer({
-        accountBudget: String(formData.get("accountBudget") ?? "not_set") as AccountBudget,
-        firstName: String(formData.get("firstName") ?? ""),
-        lastName: String(formData.get("lastName") ?? ""),
-        email: String(formData.get("email") ?? ""),
-        investingExperience: String(
-          formData.get("investingExperience") ?? "beginner",
-        ) as InvestingExperience,
-        password: String(formData.get("password") ?? ""),
-        phone: String(formData.get("phone") ?? ""),
-        positionSizePreference: String(
-          formData.get("positionSizePreference") ?? "small",
-        ) as PositionSizePreference,
-        riskProfile: String(formData.get("riskProfile") ?? "balanced") as RiskProfile,
-        setupPreference: String(formData.get("setupPreference") ?? "balanced") as SetupPreference,
-      });
+      const supabase = createSupabaseBrowserClient();
+      let customer;
+
+      if (supabase) {
+        const { data, error: authError } = await supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            data: {
+              full_name: fullName,
+              phone,
+              risk_profile: riskProfile,
+            },
+          },
+        });
+
+        if (authError || !data.user) {
+          customer = signupCustomer({
+            accountBudget,
+            firstName,
+            lastName,
+            email,
+            investingExperience,
+            password,
+            phone,
+            positionSizePreference,
+            riskProfile,
+            setupPreference,
+          });
+        } else {
+          customer = rememberAuthenticatedCustomer({
+            accountBudget,
+            authUserId: data.user.id,
+            email: data.user.email ?? email,
+            fullName,
+            investingExperience,
+            password,
+            phone,
+            positionSizePreference,
+            riskProfile,
+            setupPreference,
+          });
+        }
+      } else {
+        customer = signupCustomer({
+          accountBudget,
+          firstName,
+          lastName,
+          email,
+          investingExperience,
+          password,
+          phone,
+          positionSizePreference,
+          riskProfile,
+          setupPreference,
+        });
+      }
+
       router.push(isAdminCustomer(customer) ? "/admin" : "/dashboard");
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Signup failed.");

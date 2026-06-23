@@ -83,12 +83,14 @@ export async function POST(request: NextRequest) {
     : "balanced";
   const createdAt = body?.createdAt ? new Date(String(body.createdAt)) : null;
   const lastLoginAt = body?.lastLoginAt ? new Date(String(body.lastLoginAt)) : null;
+  const authUserId = cleanText(body?.authUserId);
   const payload = {
     account_budget: accountBudget,
     alert_channel: alertChannel,
     alert_time: cleanText(body?.alertTime, "08:30") || "08:30",
     created_at: createdAt && !Number.isNaN(createdAt.getTime()) ? createdAt.toISOString() : undefined,
     email,
+    auth_user_id: authUserId || undefined,
     full_name: cleanText(body?.fullName),
     last_login_at:
       lastLoginAt && !Number.isNaN(lastLoginAt.getTime()) ? lastLoginAt.toISOString() : null,
