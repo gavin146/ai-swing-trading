@@ -1,9 +1,15 @@
 import { AppHeader } from "@/components/AppHeader";
 import { DashboardOpportunities } from "@/components/DashboardOpportunities";
 import { ScoreGuide } from "@/components/ScoreGuide";
-import { opportunities } from "@/lib/opportunities";
+import { opportunityFromRow } from "@/lib/opportunities";
+import { listLatestOpportunities } from "@/lib/repositories/opportunities";
 
-export default function DashboardPage() {
+export const dynamic = "force-dynamic";
+
+export default async function DashboardPage() {
+  const opportunityResult = await listLatestOpportunities(90);
+  const opportunities = opportunityResult.rows.map(opportunityFromRow);
+
   return (
     <main className="min-h-screen">
       <AppHeader active="dashboard" />
@@ -29,7 +35,11 @@ export default function DashboardPage() {
           <ScoreGuide />
         </div>
 
-        <DashboardOpportunities initialOpportunities={opportunities} />
+        <DashboardOpportunities
+          dataSource={opportunityResult.source}
+          fallbackReason={opportunityResult.reason}
+          initialOpportunities={opportunities}
+        />
       </section>
     </main>
   );

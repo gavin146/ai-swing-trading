@@ -1,4 +1,9 @@
-import { runFmpDailyRankingAgent } from "@/lib/agent";
+import {
+  buildCalibrationTableFromBacktest,
+  runFmpDailyRankingAgent,
+  setRuntimeCalibrationRules,
+} from "@/lib/agent";
+import type { RankingCalibrationRule } from "@/lib/agent";
 import type { OpportunityRow } from "@/lib/database.types";
 import { getFmpHistoricalCandles, type FmpHistoricalCandle } from "@/lib/providers/fmp";
 
@@ -52,6 +57,7 @@ export type BacktestSummary = {
     calibrationRules: string[];
     openAiInstruction: string;
   };
+  calibrationTable: RankingCalibrationRule[];
   trades: BacktestTrade[];
   notes: string[];
 };
@@ -393,6 +399,13 @@ export async function runRollingBacktest(args: {
   const targetHitRate = usableTrades.length ? round((targetHits / usableTrades.length) * 100) : 0;
   const stopHitRate = usableTrades.length ? round((stopHits / usableTrades.length) * 100) : 0;
   const averageReturnPct = round(average(usableTrades.map((trade) => trade.returnPct)), 2);
+  const calibrationTable = buildCalibrationTableFromBacktest({
+    trades: usableTrades,
+    targetHitRate,
+    stopHitRate,
+    averageReturnPct,
+  });
+  const activeCalibrationTable = setRuntimeCalibrationRules(calibrationTable);
 
   return {
     runId: `backtest-${Date.now()}`,
@@ -419,6 +432,7 @@ export async function runRollingBacktest(args: {
       stopHitRate,
       averageReturnPct,
     }),
+    calibrationTable: activeCalibrationTable,
     trades: usableTrades,
     notes: [
       "This is a rolling historical outcome simulation using FMP candles and the current ranking engine.",
@@ -426,6 +440,7 @@ export async function runRollingBacktest(args: {
       "Current fundamentals/news availability may not be perfectly point-in-time, so this is a reliability screen rather than institutional-grade research backtesting.",
       "If target and stop are both touched in the same candle, the backtest conservatively counts the stop first.",
       "This is not proof of future performance; it is the first verification layer for measuring whether scores have predictive value.",
+      "Until Supabase persistence is connected, generated calibration rules stay active for this running app process and can also be supplied through BACKTEST_CALIBRATION_TABLE.",
     ],
   } satisfies BacktestSummary;
 }

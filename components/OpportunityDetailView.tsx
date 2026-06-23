@@ -1,43 +1,25 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
 import { MetricPill } from "@/components/MetricPill";
 import { TradeStatGrid } from "@/components/TradeStatGrid";
-import { getStoredOpportunities } from "@/lib/opportunity-store";
 import type { Opportunity } from "@/lib/opportunities";
+import type { OpportunityDataSource } from "@/lib/repositories/opportunities";
 
 type OpportunityDetailViewProps = {
+  dataSource: OpportunityDataSource;
+  fallbackReason?: string;
   initialOpportunity?: Opportunity;
   symbol: string;
 };
 
 export function OpportunityDetailView({
+  dataSource,
+  fallbackReason,
   initialOpportunity,
   symbol,
 }: OpportunityDetailViewProps) {
-  const [opportunity, setOpportunity] = useState<Opportunity | undefined>(
-    initialOpportunity,
-  );
-
-  useEffect(() => {
-    const refresh = () => {
-      setOpportunity(
-        getStoredOpportunities().find(
-          (item) => item.symbol.toLowerCase() === symbol.toLowerCase(),
-        ),
-      );
-    };
-
-    refresh();
-    window.addEventListener("storage", refresh);
-    window.addEventListener("tradepilot-opportunities-updated", refresh);
-
-    return () => {
-      window.removeEventListener("storage", refresh);
-      window.removeEventListener("tradepilot-opportunities-updated", refresh);
-    };
-  }, [symbol]);
+  const opportunity = initialOpportunity;
 
   if (!opportunity) {
     return (
@@ -51,7 +33,8 @@ export function OpportunityDetailView({
         <div className="premium-panel mt-6 rounded-xl p-6">
           <h1 className="text-3xl font-black text-ink">Opportunity not found</h1>
           <p className="mt-3 leading-7 text-ink/65">
-            This mock opportunity may have been deleted from the admin panel.
+            No saved opportunity is available for {symbol.toUpperCase()}.
+            {fallbackReason ? ` ${fallbackReason}` : ""}
           </p>
         </div>
       </section>
@@ -70,6 +53,17 @@ export function OpportunityDetailView({
       <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_360px]">
         <div className="premium-panel rounded-xl p-6">
           <div className="signal-line mb-5 h-1.5 max-w-48 rounded-full" />
+          {dataSource === "empty" ? (
+            <p className="mb-5 rounded-md bg-coral/15 px-3 py-2 text-sm font-bold text-ink/70">
+              This page is waiting for live saved analysis
+              {fallbackReason ? `: ${fallbackReason}` : "."}
+            </p>
+          ) : dataSource === "agent-preview" ? (
+            <p className="mb-5 rounded-md bg-sky px-3 py-2 text-sm font-bold text-ink/70">
+              Showing a fresh live agent preview because saved Supabase analysis is not
+              active yet. {fallbackReason ?? ""}
+            </p>
+          ) : null}
           <div className="flex flex-col gap-5 border-b border-line pb-6 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <div className="flex flex-wrap items-center gap-2">

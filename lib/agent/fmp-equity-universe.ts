@@ -835,8 +835,8 @@ export async function runFmpDailyRankingAgent({
   asOf = new Date(),
   limit = 30,
   symbols,
-  universeLimit = envNumber("FMP_UNIVERSE_LIMIT", 160, 40, 500),
-  detailedLimit = envNumber("FMP_DETAILED_LIMIT", 90, 30, 200),
+  universeLimit = envNumber("FMP_UNIVERSE_LIMIT", 500, 40, 500),
+  detailedLimit = envNumber("FMP_DETAILED_LIMIT", 200, 30, 200),
 }: RunFmpOptions = {}): Promise<AgentRunResult> {
   const macro = await getFredMacroContext();
   const bls = await getBlsMacroContext();

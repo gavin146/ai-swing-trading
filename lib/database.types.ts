@@ -7,26 +7,58 @@ export type Json =
   | Json[];
 
 export type AssetType = "stock" | "etf" | "crypto";
+export type AccountBudget = "not_set" | "under_1000" | "1000_5000" | "5000_25000" | "25000_plus";
 export type AgentRunStatus = "queued" | "running" | "completed" | "failed";
 export type AlertChannel = "sms" | "email" | "none";
 export type AlertStatus = "preview" | "queued" | "sent" | "failed";
+export type CalibrationConfidence = "low" | "medium" | "high";
+export type InvestingExperience = "beginner" | "intermediate" | "advanced";
+export type PositionSizePreference = "small" | "moderate" | "aggressive";
 export type RiskProfile = "conservative" | "balanced" | "aggressive";
+export type SetupPreference = "steady" | "balanced" | "momentum";
+export type SubscriptionStatus =
+  | "trialing"
+  | "active"
+  | "past_due"
+  | "canceled"
+  | "unpaid"
+  | "incomplete"
+  | "incomplete_expired"
+  | "paused";
 export type TradeStatus = "planned" | "open" | "closed" | "cancelled";
+export type UserRole = "customer" | "admin";
 
 export type UserRow = {
   id: string;
   auth_user_id: string | null;
   email: string;
   full_name: string | null;
+  role: UserRole;
+  stripe_customer_id: string | null;
   phone: string | null;
   risk_profile: RiskProfile;
+  account_budget: AccountBudget;
+  investing_experience: InvestingExperience;
+  position_size_preference: PositionSizePreference;
+  setup_preference: SetupPreference;
   minimum_confidence: number;
   max_risk_score: number;
   morning_alerts_enabled: boolean;
   alert_channel: AlertChannel;
   alert_time: string;
   timezone: string;
+  email_unsubscribed_at: string | null;
+  terms_accepted_at: string | null;
+  last_login_at: string | null;
   created_at: string;
+};
+
+export type AdminAccessGrantRow = {
+  id: string;
+  email: string;
+  granted_by_user_id: string | null;
+  created_at: string;
+  revoked_at: string | null;
 };
 
 export type OpportunityRow = {
@@ -50,10 +82,13 @@ export type OpportunityRow = {
 export type AgentRunRow = {
   id: string;
   status: AgentRunStatus;
+  source: string;
   universe_count: number;
   selected_count: number;
   market_regime: string | null;
   summary: string | null;
+  data_quality: Json;
+  cost_estimate: Json;
   started_at: string;
   completed_at: string | null;
   error_message: string | null;
@@ -70,8 +105,95 @@ export type OpportunityRankingRow = {
   news_score: number;
   macro_score: number;
   liquidity_score: number;
+  risk_score: number;
+  confidence_score: number;
+  raw_composite_score: number;
   composite_score: number;
+  calibration_rules: Json;
   created_at: string;
+};
+
+export type BacktestRunRow = {
+  id: string;
+  generated_at: string;
+  windows_tested: number;
+  trades_tested: number;
+  target_hit_rate: number;
+  stop_hit_rate: number;
+  expired_rate: number;
+  average_return_pct: number;
+  average_max_gain_pct: number;
+  average_max_drawdown_pct: number;
+  average_reward_risk_ratio: number;
+  average_score: number;
+  symbols: string[];
+  score_bands: Json;
+  learning_summary: string;
+  openai_instruction: string;
+  notes: string[];
+  created_at: string;
+};
+
+export type BacktestTradeRow = {
+  id: string;
+  backtest_run_id: string;
+  as_of: string;
+  symbol: string;
+  rank: number;
+  score: number;
+  confidence: number;
+  risk_score: number;
+  entry_date: string | null;
+  entry_price: number;
+  target_price: number;
+  stop_loss: number;
+  reward_risk_ratio: number;
+  holding_period_days: number;
+  outcome: "target_hit" | "stop_hit" | "expired" | "no_data";
+  exit_date: string | null;
+  exit_price: number | null;
+  return_pct: number;
+  max_gain_pct: number;
+  max_drawdown_pct: number;
+  created_at: string;
+};
+
+export type RankingCalibrationRuleRow = {
+  id: string;
+  source_backtest_run_id: string | null;
+  rule_key: string;
+  label: string;
+  description: string;
+  trigger_config: Json;
+  trigger_description: string;
+  score_penalty: number;
+  confidence_penalty: number;
+  risk_adjustment: number;
+  sample_size: number;
+  target_hit_rate: number;
+  stop_hit_rate: number;
+  average_return_pct: number;
+  confidence: CalibrationConfidence;
+  active: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type SubscriptionRow = {
+  id: string;
+  user_id: string | null;
+  stripe_customer_id: string;
+  stripe_subscription_id: string;
+  stripe_price_id: string;
+  plan_key: string;
+  status: SubscriptionStatus;
+  current_period_start: string | null;
+  current_period_end: string | null;
+  cancel_at_period_end: boolean;
+  canceled_at: string | null;
+  trial_end: string | null;
+  created_at: string;
+  updated_at: string;
 };
 
 export type DailyPickRow = {
@@ -86,7 +208,7 @@ export type DailyPickRow = {
 
 export type AlertLogRow = {
   id: string;
-  user_id: string;
+  user_id: string | null;
   agent_run_id: string | null;
   channel: AlertChannel;
   status: AlertStatus;
@@ -100,7 +222,7 @@ export type AlertLogRow = {
 
 export type EmailLinkEventRow = {
   id: string;
-  user_id: string;
+  user_id: string | null;
   alert_log_id: string | null;
   opportunity_id: string | null;
   symbol: string;
@@ -108,6 +230,15 @@ export type EmailLinkEventRow = {
   source: string;
   user_agent: string | null;
   clicked_at: string;
+  created_at: string;
+};
+
+export type AppEventLogRow = {
+  id: string;
+  level: "info" | "warning" | "error";
+  source: string;
+  message: string;
+  metadata: Json;
   created_at: string;
 };
 
@@ -161,6 +292,11 @@ export type UserInsert = Omit<UserRow, "id" | "created_at"> & {
   created_at?: string;
 };
 
+export type AdminAccessGrantInsert = Omit<AdminAccessGrantRow, "id" | "created_at"> & {
+  id?: string;
+  created_at?: string;
+};
+
 export type OpportunityInsert = Omit<OpportunityRow, "id" | "created_at"> & {
   id?: string;
   created_at?: string;
@@ -176,6 +312,31 @@ export type OpportunityRankingInsert = Omit<OpportunityRankingRow, "id" | "creat
   created_at?: string;
 };
 
+export type BacktestRunInsert = Omit<BacktestRunRow, "id" | "created_at"> & {
+  id?: string;
+  created_at?: string;
+};
+
+export type BacktestTradeInsert = Omit<BacktestTradeRow, "id" | "created_at"> & {
+  id?: string;
+  created_at?: string;
+};
+
+export type RankingCalibrationRuleInsert = Omit<
+  RankingCalibrationRuleRow,
+  "id" | "created_at" | "updated_at"
+> & {
+  id?: string;
+  created_at?: string;
+  updated_at?: string;
+};
+
+export type SubscriptionInsert = Omit<SubscriptionRow, "id" | "created_at" | "updated_at"> & {
+  id?: string;
+  created_at?: string;
+  updated_at?: string;
+};
+
 export type DailyPickInsert = Omit<DailyPickRow, "id" | "created_at"> & {
   id?: string;
   created_at?: string;
@@ -187,6 +348,11 @@ export type AlertLogInsert = Omit<AlertLogRow, "id" | "created_at"> & {
 };
 
 export type EmailLinkEventInsert = Omit<EmailLinkEventRow, "id" | "created_at"> & {
+  id?: string;
+  created_at?: string;
+};
+
+export type AppEventLogInsert = Omit<AppEventLogRow, "id" | "created_at"> & {
   id?: string;
   created_at?: string;
 };
@@ -216,8 +382,14 @@ export type TradeHistoryInsert = Omit<TradeHistoryRow, "id" | "created_at"> & {
 };
 
 export type UserUpdate = Partial<UserInsert>;
+export type AdminAccessGrantUpdate = Partial<AdminAccessGrantInsert>;
 export type OpportunityUpdate = Partial<OpportunityInsert>;
 export type AgentRunUpdate = Partial<AgentRunInsert>;
+export type BacktestRunUpdate = Partial<BacktestRunInsert>;
+export type BacktestTradeUpdate = Partial<BacktestTradeInsert>;
+export type RankingCalibrationRuleUpdate = Partial<RankingCalibrationRuleInsert>;
+export type SubscriptionUpdate = Partial<SubscriptionInsert>;
+export type AppEventLogUpdate = Partial<AppEventLogInsert>;
 export type OpportunityRankingUpdate = Partial<OpportunityRankingInsert>;
 export type DailyPickUpdate = Partial<DailyPickInsert>;
 export type AlertLogUpdate = Partial<AlertLogInsert>;
@@ -234,6 +406,11 @@ export type Database = {
         Row: UserRow;
         Insert: UserInsert;
         Update: UserUpdate;
+      };
+      admin_access_grants: {
+        Row: AdminAccessGrantRow;
+        Insert: AdminAccessGrantInsert;
+        Update: AdminAccessGrantUpdate;
       };
       opportunities: {
         Row: OpportunityRow;

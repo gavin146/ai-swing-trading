@@ -4,21 +4,28 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
 import { BrandMark } from "@/components/BrandMark";
-import { loginCustomer } from "@/lib/customer-store";
+import { isAdminCustomer, loginCustomer } from "@/lib/customer-store";
 
 export function LoginForm() {
   const router = useRouter();
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    setLoading(true);
+    setError("");
     const formData = new FormData(event.currentTarget);
 
     try {
-      loginCustomer(String(formData.get("email") ?? ""), String(formData.get("password") ?? ""));
-      router.push("/dashboard");
+      const customer = loginCustomer(
+        String(formData.get("email") ?? ""),
+        String(formData.get("password") ?? ""),
+      );
+      router.push(isAdminCustomer(customer) ? "/admin" : "/dashboard");
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Login failed.");
+      setLoading(false);
     }
   }
 
@@ -34,17 +41,13 @@ export function LoginForm() {
         </p>
       </div>
 
-      <div className="mt-5 rounded-lg bg-sky px-3 py-2 text-sm font-semibold text-ink">
-        Demo access: avery@example.com / demo1234
-      </div>
-
       <form onSubmit={handleSubmit} className="mt-8 grid gap-4">
         <label className="grid gap-2 text-sm font-bold text-ink">
           Email
           <input
             name="email"
             type="email"
-            defaultValue="avery@example.com"
+            autoComplete="email"
             className="rounded-md border border-line bg-surface px-4 py-3 font-medium outline-none transition focus:border-pine focus:bg-panel"
           />
         </label>
@@ -53,7 +56,7 @@ export function LoginForm() {
           <input
             name="password"
             type="password"
-            defaultValue="demo1234"
+            autoComplete="current-password"
             className="rounded-md border border-line bg-surface px-4 py-3 font-medium outline-none transition focus:border-pine focus:bg-panel"
           />
         </label>
@@ -64,9 +67,10 @@ export function LoginForm() {
         ) : null}
         <button
           type="submit"
-          className="mt-2 rounded-lg bg-ink px-4 py-3 text-sm font-black text-white shadow-[0_14px_34px_rgba(7,20,24,0.16)] hover:bg-pine"
+          disabled={loading}
+          className="mt-2 rounded-lg bg-ink px-4 py-3 text-sm font-black text-white shadow-[0_14px_34px_rgba(7,20,24,0.16)] hover:bg-pine disabled:cursor-not-allowed disabled:opacity-70"
         >
-          Log in
+          {loading ? "Opening dashboard..." : "Log in"}
         </button>
       </form>
 

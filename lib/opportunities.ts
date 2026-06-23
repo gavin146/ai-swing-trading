@@ -149,10 +149,33 @@ function getRankingSummary(row: OpportunityRow) {
   const reward = row.expected_gain;
   const risk = row.expected_loss;
   const rewardRisk = risk > 0 ? reward / risk : 0;
-  const setup =
-    row.score >= 75
-      ? "ranks near the top because trend, data quality, and upside potential are aligned"
-      : "is on the list because it has a defined trade plan, but it needs cleaner confirmation";
+  const setup = (() => {
+    if (row.score >= 80 && row.risk_score <= 45) {
+      return "stands out because the setup has strong upside, controlled downside, and a cleaner risk profile";
+    }
+
+    if (row.score >= 75) {
+      return "ranks well because the trade plan, upside potential, and data support are aligned";
+    }
+
+    if (row.confidence >= 82 && row.risk_score <= 45) {
+      return "is a steadier watchlist idea because confidence is high and modeled downside is contained";
+    }
+
+    if (rewardRisk >= 2.5 && row.risk_score <= 55) {
+      return "is worth watching because the reward-to-risk profile is attractive if price enters the planned range";
+    }
+
+    if (row.risk_score >= 60) {
+      return "is a higher-volatility idea, so the entry range and stop loss matter more than the headline score";
+    }
+
+    if (row.confidence < 65) {
+      return "has a defined trade plan, but the model wants stronger agreement across the underlying signals";
+    }
+
+    return "is a watchlist-quality setup with a clear entry, target, and stop, but not enough strength to rank as high conviction";
+  })();
 
   return `${row.symbol} ${setup}. The model sees about ${reward.toFixed(1)}% potential upside versus ${risk.toFixed(1)}% planned downside, or roughly ${rewardRisk.toFixed(1)}R reward/risk.`;
 }

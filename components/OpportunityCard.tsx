@@ -3,6 +3,7 @@ import type { Opportunity } from "@/lib/opportunities";
 import { MetricPill } from "./MetricPill";
 
 type OpportunityCardProps = {
+  animationDelay?: number;
   opportunity: Opportunity;
   rank: number;
 };
@@ -13,9 +14,12 @@ function scoreTone(score: number) {
   return "caution";
 }
 
-export function OpportunityCard({ opportunity, rank }: OpportunityCardProps) {
+export function OpportunityCard({ animationDelay = 0, opportunity, rank }: OpportunityCardProps) {
   return (
-    <article className="flex h-full flex-col rounded-xl border border-line bg-panel p-5 shadow-soft transition hover:-translate-y-1 hover:border-pine/35 hover:shadow-lift">
+    <article
+      className="motion-card flex h-full flex-col rounded-xl border border-line bg-panel p-5 shadow-soft transition will-change-transform hover:-translate-y-1 hover:border-pine/35 hover:shadow-lift"
+      style={{ animationDelay: `${animationDelay}ms` }}
+    >
       <div className="signal-line mb-4 h-1 rounded-full" />
       <div className="flex items-start justify-between gap-4">
         <div>

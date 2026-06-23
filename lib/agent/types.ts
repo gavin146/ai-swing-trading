@@ -79,11 +79,22 @@ export type ScoreBreakdown = {
   composite: number;
 };
 
+export type AppliedCalibrationRule = {
+  id: string;
+  label: string;
+  reason: string;
+  scorePenalty: number;
+  confidencePenalty: number;
+  riskAdjustment: number;
+};
+
 export type RankedEquityOpportunity = {
   rank: number;
   candidate: EquityCandidate;
   opportunity: OpportunityRow;
   scores: ScoreBreakdown;
+  rawScores: ScoreBreakdown;
+  calibration: AppliedCalibrationRule[];
   reasons: string[];
 };
 

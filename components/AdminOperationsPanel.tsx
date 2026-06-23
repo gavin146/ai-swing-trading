@@ -2,33 +2,68 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import type { AgentRunResult } from "@/lib/agent";
-import { resetStoredOpportunities, setStoredOpportunityRows } from "@/lib/opportunity-store";
+import {
+  getAdminHeaders,
+  getStoredAdminToken,
+  setStoredAdminToken,
+} from "@/lib/admin-client";
 
 type StatusPayload = {
+  adminProtected: boolean;
   cronProtected: boolean;
+  vercelCronConfigured: boolean;
+  emailReady: boolean;
+  openAiReady: boolean;
+  stripeReady: boolean;
+  stripeCheckoutEnabled: boolean;
   twilioReady: boolean;
   supabaseReady: boolean;
+  supabaseAdminReady: boolean;
+  livePersistenceReady: boolean;
+  liveDataMissing: boolean;
   marketDataReady: boolean;
-  newsReady: boolean;
-  financialDataReady: boolean;
+  macroDataReady: boolean;
+  blsReady: boolean;
+  emailFrom: string;
+  emailProvider: string;
+  emailReason: string | null;
+};
+
+type AdminRunPayload = {
+  selectedCount: number;
+  persisted?: boolean;
+  persistence?: {
+    error?: string;
+    reason?: string;
+  };
 };
 
 const statusLabels: Array<[keyof StatusPayload, string]> = [
+  ["adminProtected", "Admin secret"],
   ["cronProtected", "Cron secret"],
+  ["vercelCronConfigured", "Vercel cron"],
+  ["emailReady", "Email"],
+  ["openAiReady", "OpenAI"],
+  ["stripeReady", "Stripe keys"],
+  ["stripeCheckoutEnabled", "Checkout flag"],
+  ["supabaseReady", "Supabase auth"],
+  ["supabaseAdminReady", "Supabase writes"],
+  ["livePersistenceReady", "Live database"],
+  ["liveDataMissing", "Live data missing"],
+  ["marketDataReady", "FMP market"],
+  ["macroDataReady", "FRED macro"],
+  ["blsReady", "BLS public"],
   ["twilioReady", "Twilio SMS"],
-  ["supabaseReady", "Supabase"],
-  ["marketDataReady", "Market data"],
-  ["newsReady", "News data"],
-  ["financialDataReady", "Financial data"],
 ];
 
 export function AdminOperationsPanel() {
   const [status, setStatus] = useState<StatusPayload | null>(null);
   const [message, setMessage] = useState("Ready");
-  const [latestRun, setLatestRun] = useState<AgentRunResult | null>(null);
+  const [runningAgent, setRunningAgent] = useState(false);
+  const [adminToken, setAdminToken] = useState("");
 
   useEffect(() => {
+    setAdminToken(getStoredAdminToken());
     fetch("/api/admin/status")
       .then((response) => response.json())
       .then((payload: StatusPayload) => setStatus(payload))
@@ -36,22 +71,37 @@ export function AdminOperationsPanel() {
   }, []);
 
   async function runAgent() {
+    setRunningAgent(true);
     setMessage("Running daily ranking agent...");
-    const response = await fetch("/api/agent/daily-rankings", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ limit: 30 }),
-    });
-    const payload = (await response.json()) as AgentRunResult;
-    setLatestRun(payload);
-    setMessage(`Agent ranked ${payload.selectedCount} opportunities.`);
-  }
+    try {
+      const response = await fetch("/api/admin/run-agent", {
+        method: "POST",
+        headers: getAdminHeaders({ "Content-Type": "application/json" }),
+        body: JSON.stringify({ limit: 90 }),
+      });
 
-  function applyLatest() {
-    if (!latestRun) return;
+      if (!response.ok) {
+        const payload = (await response.json().catch(() => ({}))) as { error?: string };
+        throw new Error(payload.error ?? "Agent run failed.");
+      }
 
-    setStoredOpportunityRows(latestRun.opportunities);
-    setMessage("Applied latest top 30 to dashboard.");
+      const payload = (await response.json()) as AdminRunPayload;
+      setMessage(
+        payload.persisted
+          ? `Agent ranked and saved ${payload.selectedCount} opportunities.`
+          : `Agent ranked ${payload.selectedCount} opportunities but did not save them: ${
+              payload.persistence?.reason ?? payload.persistence?.error ?? "Supabase persistence unavailable."
+            }`,
+      );
+    } catch (error) {
+      setMessage(
+        error instanceof Error
+          ? error.message
+          : "Agent run failed. Check the server logs and integration status.",
+      );
+    } finally {
+      setRunningAgent(false);
+    }
   }
 
   return (
@@ -64,7 +114,7 @@ export function AdminOperationsPanel() {
           </p>
             <h1 className="mt-3 text-3xl font-black text-ink">System controls</h1>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-ink/60">
-            Run the daily agent, apply rankings, and check production integrations.
+            Run the daily agent, save rankings, and check production integrations.
             Recommended schedule: 8:30 AM Eastern, before the 9:30 AM market open,
             then email all enabled customers their daily analysis links.
           </p>
@@ -73,27 +123,10 @@ export function AdminOperationsPanel() {
           <button
             type="button"
             onClick={() => void runAgent()}
-            className="rounded-lg bg-ink px-4 py-3 text-sm font-black text-white shadow-[0_14px_34px_rgba(7,20,24,0.16)] hover:bg-pine"
+            disabled={runningAgent}
+            className="rounded-lg bg-ink px-4 py-3 text-sm font-black text-white shadow-[0_14px_34px_rgba(7,20,24,0.16)] hover:bg-pine disabled:cursor-not-allowed disabled:opacity-70"
           >
-            Run agent
-          </button>
-          <button
-            type="button"
-            onClick={applyLatest}
-            disabled={!latestRun}
-            className="rounded-lg border border-line bg-surface px-4 py-3 text-sm font-bold text-ink hover:border-pine disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            Apply latest
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              resetStoredOpportunities();
-              setMessage("Reset dashboard mock data to current agent seed.");
-            }}
-            className="rounded-lg border border-line bg-surface px-4 py-3 text-sm font-bold text-ink hover:border-pine"
-          >
-            Reset picks
+            {runningAgent ? "Running..." : "Run agent"}
           </button>
           <Link
             href="/backtests"
@@ -104,14 +137,30 @@ export function AdminOperationsPanel() {
         </div>
       </div>
 
-      <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+      <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
         {statusLabels.map(([key, label]) => (
           <div key={key} className="rounded-md bg-surface px-3 py-3">
             <p className="text-[11px] font-bold uppercase tracking-normal text-ink/55">
               {label}
             </p>
-            <p className={`mt-1 text-sm font-bold ${status?.[key] ? "text-pine" : "text-coral"}`}>
-              {status?.[key] ? "Ready" : "Missing"}
+            <p
+              className={`mt-1 text-sm font-bold ${
+                key === "liveDataMissing"
+                    ? status?.[key]
+                      ? "text-coral"
+                      : "text-pine"
+                    : status?.[key]
+                    ? "text-pine"
+                    : "text-coral"
+              }`}
+            >
+              {key === "liveDataMissing"
+                ? status?.[key]
+                  ? "Missing"
+                  : "Off"
+                : status?.[key]
+                  ? "Ready"
+                  : "Missing"}
             </p>
           </div>
         ))}
@@ -120,6 +169,73 @@ export function AdminOperationsPanel() {
       <p className="mt-4 rounded-md bg-surface px-3 py-2 text-sm font-bold text-ink/70">
         {message}
       </p>
+
+      <div className="mt-4 grid gap-3 rounded-lg border border-line bg-surface p-4 md:grid-cols-3">
+        <div>
+          <p className="text-xs font-black uppercase tracking-normal text-ink/55">
+            Email provider
+          </p>
+          <p className="mt-1 text-sm font-bold text-ink">
+            {status?.emailProvider ?? "resend"}
+          </p>
+        </div>
+        <div>
+          <p className="text-xs font-black uppercase tracking-normal text-ink/55">
+            Sender
+          </p>
+          <p className="mt-1 break-all text-sm font-bold text-ink">
+            {status?.emailFrom || "Missing"}
+          </p>
+        </div>
+        <div>
+          <p className="text-xs font-black uppercase tracking-normal text-ink/55">
+            Email status
+          </p>
+          <p className={`mt-1 text-sm font-bold ${status?.emailReady ? "text-pine" : "text-coral"}`}>
+            {status?.emailReady ? "Ready to send" : status?.emailReason ?? "Missing"}
+          </p>
+        </div>
+      </div>
+
+      <div className="mt-4 grid gap-3 rounded-lg border border-line bg-panel p-4 md:grid-cols-[1fr_auto] md:items-end">
+        <label className="grid gap-2 text-sm font-bold text-ink">
+          Production admin API secret
+          <input
+            type="password"
+            value={adminToken}
+            onChange={(event) => setAdminToken(event.target.value)}
+            placeholder="Paste ADMIN_API_SECRET for protected admin actions"
+            className="rounded-md border border-line bg-surface px-4 py-3 font-medium outline-none transition focus:border-pine focus:bg-panel"
+          />
+        </label>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              setStoredAdminToken(adminToken);
+              setMessage(
+                adminToken.trim()
+                  ? "Admin token saved in this browser for protected actions."
+                  : "Admin token cleared from this browser.",
+              );
+            }}
+            className="rounded-md bg-pine px-4 py-3 text-sm font-bold text-white transition hover:bg-ink"
+          >
+            Save
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setAdminToken("");
+              setStoredAdminToken("");
+              setMessage("Admin token cleared from this browser.");
+            }}
+            className="rounded-md border border-line bg-surface px-4 py-3 text-sm font-bold text-ink transition hover:border-pine"
+          >
+            Clear
+          </button>
+        </div>
+      </div>
     </section>
   );
 }

@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import { AppHeader } from "@/components/AppHeader";
 import { OpportunityDetailView } from "@/components/OpportunityDetailView";
-import { getOpportunity, opportunities } from "@/lib/opportunities";
+import { opportunityFromRow } from "@/lib/opportunities";
+import { getOpportunityBySymbol } from "@/lib/repositories/opportunities";
 
 type OpportunityDetailProps = {
   params: Promise<{
@@ -9,27 +10,17 @@ type OpportunityDetailProps = {
   }>;
 };
 
-export function generateStaticParams() {
-  return opportunities.map((opportunity) => ({
-    symbol: opportunity.symbol,
-  }));
-}
+export const dynamic = "force-dynamic";
 
 export async function generateMetadata({
   params,
 }: OpportunityDetailProps): Promise<Metadata> {
   const { symbol } = await params;
-  const opportunity = getOpportunity(symbol);
-
-  if (!opportunity) {
-    return {
-      title: "Opportunity not found | TradePilot AI",
-    };
-  }
+  const normalizedSymbol = symbol.toUpperCase();
 
   return {
-    title: `${opportunity.symbol} opportunity | TradePilot AI`,
-    description: opportunity.thesis,
+    title: `${normalizedSymbol} opportunity | TradePilot AI`,
+    description: `TradePilot AI swing trade analysis for ${normalizedSymbol}.`,
   };
 }
 
@@ -37,12 +28,18 @@ export default async function OpportunityDetailPage({
   params,
 }: OpportunityDetailProps) {
   const { symbol } = await params;
-  const opportunity = getOpportunity(symbol);
+  const result = await getOpportunityBySymbol(symbol);
+  const opportunity = result.rows[0] ? opportunityFromRow(result.rows[0]) : undefined;
 
   return (
     <main className="min-h-screen">
       <AppHeader active="dashboard" />
-      <OpportunityDetailView initialOpportunity={opportunity} symbol={symbol} />
+      <OpportunityDetailView
+        dataSource={result.source}
+        fallbackReason={result.reason}
+        initialOpportunity={opportunity}
+        symbol={symbol}
+      />
     </main>
   );
 }

@@ -2,13 +2,21 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import type { AssetType, OpportunityRow } from "@/lib/database.types";
-import {
-  deleteStoredOpportunity,
-  getStoredOpportunityRows,
-  resetStoredOpportunities,
-  upsertOpportunity,
-  type OpportunityFormValues,
-} from "@/lib/opportunity-store";
+import type { OpportunityDataSource } from "@/lib/repositories/opportunities";
+import { getAdminHeaders } from "@/lib/admin-client";
+
+type OpportunityFormValues = {
+  symbol: string;
+  asset_type: AssetType;
+  score: number;
+  confidence: number;
+  risk_score: number;
+  entry_low: number;
+  entry_high: number;
+  target_price: number;
+  stop_loss: number;
+  explanation: string;
+};
 
 const emptyForm: OpportunityFormValues = {
   symbol: "",
@@ -46,9 +54,12 @@ export function AdminOpportunityPanel() {
   const [rows, setRows] = useState<OpportunityRow[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<OpportunityFormValues>(emptyForm);
+  const [dataSource, setDataSource] = useState<OpportunityDataSource>("empty");
+  const [message, setMessage] = useState("Loading opportunities...");
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    setRows(getStoredOpportunityRows());
+    void refreshFromServer();
   }, []);
 
   const editingRow = useMemo(
@@ -56,12 +67,39 @@ export function AdminOpportunityPanel() {
     [editingId, rows],
   );
 
-  function refresh(nextRows?: OpportunityRow[]) {
-    setRows(nextRows ?? getStoredOpportunityRows());
+  async function refreshFromServer() {
+    try {
+      const response = await fetch("/api/admin/opportunities", {
+        headers: getAdminHeaders(),
+      });
+      const payload = (await response.json()) as {
+        error?: string;
+        reason?: string;
+        rows?: OpportunityRow[];
+        source?: OpportunityDataSource;
+      };
+
+      if (!response.ok) {
+        throw new Error(payload.error ?? "Could not load opportunities.");
+      }
+
+      setRows(payload.rows ?? []);
+      setDataSource(payload.source ?? "empty");
+      setMessage(
+        payload.source === "supabase"
+          ? "Editing live Supabase opportunities."
+          : `No live opportunity data is available${payload.reason ? `: ${payload.reason}` : "."}`,
+      );
+    } catch (error) {
+      setRows([]);
+      setDataSource("empty");
+      setMessage(error instanceof Error ? error.message : "Live opportunity data is unavailable.");
+    }
   }
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    setSaving(true);
     const formData = new FormData(event.currentTarget);
     const values: OpportunityFormValues = {
       symbol: String(formData.get("symbol") ?? ""),
@@ -76,10 +114,30 @@ export function AdminOpportunityPanel() {
       explanation: String(formData.get("explanation") ?? ""),
     };
 
-    refresh(upsertOpportunity(values, editingId ?? undefined));
-    setEditingId(null);
-    setForm(emptyForm);
-    event.currentTarget.reset();
+    try {
+      const response = await fetch(
+        editingId ? `/api/admin/opportunities/${editingId}` : "/api/admin/opportunities",
+        {
+          method: editingId ? "PUT" : "POST",
+          headers: getAdminHeaders({ "Content-Type": "application/json" }),
+          body: JSON.stringify(values),
+        },
+      );
+      const payload = (await response.json().catch(() => ({}))) as { error?: string };
+
+      if (!response.ok) {
+        throw new Error(payload.error ?? "Opportunity save failed.");
+      }
+
+      await refreshFromServer();
+      setEditingId(null);
+      setForm(emptyForm);
+      event.currentTarget.reset();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Opportunity save failed.");
+    } finally {
+      setSaving(false);
+    }
   }
 
   function startEdit(row: OpportunityRow) {
@@ -92,10 +150,24 @@ export function AdminOpportunityPanel() {
     setForm(emptyForm);
   }
 
-  function removeRow(row: OpportunityRow) {
-    refresh(deleteStoredOpportunity(row.id));
-    if (editingId === row.id) {
-      cancelEdit();
+  async function removeRow(row: OpportunityRow) {
+    try {
+      const response = await fetch(`/api/admin/opportunities/${row.id}`, {
+        method: "DELETE",
+        headers: getAdminHeaders(),
+      });
+      const payload = (await response.json().catch(() => ({}))) as { error?: string };
+
+      if (!response.ok) {
+        throw new Error(payload.error ?? "Opportunity delete failed.");
+      }
+
+      await refreshFromServer();
+      if (editingId === row.id) {
+        cancelEdit();
+      }
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Opportunity delete failed.");
     }
   }
 
@@ -107,6 +179,13 @@ export function AdminOpportunityPanel() {
             {editingRow ? "Edit opportunity" : "Add opportunity"}
           </p>
           <h1 className="mt-3 text-3xl font-bold text-ink">Admin panel</h1>
+          <p
+            className={`mt-3 rounded-md px-3 py-2 text-sm font-bold ${
+              dataSource === "supabase" ? "bg-mint text-pine" : "bg-coral/15 text-ink/70"
+            }`}
+          >
+            {message}
+          </p>
         </div>
 
         <form key={editingId ?? "new"} onSubmit={handleSubmit} className="mt-6 grid gap-4">
@@ -242,9 +321,10 @@ export function AdminOpportunityPanel() {
           <div className="flex flex-col gap-3 sm:flex-row">
             <button
               type="submit"
-              className="rounded-md bg-pine px-4 py-3 text-sm font-bold text-white transition hover:bg-ink"
+              disabled={saving}
+              className="rounded-md bg-pine px-4 py-3 text-sm font-bold text-white transition hover:bg-ink disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {editingRow ? "Save changes" : "Add opportunity"}
+              {saving ? "Saving..." : editingRow ? "Save changes" : "Add opportunity"}
             </button>
             {editingRow ? (
               <button
@@ -263,7 +343,7 @@ export function AdminOpportunityPanel() {
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <p className="text-sm font-bold uppercase tracking-normal text-pine">
-              Current mock data
+              {dataSource === "supabase" ? "Current live data" : "Live data setup needed"}
             </p>
             <h2 className="mt-3 text-2xl font-bold text-ink">
               {rows.length} opportunities
@@ -272,12 +352,12 @@ export function AdminOpportunityPanel() {
           <button
             type="button"
             onClick={() => {
-              refresh(resetStoredOpportunities());
+              void refreshFromServer();
               cancelEdit();
             }}
             className="rounded-md border border-line bg-surface px-4 py-3 text-sm font-bold text-ink transition hover:border-pine"
           >
-            Reset mock data
+            Refresh
           </button>
         </div>
 
@@ -297,7 +377,7 @@ export function AdminOpportunityPanel() {
               </tr>
             </thead>
             <tbody>
-              {rows.map((row) => (
+              {rows.length > 0 ? rows.map((row) => (
                 <tr
                   key={row.id}
                   data-testid={`admin-row-${row.symbol}`}
@@ -340,7 +420,22 @@ export function AdminOpportunityPanel() {
                     </div>
                   </td>
                 </tr>
-              ))}
+              )) : (
+                <tr>
+                  <td colSpan={9} className="py-8 pr-4">
+                    <div className="rounded-lg border border-line bg-surface p-5">
+                      <p className="text-sm font-black uppercase tracking-normal text-pine">
+                        No saved opportunities
+                      </p>
+                      <p className="mt-2 text-sm leading-6 text-ink/60">
+                        Run the live ranking agent after Supabase is configured, or add a
+                        real opportunity using the form. Seed rows are no longer displayed
+                        in the admin table.
+                      </p>
+                    </div>
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>

@@ -6,9 +6,10 @@ export async function sendTwilioSms(to: string, body: string) {
 
   if (!accountSid || !authToken || (!from && !messagingServiceSid)) {
     return {
-      mode: "mock",
+      mode: "unconfigured",
       sid: null,
-      status: "preview",
+      status: "failed",
+      error: "Twilio credentials are not configured.",
     };
   }
 

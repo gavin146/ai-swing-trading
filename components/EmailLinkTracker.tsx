@@ -12,7 +12,7 @@ export function EmailLinkTracker({ trackingId }: EmailLinkTrackerProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const symbol = searchParams.get("symbol")?.toUpperCase() ?? "NVDA";
-  const customerId = searchParams.get("customerId") ?? "demo-customer";
+  const customerId = searchParams.get("customerId") ?? "unknown-customer";
 
   useEffect(() => {
     trackEmailLinkClick({

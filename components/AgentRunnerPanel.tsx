@@ -3,10 +3,9 @@
 import { useEffect, useMemo, useState } from "react";
 import type { AgentRunResult } from "@/lib/agent";
 import { getCurrentCustomer, isAdminCustomer } from "@/lib/customer-store";
-import { setStoredOpportunityRows } from "@/lib/opportunity-store";
 
 type RunState = "idle" | "loading" | "ready" | "error";
-type AgentSource = "mock" | "fmp";
+type AgentSource = "fmp";
 type ExplanationState = {
   status: "idle" | "loading" | "ready" | "error";
   symbol: string | null;
@@ -27,7 +26,7 @@ export function AgentRunnerPanel() {
   const [checkedAccess, setCheckedAccess] = useState(false);
   const [result, setResult] = useState<AgentRunResult | null>(null);
   const [message, setMessage] = useState("Ready to run");
-  const [source, setSource] = useState<AgentSource>("mock");
+  const [source, setSource] = useState<AgentSource>("fmp");
   const [explanation, setExplanation] = useState<ExplanationState>({
     status: "idle",
     symbol: null,
@@ -47,18 +46,18 @@ export function AgentRunnerPanel() {
     setMessage(
       nextSource === "fmp"
         ? "Analyzing live FMP candles, fundamentals, and ranking inputs..."
-        : "Analyzing mock market, financial, macro, news, and technical inputs...",
+        : "Preparing live analysis...",
     );
 
     try {
       const url =
         method === "GET"
-          ? `/api/agent/daily-rankings?source=${nextSource}&limit=30`
+          ? `/api/agent/daily-rankings?source=${nextSource}&limit=90`
           : "/api/agent/daily-rankings";
       const response = await fetch(url, {
         method,
         headers: method === "POST" ? { "Content-Type": "application/json" } : undefined,
-        body: method === "POST" ? JSON.stringify({ limit: 30, source: nextSource }) : undefined,
+        body: method === "POST" ? JSON.stringify({ limit: 90, source: nextSource }) : undefined,
       });
 
       if (!response.ok) {
@@ -76,9 +75,7 @@ export function AgentRunnerPanel() {
       });
       setStatus("ready");
       setMessage(
-        nextResult.dataSource === "fmp"
-          ? "Top 30 live FMP-ranked opportunities are ready"
-          : "Top 30 mock-ranked opportunities are ready",
+        "Top 90 live FMP-ranked opportunities are ready",
       );
     } catch (error) {
       setStatus("error");
@@ -92,7 +89,7 @@ export function AgentRunnerPanel() {
     setCheckedAccess(true);
 
     if (allowed) {
-      void runAgent("GET", "mock");
+      void runAgent("GET", "fmp");
     } else {
       setStatus("error");
       setMessage("Admin access is required to run the ranking agent.");
@@ -101,13 +98,6 @@ export function AgentRunnerPanel() {
   }, []);
 
   const topFive = useMemo(() => result?.rankings.slice(0, 5) ?? [], [result]);
-
-  function applyToDashboard() {
-    if (!result) return;
-
-    setStoredOpportunityRows(result.opportunities);
-    setMessage("Applied top 30 to the dashboard mock store");
-  }
 
   async function generateExplanation(symbol = result?.rankings[0]?.candidate.symbol) {
     if (!symbol || !result) return;
@@ -193,27 +183,11 @@ export function AgentRunnerPanel() {
           <div className="flex flex-col gap-3 sm:flex-row lg:flex-col">
             <button
               type="button"
-              onClick={() => void runAgent("POST", "mock")}
+              onClick={() => void runAgent("POST", "fmp")}
               className="rounded-md bg-pine px-4 py-3 text-sm font-bold text-white transition hover:bg-ink disabled:cursor-not-allowed disabled:opacity-60"
               disabled={status === "loading"}
             >
-              Run mock
-            </button>
-            <button
-              type="button"
-              onClick={() => void runAgent("POST", "fmp")}
-              className="rounded-md border border-pine bg-mint px-4 py-3 text-sm font-bold text-pine transition hover:bg-pine hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
-              disabled={status === "loading"}
-            >
-              Run FMP live
-            </button>
-            <button
-              type="button"
-              onClick={applyToDashboard}
-              className="rounded-md border border-line bg-surface px-4 py-3 text-sm font-bold text-ink transition hover:border-pine disabled:cursor-not-allowed disabled:opacity-60"
-              disabled={!result}
-            >
-              Apply top 30
+              Run live FMP
             </button>
             <button
               type="button"
@@ -355,7 +329,7 @@ export function AgentRunnerPanel() {
           <p className="mt-4 max-w-4xl leading-7 text-ink/65">{result.summary}</p>
 
           <div className="mt-6 w-full max-w-full overflow-x-auto">
-            <table className="w-full min-w-[980px] border-collapse text-left text-sm">
+            <table className="w-full min-w-[1120px] border-collapse text-left text-sm">
               <thead>
                 <tr className="border-b border-line text-xs uppercase tracking-normal text-ink/55">
                   <th className="py-3 pr-4">Rank</th>
@@ -367,12 +341,16 @@ export function AgentRunnerPanel() {
                   <th className="py-3 pr-4">Financial</th>
                   <th className="py-3 pr-4">News</th>
                   <th className="py-3 pr-4">Macro</th>
+                  <th className="py-3 pr-4">Calibration</th>
                   <th className="py-3 pr-4">Target</th>
                 </tr>
               </thead>
               <tbody>
                 {result.rankings.map((item) => (
-                  <tr key={item.opportunity.id} className="border-b border-line last:border-b-0">
+                  <tr
+                    key={`${item.rank}-${item.candidate.symbol}-${item.opportunity.id}`}
+                    className="border-b border-line last:border-b-0"
+                  >
                     <td className="py-4 pr-4 font-bold text-ink">#{item.rank}</td>
                     <td className="py-4 pr-4">
                       <p className="font-bold text-ink">{item.candidate.symbol}</p>
@@ -389,6 +367,20 @@ export function AgentRunnerPanel() {
                     <td className="py-4 pr-4">{item.scores.financial}</td>
                     <td className="py-4 pr-4">{item.scores.news}</td>
                     <td className="py-4 pr-4">{item.scores.macro}</td>
+                    <td className="py-4 pr-4">
+                      {item.calibration.length > 0 ? (
+                        <div>
+                          <p className="font-bold text-coral">
+                            -{item.rawScores.composite - item.scores.composite} pts
+                          </p>
+                          <p className="mt-1 max-w-[180px] text-xs leading-5 text-ink/50">
+                            {item.calibration.map((rule) => rule.label).join(", ")}
+                          </p>
+                        </div>
+                      ) : (
+                        <span className="font-semibold text-pine">None</span>
+                      )}
+                    </td>
                     <td className="py-4 pr-4 font-semibold text-pine">
                       ${item.opportunity.target_price.toLocaleString()}
                     </td>
@@ -427,7 +419,7 @@ export function AgentRunnerPanel() {
         <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
           {topFive.map((item) => (
             <article
-              key={item.opportunity.id}
+              key={`top-${item.rank}-${item.candidate.symbol}-${item.opportunity.id}`}
               className="rounded-lg border border-line bg-panel p-5 shadow-soft"
             >
               <p className="text-xs font-bold uppercase tracking-normal text-pine">

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { runDailyRankingAgent, runFmpDailyRankingAgent } from "@/lib/agent";
+import { runFmpDailyRankingAgent } from "@/lib/agent";
 
 export const dynamic = "force-dynamic";
 
@@ -14,7 +14,7 @@ function parseLimit(value: unknown) {
     return 30;
   }
 
-  return Math.max(1, Math.min(30, Math.round(limit)));
+  return Math.max(1, Math.min(90, Math.round(limit)));
 }
 
 function parseRange(value: unknown, fallback: number, min: number, max: number) {
@@ -31,45 +31,40 @@ function parseRange(value: unknown, fallback: number, min: number, max: number) 
   return Math.max(min, Math.min(max, Math.round(parsed)));
 }
 
-function parseSource(value: unknown) {
-  return value === "fmp" ? "fmp" : "mock";
-}
-
 async function runAgent(args: {
   detailedLimit?: number;
   limit: number;
-  source: "mock" | "fmp";
   universeLimit?: number;
 }) {
-  if (args.source === "fmp") {
-    return runFmpDailyRankingAgent({
-      detailedLimit: args.detailedLimit,
-      limit: args.limit,
-      universeLimit: args.universeLimit,
-    });
+  if (!process.env.FMP_API_KEY && !process.env.FINANCIAL_DATA_API_KEY) {
+    throw new Error("FMP_API_KEY is required for live ranking runs.");
   }
 
-  return runDailyRankingAgent({ limit: args.limit });
+  return runFmpDailyRankingAgent({
+    detailedLimit: args.detailedLimit,
+    limit: args.limit,
+    universeLimit: args.universeLimit,
+  });
 }
 
 export async function GET(request: NextRequest) {
   const limit = parseLimit(request.nextUrl.searchParams.get("limit"));
-  const source = parseSource(request.nextUrl.searchParams.get("source"));
+  const source = "fmp";
   const universeLimit = parseRange(
     request.nextUrl.searchParams.get("universeLimit"),
-    160,
+    500,
     5,
     500,
   );
   const detailedLimit = parseRange(
     request.nextUrl.searchParams.get("detailedLimit"),
-    90,
+    200,
     5,
     200,
   );
 
   try {
-    const result = await runAgent({ detailedLimit, limit, source, universeLimit });
+    const result = await runAgent({ detailedLimit, limit, universeLimit });
     return NextResponse.json(result);
   } catch (error) {
     return NextResponse.json(
@@ -86,17 +81,15 @@ export async function POST(request: NextRequest) {
   const body = (await request.json().catch(() => ({}))) as {
     detailedLimit?: number;
     limit?: number;
-    source?: "mock" | "fmp";
     universeLimit?: number;
   };
-  const source = parseSource(body.source);
+  const source = "fmp";
 
   try {
     const result = await runAgent({
-      detailedLimit: parseRange(body.detailedLimit, 90, 5, 200),
+      detailedLimit: parseRange(body.detailedLimit, 200, 5, 200),
       limit: parseLimit(body.limit),
-      source,
-      universeLimit: parseRange(body.universeLimit, 160, 5, 500),
+      universeLimit: parseRange(body.universeLimit, 500, 5, 500),
     });
     return NextResponse.json(result);
   } catch (error) {

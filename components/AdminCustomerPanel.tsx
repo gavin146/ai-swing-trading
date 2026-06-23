@@ -1,12 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import {
-  getCurrentCustomer,
-  getCustomerProfiles,
-  type CustomerProfile,
-} from "@/lib/customer-store";
-import { getCustomerUsageSummaries, type CustomerUsageSummary } from "@/lib/customer-analytics";
+import { getAdminHeaders } from "@/lib/admin-client";
+import type { CustomerProfile } from "@/lib/customer-store";
+import type { CustomerUsageSummary } from "@/lib/customer-analytics";
+
+type CustomerDataSource = "supabase" | "empty";
 
 function formatDate(value: string | null) {
   if (!value) return "Never";
@@ -19,27 +18,67 @@ function formatDate(value: string | null) {
   }).format(new Date(value));
 }
 
+function formatBudget(value: CustomerProfile["accountBudget"]) {
+  const labels: Record<CustomerProfile["accountBudget"], string> = {
+    "1000_5000": "$1k-$5k",
+    "25000_plus": "$25k+",
+    "5000_25000": "$5k-$25k",
+    not_set: "Not set",
+    under_1000: "Under $1k",
+  };
+
+  return labels[value] ?? "Not set";
+}
+
 export function AdminCustomerPanel() {
   const [customers, setCustomers] = useState<CustomerProfile[]>([]);
   const [usage, setUsage] = useState<CustomerUsageSummary[]>([]);
+  const [dataSource, setDataSource] = useState<CustomerDataSource>("empty");
+  const [status, setStatus] = useState("Loading customer analytics...");
 
   useEffect(() => {
-    const refresh = () => {
-      getCurrentCustomer();
-      setCustomers(getCustomerProfiles());
-      setUsage(getCustomerUsageSummaries());
+    const refreshFromServer = async () => {
+      try {
+        const response = await fetch("/api/admin/customers", {
+          headers: getAdminHeaders(),
+        });
+        const payload = (await response.json()) as {
+          customers?: CustomerProfile[];
+          error?: string;
+          reason?: string;
+          source?: CustomerDataSource;
+          usage?: CustomerUsageSummary[];
+        };
+
+        if (!response.ok) {
+          throw new Error(payload.error ?? "Could not load customer analytics.");
+        }
+
+        if (payload.source === "supabase") {
+          setCustomers(payload.customers ?? []);
+          setUsage(payload.usage ?? []);
+          setDataSource("supabase");
+          setStatus("Showing live Supabase customer and email-link analytics.");
+          return;
+        }
+
+        setCustomers([]);
+        setUsage([]);
+        setDataSource("empty");
+        setStatus(
+          payload.reason
+            ? `No live customer analytics are available: ${payload.reason}`
+            : "No live customer analytics are available.",
+        );
+      } catch (error) {
+        setCustomers([]);
+        setUsage([]);
+        setDataSource("empty");
+        setStatus(error instanceof Error ? error.message : "Server data unavailable.");
+      }
     };
 
-    refresh();
-    window.addEventListener("storage", refresh);
-    window.addEventListener("tradepilot-customer-updated", refresh);
-    window.addEventListener("tradepilot-analytics-updated", refresh);
-
-    return () => {
-      window.removeEventListener("storage", refresh);
-      window.removeEventListener("tradepilot-customer-updated", refresh);
-      window.removeEventListener("tradepilot-analytics-updated", refresh);
-    };
+    void refreshFromServer();
   }, []);
 
   const usageByCustomer = useMemo(
@@ -61,6 +100,13 @@ export function AdminCustomerPanel() {
             Track customer profiles, alert preferences, last login, and how many times
             each customer opens emailed stock-analysis links this month.
           </p>
+          <p
+            className={`mt-3 inline-flex rounded-md px-3 py-2 text-sm font-bold ${
+              dataSource === "supabase" ? "bg-mint text-pine" : "bg-coral/15 text-ink/70"
+            }`}
+          >
+            {status}
+          </p>
         </div>
         <div className="grid grid-cols-2 gap-3 sm:min-w-72">
           <div className="rounded-lg bg-mint px-4 py-3 ring-1 ring-pine/10">
@@ -79,12 +125,13 @@ export function AdminCustomerPanel() {
       </div>
 
       <div className="mt-6 w-full max-w-full overflow-x-auto">
-        <table className="w-full min-w-[980px] border-collapse text-left text-sm">
+        <table className="w-full min-w-[1120px] border-collapse text-left text-sm">
           <thead>
             <tr className="border-b border-line text-xs uppercase tracking-normal text-ink/55">
               <th className="py-3 pr-4">Customer</th>
               <th className="py-3 pr-4">Role</th>
               <th className="py-3 pr-4">Risk profile</th>
+              <th className="py-3 pr-4">Preferences</th>
               <th className="py-3 pr-4">Alerts</th>
               <th className="py-3 pr-4">Monthly link opens</th>
               <th className="py-3 pr-4">Top viewed symbols</th>
@@ -93,7 +140,7 @@ export function AdminCustomerPanel() {
             </tr>
           </thead>
           <tbody>
-            {customers.map((customer) => {
+            {customers.length > 0 ? customers.map((customer) => {
               const customerUsage = usageByCustomer.get(customer.id);
 
               return (
@@ -104,6 +151,14 @@ export function AdminCustomerPanel() {
                   </td>
                   <td className="py-4 pr-4 capitalize">{customer.role}</td>
                   <td className="py-4 pr-4 capitalize">{customer.riskProfile}</td>
+                  <td className="py-4 pr-4">
+                    <p className="font-semibold capitalize text-ink">
+                      {customer.setupPreference} / {customer.positionSizePreference}
+                    </p>
+                    <p className="mt-1 text-xs font-semibold capitalize text-ink/50">
+                      {customer.investingExperience}, {formatBudget(customer.accountBudget)}
+                    </p>
+                  </td>
                   <td className="py-4 pr-4">
                     {customer.morningAlertsEnabled ? customer.alertChannel : "Off"} at{" "}
                     {customer.alertTime}
@@ -120,7 +175,21 @@ export function AdminCustomerPanel() {
                   <td className="py-4 pr-4">{formatDate(customer.lastLoginAt)}</td>
                 </tr>
               );
-            })}
+            }) : (
+              <tr>
+                <td colSpan={9} className="py-8 pr-4">
+                  <div className="rounded-lg border border-line bg-surface p-5">
+                    <p className="text-sm font-black uppercase tracking-normal text-pine">
+                      No live customers found
+                    </p>
+                    <p className="mt-2 text-sm leading-6 text-ink/60">
+                      Customer profiles and email-link usage will appear after Supabase
+                      auth/database are connected and real users exist.
+                    </p>
+                  </div>
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>

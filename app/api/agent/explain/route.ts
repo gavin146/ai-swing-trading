@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { runDailyRankingAgent, runFmpDailyRankingAgent } from "@/lib/agent";
+import { runFmpDailyRankingAgent } from "@/lib/agent";
 import { generateOpenAiText, hasOpenAiApiKey } from "@/lib/openai";
 
 export const dynamic = "force-dynamic";
@@ -7,7 +7,7 @@ export const runtime = "nodejs";
 
 type ExplainRequest = {
   symbol?: string;
-  source?: "mock" | "fmp";
+  source?: "fmp";
   backtestLearning?: {
     summary?: string;
     calibrationRules?: string[];
@@ -15,12 +15,12 @@ type ExplainRequest = {
   };
 };
 
-async function runConfiguredAgent(source: "mock" | "fmp") {
-  if (source === "fmp") {
-    return runFmpDailyRankingAgent({ limit: 30 });
+async function runConfiguredAgent() {
+  if (!process.env.FMP_API_KEY && !process.env.FINANCIAL_DATA_API_KEY) {
+    throw new Error("FMP_API_KEY is required for live AI explanations.");
   }
 
-  return runDailyRankingAgent({ limit: 30 });
+  return runFmpDailyRankingAgent({ limit: 30 });
 }
 export async function GET() {
   return NextResponse.json({
@@ -31,9 +31,17 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   const body = (await request.json().catch(() => ({}))) as ExplainRequest;
-  const source = body.source === "mock" ? "mock" : "fmp";
   const symbol = body.symbol?.trim().toUpperCase();
-  const result = await runConfiguredAgent(source);
+  let result;
+
+  try {
+    result = await runConfiguredAgent();
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Live ranking failed." },
+      { status: 503 },
+    );
+  }
   const ranking =
     result.rankings.find((item) => item.candidate.symbol === symbol) ?? result.rankings[0];
 

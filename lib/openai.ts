@@ -25,7 +25,7 @@ export async function generateOpenAiText(args: {
 
   if (!apiKey) {
     return {
-      mode: "mock",
+      mode: "unconfigured",
       text: null,
       error: "OPENAI_API_KEY is not configured.",
     };

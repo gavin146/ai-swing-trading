@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getAdminUnauthorizedResponse, isAdminApiRequest } from "@/lib/auth/admin";
 import { runRollingBacktest } from "@/lib/backtesting";
+import { persistBacktestSummary, recordAppEvent } from "@/lib/persistence";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -15,11 +17,8 @@ function parseNumber(value: string | null, fallback: number, min: number, max: n
 }
 
 export async function GET(request: NextRequest) {
-  if (request.headers.get("x-tradepilot-admin") !== "true") {
-    return NextResponse.json(
-      { error: "Admin access is required to run backtests." },
-      { status: 403 },
-    );
+  if (!isAdminApiRequest(request)) {
+    return NextResponse.json(getAdminUnauthorizedResponse(), { status: 403 });
   }
 
   const windows = parseNumber(request.nextUrl.searchParams.get("windows"), 5, 1, 8);
@@ -38,9 +37,29 @@ export async function GET(request: NextRequest) {
       limitPerWindow,
       symbols,
     });
+    const persistence = await persistBacktestSummary(result);
 
-    return NextResponse.json(result);
+    if (!persistence.persisted) {
+      await recordAppEvent({
+        level: "warning",
+        source: "rolling-backtest",
+        message: "Backtest completed but was not persisted.",
+        metadata: { reason: persistence.reason, error: persistence.error, runId: result.runId },
+      });
+    }
+
+    return NextResponse.json({
+      ...result,
+      persistence,
+    });
   } catch (error) {
+    await recordAppEvent({
+      level: "error",
+      source: "rolling-backtest",
+      message: "Backtest failed.",
+      metadata: { error: error instanceof Error ? error.message : String(error) },
+    });
+
     return NextResponse.json(
       {
         error: error instanceof Error ? error.message : "Backtest failed.",

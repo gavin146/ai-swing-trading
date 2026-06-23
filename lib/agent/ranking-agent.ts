@@ -1,4 +1,5 @@
 import type { OpportunityRow } from "@/lib/database.types";
+import { applyScoreCalibration } from "./calibration";
 import { estimateDailyAgentCost } from "./costs";
 import { getMockEquityUniverse } from "./mock-equity-universe";
 import type {
@@ -33,19 +34,29 @@ function round(value: number, digits = 0) {
   return Math.round(value * factor) / factor;
 }
 
-function hash(value: string) {
-  return Array.from(value).reduce((total, char, index) => {
-    return total + char.charCodeAt(0) * (index + 17);
-  }, 0);
-}
-
 function mockUuid(namespace: string, key: string) {
   const source = `${namespace}:${key}`;
-  let hex = "";
+  let h1 = 0xdeadbeef;
+  let h2 = 0x41c6ce57;
+  let h3 = 0x9e3779b9;
+  let h4 = 0x85ebca6b;
 
-  for (let index = 0; hex.length < 32; index += 1) {
-    hex += Math.abs(hash(`${source}:${index}`)).toString(16).padStart(8, "0");
+  for (let index = 0; index < source.length; index += 1) {
+    const code = source.charCodeAt(index);
+    h1 = Math.imul(h1 ^ code, 2654435761);
+    h2 = Math.imul(h2 ^ code, 1597334677);
+    h3 = Math.imul(h3 ^ code, 2246822507);
+    h4 = Math.imul(h4 ^ code, 3266489909);
   }
+
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h3 ^ (h3 >>> 13), 3266489909);
+  h3 = Math.imul(h3 ^ (h3 >>> 16), 2246822507) ^ Math.imul(h4 ^ (h4 >>> 13), 3266489909);
+  h4 = Math.imul(h4 ^ (h4 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+
+  const hex = [h1, h2, h3, h4]
+    .map((value) => (value >>> 0).toString(16).padStart(8, "0"))
+    .join("");
 
   const value = hex.slice(0, 32).split("");
   value[12] = "4";
@@ -54,6 +65,29 @@ function mockUuid(namespace: string, key: string) {
   return `${value.slice(0, 8).join("")}-${value.slice(8, 12).join("")}-${value
     .slice(12, 16)
     .join("")}-${value.slice(16, 20).join("")}-${value.slice(20, 32).join("")}`;
+}
+
+function dedupeUniverseBySymbol(universe: EquityCandidate[]) {
+  const bySymbol = new Map<string, EquityCandidate>();
+
+  universe.forEach((candidate) => {
+    const symbol = candidate.symbol.trim().toUpperCase();
+    const current = bySymbol.get(symbol);
+
+    if (!current) {
+      bySymbol.set(symbol, { ...candidate, symbol });
+      return;
+    }
+
+    const currentScore = scoreCandidate(current).composite;
+    const nextScore = scoreCandidate(candidate).composite;
+
+    if (nextScore > currentScore) {
+      bySymbol.set(symbol, { ...candidate, symbol });
+    }
+  });
+
+  return Array.from(bySymbol.values());
 }
 
 function scoreTechnical(candidate: EquityCandidate) {
@@ -172,9 +206,21 @@ function buildReasons(candidate: EquityCandidate, scores: ScoreBreakdown) {
   return reasons;
 }
 
+function buildCalibrationReasons(calibration: ReturnType<typeof applyScoreCalibration>) {
+  if (calibration.appliedRules.length === 0) {
+    return [];
+  }
+
+  return calibration.appliedRules.map(
+    (rule) =>
+      `${rule.label} applied: score -${rule.scorePenalty}, confidence -${rule.confidencePenalty}, risk +${rule.riskAdjustment}.`,
+  );
+}
+
 function buildOpportunity(
   candidate: EquityCandidate,
   scores: ScoreBreakdown,
+  calibration: ReturnType<typeof applyScoreCalibration>,
   asOf: Date,
   source: AgentDataSource,
 ) {
@@ -195,6 +241,9 @@ function buildOpportunity(
   const explanation = [
     `${candidate.symbol} ranks highly because trend, fundamentals, news tone, and macro context are aligned better than most names in the ${source === "fmp" ? "live FMP-screened universe" : "mock universe"}.`,
     ...buildReasons(candidate, scores).slice(0, 3),
+    calibration.appliedRules.length > 0
+      ? `Backtest calibration lowered this setup by ${calibration.totalScorePenalty} score points because similar risk patterns have been less reliable historically.`
+      : "No active backtest penalty was triggered for this setup.",
     source === "fmp"
       ? "This analysis uses live market/fundamental inputs where available, but it still requires backtesting and forward outcome tracking before it should be treated as verified."
       : "This is mock analysis only; live execution should wait for real market data, filings, news, and risk checks.",
@@ -286,18 +335,23 @@ export function rankEquityCandidates(
     summaryPrefix,
   }: RankOptions = {},
 ): AgentRunResult {
-  const marketRegime = getMarketRegime(universe);
+  const uniqueUniverse = dedupeUniverseBySymbol(universe);
+  const marketRegime = getMarketRegime(uniqueUniverse);
   const runId = mockUuid(`${source}-agent-run`, asOf.toISOString().slice(0, 10));
-  const ranked = universe
+  const ranked = uniqueUniverse
     .map((candidate) => {
-      const scores = scoreCandidate(candidate);
-      const opportunity = buildOpportunity(candidate, scores, asOf, source);
+      const rawScores = scoreCandidate(candidate);
+      const calibration = applyScoreCalibration(candidate, rawScores);
+      const scores = calibration.scores;
+      const opportunity = buildOpportunity(candidate, scores, calibration, asOf, source);
 
       return {
         candidate,
         opportunity,
         scores,
-        reasons: buildReasons(candidate, scores),
+        rawScores,
+        calibration: calibration.appliedRules,
+        reasons: [...buildReasons(candidate, scores), ...buildCalibrationReasons(calibration)],
       };
     })
     .sort((a, b) => b.scores.composite - a.scores.composite)
@@ -306,16 +360,26 @@ export function rankEquityCandidates(
       ...item,
       rank: index + 1,
     })) satisfies RankedEquityOpportunity[];
+  const calibratedCandidateCount = ranked.filter((item) => item.calibration.length > 0).length;
+  const dataQualityWithCalibration = {
+    ...dataQuality,
+    notes: [
+      ...dataQuality.notes,
+      calibratedCandidateCount > 0
+        ? `Backtest calibration adjusted ${calibratedCandidateCount} of the selected ${ranked.length} opportunities before scores reached the UI.`
+        : "Backtest calibration was checked; no selected opportunities triggered an active penalty.",
+    ],
+  };
 
   return {
     runId,
     asOf: asOf.toISOString(),
     dataSource: source,
-    dataQuality,
-    universeCount: universe.length,
+    dataQuality: dataQualityWithCalibration,
+    universeCount: uniqueUniverse.length,
     selectedCount: ranked.length,
     marketRegime,
-    summary: `${summaryPrefix ?? "Morning agent"} ranked ${universe.length} US stocks and selected the top ${ranked.length} using technicals, company financials, news/catalyst tone, macro/government data placeholders, liquidity, and risk.`,
+    summary: `${summaryPrefix ?? "Morning agent"} ranked ${uniqueUniverse.length} unique US stocks and selected the top ${ranked.length} using technicals, company financials, news/catalyst tone, macro/government data placeholders, liquidity, risk, and active backtest calibration penalties.`,
     costEstimate: estimateDailyAgentCost({ selectedCount: ranked.length }),
     opportunities: ranked.map((item) => item.opportunity),
     rankings: ranked,

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { getAdminHeaders } from "@/lib/admin-client";
 import type { BacktestSummary } from "@/lib/backtesting";
 import { getCurrentCustomer, isAdminCustomer } from "@/lib/customer-store";
 
@@ -37,7 +38,7 @@ export function BacktestPanel() {
 
     try {
       const response = await fetch("/api/backtests/rolling?windows=5&intervalDays=21&limit=6", {
-        headers: { "x-tradepilot-admin": "true" },
+        headers: getAdminHeaders(),
       });
 
       if (!response.ok) {
@@ -78,7 +79,9 @@ export function BacktestPanel() {
           <p className="text-sm font-bold uppercase tracking-normal text-coral">
             Admin only
           </p>
-          <h1 className="mt-3 text-4xl font-bold text-ink">Backtests are restricted</h1>
+          <h1 className="mt-3 text-3xl font-bold text-ink sm:text-4xl">
+            Backtests are restricted
+          </h1>
           <p className="mt-3 max-w-3xl text-base leading-7 text-ink/65">
             Model verification results are internal admin analytics. Customer accounts can
             still use the dashboard, opportunity details, watchlist, and settings.
@@ -94,11 +97,14 @@ export function BacktestPanel() {
             <p className="text-sm font-bold uppercase tracking-normal text-pine">
               Performance verification
             </p>
-            <h1 className="mt-3 text-4xl font-bold text-ink">Rolling backtest</h1>
+            <h1 className="mt-3 text-3xl font-bold text-ink sm:text-4xl">
+              Backtesting and model learning
+            </h1>
             <p className="mt-3 max-w-3xl text-base leading-7 text-ink/65">
               Tests recent historical ranking windows against future FMP candles to
               measure target hits, stop hits, average return, drawdown, and score-band
-              quality.
+              quality. The self-learning section turns those outcomes into calibration
+              penalties that can lower future scores before they reach customers.
             </p>
           </div>
           <button
@@ -215,6 +221,70 @@ export function BacktestPanel() {
                   {summary.learningFeedback.openAiInstruction}
                 </p>
               </div>
+            </div>
+          </section>
+
+          <section className="min-w-0 rounded-xl border border-line bg-panel p-6 shadow-soft">
+            <div className="grid gap-2 sm:grid-cols-[1fr_auto] sm:items-end">
+              <div>
+                <p className="text-sm font-bold uppercase tracking-normal text-pine">
+                  Scoring calibration
+                </p>
+                <h2 className="mt-3 text-2xl font-bold text-ink">
+                  Active penalty table
+                </h2>
+              </div>
+              <p className="rounded-md bg-mint px-3 py-2 text-sm font-bold text-pine">
+                Applied before dashboard scores
+              </p>
+            </div>
+            <div className="mt-5 w-full max-w-full overflow-x-auto">
+              <table className="w-full min-w-[980px] border-collapse text-left text-sm">
+                <thead>
+                  <tr className="border-b border-line text-xs uppercase tracking-normal text-ink/55">
+                    <th className="py-3 pr-4">Rule</th>
+                    <th className="py-3 pr-4">Trigger</th>
+                    <th className="py-3 pr-4">Score</th>
+                    <th className="py-3 pr-4">Confidence</th>
+                    <th className="py-3 pr-4">Risk</th>
+                    <th className="py-3 pr-4">Sample</th>
+                    <th className="py-3 pr-4">Source</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {summary.calibrationTable.map((rule) => (
+                    <tr key={rule.id} className="border-b border-line last:border-b-0">
+                      <td className="py-4 pr-4">
+                        <p className="font-bold text-ink">{rule.label}</p>
+                        <p className="mt-1 max-w-xs text-xs leading-5 text-ink/55">
+                          {rule.description}
+                        </p>
+                      </td>
+                      <td className="py-4 pr-4 text-ink/65">
+                        {rule.triggerDescription}
+                      </td>
+                      <td className="py-4 pr-4 font-bold text-coral">
+                        -{rule.scorePenalty}
+                      </td>
+                      <td className="py-4 pr-4 font-bold text-coral">
+                        -{rule.confidencePenalty}
+                      </td>
+                      <td className="py-4 pr-4 font-bold text-ink">
+                        +{rule.riskAdjustment}
+                      </td>
+                      <td className="py-4 pr-4">
+                        <p className="font-semibold text-ink">{rule.sampleSize}</p>
+                        <p className="mt-1 text-xs text-ink/50">
+                          confidence {rule.confidence}
+                        </p>
+                      </td>
+                      <td className="py-4 pr-4 font-semibold capitalize text-pine">
+                        {rule.source}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </section>
 

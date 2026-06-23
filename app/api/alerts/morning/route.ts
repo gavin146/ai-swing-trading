@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { buildMorningAlertMessage, buildMorningEmailAlert } from "@/lib/alerts";
-import { runDailyRankingAgent, runFmpDailyRankingAgent } from "@/lib/agent";
+import { runFmpDailyRankingAgent } from "@/lib/agent";
 import { sendEmail } from "@/lib/email";
 import { sendTwilioSms } from "@/lib/twilio";
 
@@ -14,11 +14,11 @@ type AlertRequest = {
 };
 
 async function runConfiguredAgent() {
-  if (process.env.AGENT_DATA_SOURCE === "fmp") {
-    return runFmpDailyRankingAgent({ limit: 30 });
+  if (!process.env.FMP_API_KEY && !process.env.FINANCIAL_DATA_API_KEY) {
+    throw new Error("FMP_API_KEY is required for live morning alerts.");
   }
 
-  return runDailyRankingAgent({ limit: 30 });
+  return runFmpDailyRankingAgent({ limit: 30 });
 }
 
 export async function POST(request: NextRequest) {
@@ -33,8 +33,18 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const result = await runConfiguredAgent();
-  const customerName = body.customerName?.trim() || "Investor";
+  let result;
+
+  try {
+    result = await runConfiguredAgent();
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Live ranking failed." },
+      { status: 503 },
+    );
+  }
+
+  const customerName = body.customerName?.trim() ?? "";
   const deliveries = [];
 
   if (email) {
