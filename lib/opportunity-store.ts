@@ -4,9 +4,24 @@ import type { AssetType, OpportunityRow } from "./database.types";
 import { mockOpportunities } from "./mock-data";
 import { opportunityFromRow } from "./opportunities";
 
-const storageKey = "tradepilot-opportunities";
-const storageVersionKey = "tradepilot-opportunities-version";
+const storageKey = "swingfi-opportunities";
+const storageVersionKey = "swingfi-opportunities-version";
+const legacyStorageKey = "tradepilot-opportunities";
+const legacyStorageVersionKey = "tradepilot-opportunities-version";
 const currentStorageVersion = "agent-ranking-v1";
+
+function readStorageValue(key: string, legacyKey: string) {
+  const current = window.localStorage.getItem(key);
+  if (current) return current;
+
+  const legacy = window.localStorage.getItem(legacyKey);
+  if (legacy) {
+    window.localStorage.setItem(key, legacy);
+    window.localStorage.removeItem(legacyKey);
+  }
+
+  return legacy;
+}
 
 export type OpportunityFormValues = {
   symbol: string;
@@ -26,8 +41,8 @@ export function getStoredOpportunityRows(): OpportunityRow[] {
     return mockOpportunities;
   }
 
-  const stored = window.localStorage.getItem(storageKey);
-  const storedVersion = window.localStorage.getItem(storageVersionKey);
+  const stored = readStorageValue(storageKey, legacyStorageKey);
+  const storedVersion = readStorageValue(storageVersionKey, legacyStorageVersionKey);
 
   if (!stored || storedVersion !== currentStorageVersion) {
     window.localStorage.setItem(storageKey, JSON.stringify(mockOpportunities));
@@ -49,7 +64,7 @@ export function setStoredOpportunityRows(rows: OpportunityRow[]) {
   const sortedRows = [...rows].sort((a, b) => b.score - a.score);
   window.localStorage.setItem(storageKey, JSON.stringify(sortedRows));
   window.localStorage.setItem(storageVersionKey, currentStorageVersion);
-  window.dispatchEvent(new Event("tradepilot-opportunities-updated"));
+  window.dispatchEvent(new Event("swingfi-opportunities-updated"));
   return sortedRows;
 }
 

@@ -1,11 +1,25 @@
 "use client";
 
-const adminTokenKey = "tradepilot-admin-api-token";
+const adminTokenKey = "swingfi-admin-api-token";
+const legacyAdminTokenKey = "tradepilot-admin-api-token";
+
+function readAdminToken() {
+  const current = window.localStorage.getItem(adminTokenKey);
+  if (current) return current;
+
+  const legacy = window.localStorage.getItem(legacyAdminTokenKey);
+  if (legacy) {
+    window.localStorage.setItem(adminTokenKey, legacy);
+    window.localStorage.removeItem(legacyAdminTokenKey);
+  }
+
+  return legacy ?? "";
+}
 
 export function getStoredAdminToken() {
   if (typeof window === "undefined") return "";
 
-  return window.localStorage.getItem(adminTokenKey) ?? "";
+  return readAdminToken();
 }
 
 export function setStoredAdminToken(token: string) {
@@ -19,7 +33,7 @@ export function setStoredAdminToken(token: string) {
     window.localStorage.removeItem(adminTokenKey);
   }
 
-  window.dispatchEvent(new Event("tradepilot-admin-token-updated"));
+  window.dispatchEvent(new Event("swingfi-admin-token-updated"));
 }
 
 export function getAdminHeaders(headers?: HeadersInit) {
@@ -29,7 +43,7 @@ export function getAdminHeaders(headers?: HeadersInit) {
   if (token) {
     nextHeaders.set("authorization", `Bearer ${token}`);
   } else {
-    nextHeaders.set("x-tradepilot-admin", "true");
+    nextHeaders.set("x-swingfi-admin", "true");
   }
 
   return nextHeaders;

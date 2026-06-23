@@ -11,7 +11,7 @@ import { BacktestPanel } from "@/components/BacktestPanel";
 import {
   getCurrentCustomer,
   isAdminCustomer,
-  TRADEPILOT_ADMIN_EMAIL,
+  SWINGFI_ADMIN_EMAIL,
   type CustomerProfile,
 } from "@/lib/customer-store";
 
@@ -73,11 +73,11 @@ export function AdminWorkspace() {
 
     refresh();
     window.addEventListener("storage", refresh);
-    window.addEventListener("tradepilot-customer-updated", refresh);
+    window.addEventListener("swingfi-customer-updated", refresh);
 
     return () => {
       window.removeEventListener("storage", refresh);
-      window.removeEventListener("tradepilot-customer-updated", refresh);
+      window.removeEventListener("swingfi-customer-updated", refresh);
     };
   }, []);
 
@@ -109,7 +109,7 @@ export function AdminWorkspace() {
           Admin tools require an approved admin email
         </h1>
         <p className="mt-3 max-w-2xl text-sm leading-6 text-ink/65">
-          The owner account is {TRADEPILOT_ADMIN_EMAIL}. Existing admins can approve
+          The owner account is {SWINGFI_ADMIN_EMAIL}. Existing admins can approve
           more emails from the admin workspace, then those people can create their own
           admin accounts with passwords.
         </p>

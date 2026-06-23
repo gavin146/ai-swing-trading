@@ -49,15 +49,31 @@ type StoredAdminAccess = {
   createdBy: string | null;
 };
 
-const customersKey = "tradepilot-customers";
-const currentCustomerKey = "tradepilot-current-customer-id";
-const adminEmailsKey = "tradepilot-admin-emails";
+const customersKey = "swingfi-customers";
+const currentCustomerKey = "swingfi-current-customer-id";
+const adminEmailsKey = "swingfi-admin-emails";
+const legacyCustomersKey = "tradepilot-customers";
+const legacyCurrentCustomerKey = "tradepilot-current-customer-id";
+const legacyAdminEmailsKey = "tradepilot-admin-emails";
 const legacyDemoEmail = "avery@example.com";
 
-export const TRADEPILOT_ADMIN_EMAIL = "gavin@onefear.co";
+export const SWINGFI_ADMIN_EMAIL = "gavin@onefear.co";
 
 function normalizeEmail(email: string) {
   return email.trim().toLowerCase();
+}
+
+function readStorageValue(key: string, legacyKey: string) {
+  const current = window.localStorage.getItem(key);
+  if (current) return current;
+
+  const legacy = window.localStorage.getItem(legacyKey);
+  if (legacy) {
+    window.localStorage.setItem(key, legacy);
+    window.localStorage.removeItem(legacyKey);
+  }
+
+  return legacy;
 }
 
 function readAdminAccessList(): StoredAdminAccess[] {
@@ -65,7 +81,7 @@ function readAdminAccessList(): StoredAdminAccess[] {
     return [];
   }
 
-  const stored = window.localStorage.getItem(adminEmailsKey);
+  const stored = readStorageValue(adminEmailsKey, legacyAdminEmailsKey);
   if (!stored) {
     return [];
   }
@@ -81,7 +97,7 @@ function readAdminAccessList(): StoredAdminAccess[] {
           : item;
       const email = normalizeEmail(record.email ?? "");
 
-      if (!email || email === TRADEPILOT_ADMIN_EMAIL || email === legacyDemoEmail) continue;
+      if (!email || email === SWINGFI_ADMIN_EMAIL || email === legacyDemoEmail) continue;
 
       records.set(email, {
         email,
@@ -110,16 +126,16 @@ function writeAdminAccessList(records: StoredAdminAccess[]) {
       createdAt: record.createdAt || new Date().toISOString(),
       createdBy: record.createdBy ? normalizeEmail(record.createdBy) : null,
     }))
-    .filter((record) => record.email && record.email !== TRADEPILOT_ADMIN_EMAIL)
+    .filter((record) => record.email && record.email !== SWINGFI_ADMIN_EMAIL)
     .filter((record, index, list) => list.findIndex((item) => item.email === record.email) === index);
 
   window.localStorage.setItem(adminEmailsKey, JSON.stringify(normalizedRecords));
-  window.dispatchEvent(new Event("tradepilot-customer-updated"));
+  window.dispatchEvent(new Event("swingfi-customer-updated"));
 }
 
 export function isAdminEmail(email: string | null | undefined) {
   const normalizedEmail = normalizeEmail(email ?? "");
-  if (normalizedEmail === TRADEPILOT_ADMIN_EMAIL) {
+  if (normalizedEmail === SWINGFI_ADMIN_EMAIL) {
     return true;
   }
 
@@ -185,7 +201,7 @@ function readCustomers(): StoredCustomer[] {
     return [];
   }
 
-  const stored = window.localStorage.getItem(customersKey);
+  const stored = readStorageValue(customersKey, legacyCustomersKey);
 
   if (!stored) {
     return [];
@@ -213,7 +229,7 @@ function readCustomers(): StoredCustomer[] {
 
 function writeCustomers(customers: StoredCustomer[]) {
   window.localStorage.setItem(customersKey, JSON.stringify(customers));
-  window.dispatchEvent(new Event("tradepilot-customer-updated"));
+  window.dispatchEvent(new Event("swingfi-customer-updated"));
 }
 
 function applySyncedRole(customerId: string, role: CustomerRole | undefined) {
@@ -261,11 +277,11 @@ export function getAdminAccessRecords(): AdminAccessRecord[] {
 
   return [
     {
-      email: TRADEPILOT_ADMIN_EMAIL,
+      email: SWINGFI_ADMIN_EMAIL,
       source: "owner",
       createdAt: "2026-06-22T00:00:00.000Z",
       createdBy: null,
-      hasAccount: customers.some((customer) => normalizeEmail(customer.email) === TRADEPILOT_ADMIN_EMAIL),
+      hasAccount: customers.some((customer) => normalizeEmail(customer.email) === SWINGFI_ADMIN_EMAIL),
     },
     ...invitedRecords.map((record) => ({
       email: record.email,
@@ -283,7 +299,7 @@ export function getCurrentCustomer(): CustomerProfile | null {
   }
 
   const customers = readCustomers();
-  const currentId = window.localStorage.getItem(currentCustomerKey);
+  const currentId = readStorageValue(currentCustomerKey, legacyCurrentCustomerKey);
   const current = customers.find((customer) => customer.id === currentId) ?? null;
 
   if (!current) {
@@ -308,7 +324,7 @@ export function loginCustomer(email: string, password: string) {
   customer.lastLoginAt = new Date().toISOString();
   writeCustomers(customers);
   window.localStorage.setItem(currentCustomerKey, customer.id);
-  window.dispatchEvent(new Event("tradepilot-customer-updated"));
+  window.dispatchEvent(new Event("swingfi-customer-updated"));
   const profile = withoutPassword(customer);
   syncCustomerProfile(profile);
   return profile;
@@ -359,7 +375,7 @@ export function signupCustomer(values: {
 
   writeCustomers([nextCustomer, ...customers]);
   window.localStorage.setItem(currentCustomerKey, nextCustomer.id);
-  window.dispatchEvent(new Event("tradepilot-customer-updated"));
+  window.dispatchEvent(new Event("swingfi-customer-updated"));
   const profile = withoutPassword(nextCustomer);
   syncCustomerProfile(profile);
   return profile;
@@ -422,7 +438,7 @@ export function rememberAuthenticatedCustomer(values: {
 
   writeCustomers(nextCustomers);
   window.localStorage.setItem(currentCustomerKey, nextCustomer.id);
-  window.dispatchEvent(new Event("tradepilot-customer-updated"));
+  window.dispatchEvent(new Event("swingfi-customer-updated"));
   const profile = withoutPassword(nextCustomer);
   syncCustomerProfile(profile);
   return profile;
@@ -468,7 +484,7 @@ export function grantAdminAccess(email: string) {
     throw new Error("The old demo account cannot be made an admin.");
   }
 
-  if (normalizedEmail !== TRADEPILOT_ADMIN_EMAIL) {
+  if (normalizedEmail !== SWINGFI_ADMIN_EMAIL) {
     const existingRecords = readAdminAccessList();
     if (!existingRecords.some((record) => record.email === normalizedEmail)) {
       writeAdminAccessList([
@@ -502,7 +518,7 @@ export function revokeAdminAccess(email: string) {
   }
 
   const normalizedEmail = normalizeEmail(email);
-  if (normalizedEmail === TRADEPILOT_ADMIN_EMAIL) {
+  if (normalizedEmail === SWINGFI_ADMIN_EMAIL) {
     throw new Error("The owner admin cannot be removed.");
   }
 
@@ -523,7 +539,7 @@ export function revokeAdminAccess(email: string) {
 
 export function logoutCustomer() {
   window.localStorage.removeItem(currentCustomerKey);
-  window.dispatchEvent(new Event("tradepilot-customer-updated"));
+  window.dispatchEvent(new Event("swingfi-customer-updated"));
 }
 
 export function isAdminCustomer(customer: CustomerProfile | null | undefined) {

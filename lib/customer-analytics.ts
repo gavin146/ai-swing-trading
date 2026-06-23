@@ -17,7 +17,8 @@ export type CustomerUsageSummary = {
   topSymbols: string[];
 };
 
-const eventsKey = "tradepilot-email-link-events";
+const eventsKey = "swingfi-email-link-events";
+const legacyEventsKey = "tradepilot-email-link-events";
 
 function monthKey(date = new Date()) {
   return date.toISOString().slice(0, 7);
@@ -60,7 +61,8 @@ export function getEmailLinkEvents() {
     return demoEvents();
   }
 
-  const stored = window.localStorage.getItem(eventsKey);
+  const stored =
+    window.localStorage.getItem(eventsKey) ?? window.localStorage.getItem(legacyEventsKey);
 
   if (!stored) {
     const seeded = demoEvents();
@@ -69,7 +71,10 @@ export function getEmailLinkEvents() {
   }
 
   try {
-    return JSON.parse(stored) as EmailLinkEvent[];
+    const parsed = JSON.parse(stored) as EmailLinkEvent[];
+    window.localStorage.setItem(eventsKey, JSON.stringify(parsed));
+    window.localStorage.removeItem(legacyEventsKey);
+    return parsed;
   } catch {
     const seeded = demoEvents();
     window.localStorage.setItem(eventsKey, JSON.stringify(seeded));
@@ -96,7 +101,7 @@ export function trackEmailLinkClick(args: {
   };
 
   window.localStorage.setItem(eventsKey, JSON.stringify([event, ...events]));
-  window.dispatchEvent(new Event("tradepilot-analytics-updated"));
+  window.dispatchEvent(new Event("swingfi-analytics-updated"));
 }
 
 export function getCustomerUsageSummaries(date = new Date()) {

@@ -1,40 +1,81 @@
-import Link from "next/link";
-import { BrandMark } from "@/components/BrandMark";
+import { LegalSection, LegalShell } from "@/components/LegalShell";
 
 export default function TermsPage() {
   return (
-    <main className="min-h-screen bg-surface px-4 py-10">
-      <section className="mx-auto max-w-3xl rounded-xl border border-line bg-panel p-6 shadow-soft">
-        <BrandMark />
-        <p className="mt-8 text-sm font-bold uppercase tracking-normal text-pine">
-          Terms
+    <LegalShell eyebrow="Terms" title="Terms of Use">
+      <LegalSection title="Acceptance">
+        <p>
+          By creating an account, viewing rankings, opening alert links, or using SwingFi,
+          you agree to these terms. If you do not agree, do not use the service.
         </p>
-        <h1 className="mt-3 text-4xl font-bold text-ink">Terms of use</h1>
-        <div className="mt-6 grid gap-4 text-sm leading-7 text-ink/70">
-          <p>
-            SwingFi is a software and research tool for reviewing market
-            opportunities. You agree not to treat rankings, alerts, or explanations as
-            guaranteed outcomes or personalized investment advice.
-          </p>
-          <p>
-            You are responsible for confirming data accuracy, reviewing risk, complying
-            with laws and brokerage rules, and deciding whether any trade fits your
-            financial situation.
-          </p>
-          <p>
-            The service may be unavailable, delayed, incomplete, or incorrect. We may
-            update scoring logic, calibration rules, data providers, alert schedules, and
-            supported assets over time.
-          </p>
-          <p>
-            Before accepting payments, these terms should be finalized with refund,
-            cancellation, subscription, arbitration, and jurisdiction language.
-          </p>
-        </div>
-        <Link href="/dashboard" className="mt-8 inline-flex font-bold text-pine">
-          Back to dashboard
-        </Link>
-      </section>
-    </main>
+      </LegalSection>
+
+      <LegalSection title="Use Of The Service">
+        <p>
+          SwingFi is a software platform for reviewing market research, modeled swing
+          trade opportunities, educational explanations, backtests, and alerts. You agree
+          not to treat rankings, alerts, explanations, or score outputs as guaranteed
+          outcomes or personalized investment advice.
+        </p>
+        <p>
+          You are responsible for your own account security, trading decisions, brokerage
+          execution, tax treatment, compliance obligations, and risk management.
+        </p>
+      </LegalSection>
+
+      <LegalSection title="No Regulated Financial Service">
+        <p>
+          SwingFi does not provide brokerage, custody, investment advisory, portfolio
+          management, tax, legal, or accounting services. SwingFi does not recommend that
+          any specific customer buy, sell, or hold any security or crypto asset.
+        </p>
+      </LegalSection>
+
+      <LegalSection title="Data And Availability">
+        <p>
+          Market data, government data, corporate event data, SEC filing data, news
+          signals, AI output, and technical indicators may be delayed, incomplete,
+          inaccurate, or unavailable. We may change scoring logic, providers, supported
+          tickers, alert schedules, calibration rules, and product features at any time.
+        </p>
+        <p>
+          SwingFi may be unavailable due to maintenance, provider outages, API limits,
+          deployment failures, market-data issues, or other circumstances outside our
+          control.
+        </p>
+      </LegalSection>
+
+      <LegalSection title="Customer Conduct">
+        <p>
+          You agree not to misuse the service, scrape protected parts of the app, attempt
+          to bypass admin or account restrictions, reverse engineer scoring systems,
+          overload APIs, share access credentials, or use SwingFi for unlawful activity.
+        </p>
+      </LegalSection>
+
+      <LegalSection title="Payments Later">
+        <p>
+          SwingFi is currently open while the product is being validated. If paid plans
+          are enabled later, billing, cancellation, refund, renewal, and subscription
+          terms will be presented before checkout and should be reviewed before purchase.
+        </p>
+      </LegalSection>
+
+      <LegalSection title="Limitation Of Liability">
+        <p>
+          To the fullest extent permitted by law, SwingFi is provided as-is and as
+          available. We are not liable for trading losses, missed opportunities, inaccurate
+          analysis, delayed alerts, provider failures, lost data, indirect damages, or
+          decisions made based on the service.
+        </p>
+      </LegalSection>
+
+      <LegalSection title="Changes">
+        <p>
+          We may update these terms as the product changes. Continued use of SwingFi after
+          an update means you accept the updated terms.
+        </p>
+      </LegalSection>
+    </LegalShell>
   );
 }

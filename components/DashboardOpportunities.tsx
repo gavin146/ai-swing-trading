@@ -119,13 +119,13 @@ export function DashboardOpportunities({
 
     refresh();
     window.addEventListener("storage", refresh);
-    window.addEventListener("tradepilot-opportunities-updated", refresh);
-    window.addEventListener("tradepilot-customer-updated", refresh);
+    window.addEventListener("swingfi-opportunities-updated", refresh);
+    window.addEventListener("swingfi-customer-updated", refresh);
 
     return () => {
       window.removeEventListener("storage", refresh);
-      window.removeEventListener("tradepilot-opportunities-updated", refresh);
-      window.removeEventListener("tradepilot-customer-updated", refresh);
+      window.removeEventListener("swingfi-opportunities-updated", refresh);
+      window.removeEventListener("swingfi-customer-updated", refresh);
     };
   }, [dataSource]);
 

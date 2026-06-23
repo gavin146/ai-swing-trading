@@ -18,11 +18,11 @@ export function AppHeader({ active }: AppHeaderProps) {
     const refresh = () => setCustomer(getCurrentCustomer());
 
     refresh();
-    window.addEventListener("tradepilot-customer-updated", refresh);
+    window.addEventListener("swingfi-customer-updated", refresh);
     window.addEventListener("storage", refresh);
 
     return () => {
-      window.removeEventListener("tradepilot-customer-updated", refresh);
+      window.removeEventListener("swingfi-customer-updated", refresh);
       window.removeEventListener("storage", refresh);
     };
   }, []);

@@ -8,7 +8,7 @@ import {
   isAdminCustomer,
   rememberAuthenticatedCustomer,
   signupCustomer,
-  TRADEPILOT_ADMIN_EMAIL,
+  SWINGFI_ADMIN_EMAIL,
   type AccountBudget,
   type InvestingExperience,
   type PositionSizePreference,
@@ -120,7 +120,7 @@ export function SignupForm() {
           beginner-friendly trade explanations.
         </p>
         <p className="mt-3 rounded-md bg-surface px-3 py-2 text-xs font-bold leading-5 text-ink/60">
-          Admin tools unlock for {TRADEPILOT_ADMIN_EMAIL} and emails approved by an
+          Admin tools unlock for {SWINGFI_ADMIN_EMAIL} and emails approved by an
           existing admin. Everyone else gets the open beta customer experience.
         </p>
       </div>

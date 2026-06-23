@@ -1,36 +1,56 @@
-import Link from "next/link";
-import { BrandMark } from "@/components/BrandMark";
+import { LegalSection, LegalShell } from "@/components/LegalShell";
 
 export default function DisclaimerPage() {
   return (
-    <main className="min-h-screen bg-surface px-4 py-10">
-      <section className="mx-auto max-w-3xl rounded-xl border border-line bg-panel p-6 shadow-soft">
-        <BrandMark />
-        <p className="mt-8 text-sm font-bold uppercase tracking-normal text-pine">
-          Important risk notice
+    <LegalShell eyebrow="Important risk notice" title="Not Financial Advice">
+      <LegalSection title="Research Software Only">
+        <p>
+          SwingFi provides market research software, rankings, educational explanations,
+          modeled trade plans, and alerting tools. SwingFi does not provide personalized
+          investment, legal, tax, accounting, or financial planning advice.
         </p>
-        <h1 className="mt-3 text-4xl font-bold text-ink">Not financial advice</h1>
-        <div className="mt-6 grid gap-4 text-sm leading-7 text-ink/70">
-          <p>
-            SwingFi provides research, ranking tools, educational explanations,
-            and modeled trade plans for review. The service does not provide
-            personalized investment, legal, tax, or financial advice.
-          </p>
-          <p>
-            Trading stocks, ETFs, and cryptocurrencies involves risk, including possible
-            loss of principal. Scores, targets, stop losses, holding periods, and AI
-            explanations are estimates and may be wrong.
-          </p>
-          <p>
-            You are responsible for your own trading decisions, position sizing,
-            brokerage execution, and risk management. Past performance, backtests, and
-            historical simulations do not guarantee future results.
-          </p>
-        </div>
-        <Link href="/dashboard" className="mt-8 inline-flex font-bold text-pine">
-          Back to dashboard
-        </Link>
-      </section>
-    </main>
+        <p>
+          SwingFi is not a broker-dealer, investment adviser, exchange, custodian, or
+          brokerage account. The service does not place trades, execute orders, custody
+          assets, manage accounts, or make investment decisions for customers.
+        </p>
+      </LegalSection>
+
+      <LegalSection title="Trading Risk">
+        <p>
+          Stocks, ETFs, and cryptocurrencies can lose value quickly. Swing trading can be
+          especially sensitive to market gaps, news, liquidity, volatility, earnings
+          events, interest rates, and broad market conditions. You can lose some or all of
+          the capital you choose to risk.
+        </p>
+        <p>
+          Opportunity scores, confidence scores, risk scores, entry ranges, targets, stop
+          losses, estimated holding periods, AI explanations, backtests, and historical
+          performance are estimates. They may be delayed, incomplete, inaccurate, or wrong.
+        </p>
+      </LegalSection>
+
+      <LegalSection title="Your Responsibility">
+        <p>
+          You are responsible for confirming data accuracy, reviewing company and market
+          news, checking earnings and SEC filings, choosing position size, placing orders,
+          managing risk, and deciding whether any trade fits your financial situation.
+        </p>
+        <p>
+          Past performance, simulated results, backtests, calibration tables, and
+          historical win rates do not guarantee future returns. No ranking or alert should
+          be interpreted as a guarantee, promise, or instruction to buy, sell, or hold.
+        </p>
+      </LegalSection>
+
+      <LegalSection title="AI Limitations">
+        <p>
+          AI-generated explanations may summarize data incorrectly, miss important
+          context, or overstate the importance of a signal. Use the explanations as a
+          starting point for review, not as a substitute for your own judgment or a
+          qualified professional.
+        </p>
+      </LegalSection>
+    </LegalShell>
   );
 }

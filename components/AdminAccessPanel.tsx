@@ -8,7 +8,7 @@ import {
   getCurrentCustomer,
   grantAdminAccess,
   revokeAdminAccess,
-  TRADEPILOT_ADMIN_EMAIL,
+  SWINGFI_ADMIN_EMAIL,
   type AdminAccessRecord,
 } from "@/lib/customer-store";
 
@@ -53,14 +53,14 @@ export function AdminAccessPanel() {
   useEffect(() => {
     refreshRecords();
     const refresh = () => void refreshRecords();
-    window.addEventListener("tradepilot-customer-updated", refresh);
+    window.addEventListener("swingfi-customer-updated", refresh);
     window.addEventListener("storage", refresh);
-    window.addEventListener("tradepilot-admin-token-updated", refresh);
+    window.addEventListener("swingfi-admin-token-updated", refresh);
 
     return () => {
-      window.removeEventListener("tradepilot-customer-updated", refresh);
+      window.removeEventListener("swingfi-customer-updated", refresh);
       window.removeEventListener("storage", refresh);
-      window.removeEventListener("tradepilot-admin-token-updated", refresh);
+      window.removeEventListener("swingfi-admin-token-updated", refresh);
     };
   }, []);
 
@@ -216,7 +216,7 @@ export function AdminAccessPanel() {
               <tr key={record.email} className="border-b border-line last:border-b-0">
                 <td className="py-4 pr-4">
                   <p className="font-bold text-ink">{record.email}</p>
-                  {record.email === TRADEPILOT_ADMIN_EMAIL ? (
+                  {record.email === SWINGFI_ADMIN_EMAIL ? (
                     <p className="mt-1 text-xs font-semibold text-ink/50">Primary owner</p>
                   ) : null}
                 </td>

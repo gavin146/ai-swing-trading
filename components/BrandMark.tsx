@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { brand } from "@/lib/brand";
 
 type BrandMarkProps = {
   compact?: boolean;
@@ -41,13 +42,13 @@ export function BrandMark({ compact = false, href = "/" }: BrandMarkProps) {
       {compact ? null : (
         <span className="leading-none">
           <span className="flex items-center gap-2">
-            <span className="text-lg font-black tracking-normal text-ink">SwingFi</span>
+            <span className="text-lg font-black tracking-normal text-ink">{brand.appName}</span>
             <span className="rounded-md bg-lime px-1.5 py-1 text-[10px] font-black leading-none text-ink">
-              AI
+              {brand.badge}
             </span>
           </span>
           <span className="mt-1 block text-xs font-semibold text-ink/55">
-            Daily swing trade intelligence
+            {brand.tagline}
           </span>
         </span>
       )}

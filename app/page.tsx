@@ -300,7 +300,7 @@ export default async function LandingPage() {
             <h2 className="text-3xl font-bold">Ready to review today&apos;s ideas?</h2>
             <p className="mt-3 max-w-2xl text-sm leading-7 text-white/68">
               Create an account to set alert preferences, review the dashboard, and
-              receive the morning stock analysis when production email is connected.
+              receive the morning stock analysis through branded email alerts.
               SwingFi is research software and does not place trades for users.
             </p>
           </div>

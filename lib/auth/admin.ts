@@ -8,7 +8,10 @@ export function isAdminApiRequest(request: NextRequest) {
   }
 
   if (process.env.NODE_ENV !== "production") {
-    return request.headers.get("x-tradepilot-admin") === "true";
+    return (
+      request.headers.get("x-swingfi-admin") === "true" ||
+      request.headers.get("x-tradepilot-admin") === "true"
+    );
   }
 
   return false;
