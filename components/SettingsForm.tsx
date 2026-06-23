@@ -62,7 +62,7 @@ export function SettingsForm() {
 
   if (!loaded) {
     return (
-      <section className="rounded-lg border border-line bg-panel p-6 shadow-soft">
+      <section className="rounded-3xl border border-line/80 bg-white p-6 shadow-[0_20px_70px_rgba(7,20,24,0.07)]">
         <p className="text-sm font-bold text-ink">Loading profile...</p>
       </section>
     );
@@ -70,7 +70,7 @@ export function SettingsForm() {
 
   if (!customer) {
     return (
-      <section className="rounded-lg border border-line bg-panel p-6 shadow-soft">
+      <section className="rounded-3xl border border-line/80 bg-white p-6 shadow-[0_20px_70px_rgba(7,20,24,0.07)]">
         <p className="text-sm font-bold uppercase tracking-normal text-pine">Account required</p>
         <h2 className="mt-3 text-2xl font-black text-ink">Create a profile to save settings</h2>
         <p className="mt-2 max-w-2xl text-sm leading-6 text-ink/60">
@@ -80,13 +80,13 @@ export function SettingsForm() {
         <div className="mt-5 flex flex-col gap-3 sm:flex-row">
           <Link
             href="/signup"
-            className="rounded-lg bg-ink px-4 py-3 text-center text-sm font-black text-white hover:bg-pine"
+            className="rounded-2xl bg-ink px-4 py-3 text-center text-sm font-black text-white hover:bg-pine"
           >
             Create account
           </Link>
           <Link
             href="/login"
-            className="rounded-lg border border-line bg-surface px-4 py-3 text-center text-sm font-bold text-ink hover:border-pine"
+            className="rounded-2xl border border-line bg-surface px-4 py-3 text-center text-sm font-bold text-ink hover:border-pine"
           >
             Log in
           </Link>
@@ -96,8 +96,8 @@ export function SettingsForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="mt-8 grid gap-5">
-      <section className="rounded-lg border border-line bg-panel p-6 shadow-soft">
+    <form onSubmit={handleSubmit} className="grid gap-5">
+      <section className="rounded-3xl border border-line/80 bg-white p-6 shadow-[0_20px_70px_rgba(7,20,24,0.07)]">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <h2 className="text-xl font-bold text-ink">Profile</h2>
           {saved ? (
@@ -118,7 +118,7 @@ export function SettingsForm() {
               name="fullName"
               type="text"
               defaultValue={customer.fullName}
-              className="rounded-md border border-line bg-surface px-4 py-3 font-medium outline-none transition focus:border-pine focus:bg-panel"
+              className="rounded-xl border border-line bg-surface px-4 py-3 font-medium outline-none transition focus:border-pine focus:bg-panel"
             />
           </label>
           <label className="grid gap-2 text-sm font-bold text-ink">
@@ -127,7 +127,7 @@ export function SettingsForm() {
               name="email"
               type="email"
               defaultValue={customer.email}
-              className="rounded-md border border-line bg-surface px-4 py-3 font-medium outline-none transition focus:border-pine focus:bg-panel"
+              className="rounded-xl border border-line bg-surface px-4 py-3 font-medium outline-none transition focus:border-pine focus:bg-panel"
             />
           </label>
           <label className="grid gap-2 text-sm font-bold text-ink">
@@ -137,7 +137,7 @@ export function SettingsForm() {
               type="tel"
               defaultValue={customer.phone}
               placeholder="+15551234567"
-              className="rounded-md border border-line bg-surface px-4 py-3 font-medium outline-none transition focus:border-pine focus:bg-panel"
+              className="rounded-xl border border-line bg-surface px-4 py-3 font-medium outline-none transition focus:border-pine focus:bg-panel"
             />
           </label>
           <label className="grid gap-2 text-sm font-bold text-ink">
@@ -146,13 +146,13 @@ export function SettingsForm() {
               name="timezone"
               type="text"
               defaultValue={customer.timezone}
-              className="rounded-md border border-line bg-surface px-4 py-3 font-medium outline-none transition focus:border-pine focus:bg-panel"
+              className="rounded-xl border border-line bg-surface px-4 py-3 font-medium outline-none transition focus:border-pine focus:bg-panel"
             />
           </label>
         </div>
       </section>
 
-      <section className="rounded-lg border border-line bg-panel p-6 shadow-soft">
+      <section className="rounded-3xl border border-line/80 bg-white p-6 shadow-[0_20px_70px_rgba(7,20,24,0.07)]">
         <h2 className="text-xl font-bold text-ink">Opportunity filters</h2>
         <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <label className="grid gap-2 text-sm font-bold text-ink">
@@ -160,7 +160,7 @@ export function SettingsForm() {
             <select
               name="riskProfile"
               defaultValue={customer.riskProfile}
-              className="rounded-md border border-line bg-surface px-4 py-3 font-medium outline-none transition focus:border-pine focus:bg-panel"
+              className="rounded-xl border border-line bg-surface px-4 py-3 font-medium outline-none transition focus:border-pine focus:bg-panel"
             >
               <option value="conservative">Conservative</option>
               <option value="balanced">Balanced</option>
@@ -172,7 +172,7 @@ export function SettingsForm() {
             <select
               name="accountBudget"
               defaultValue={customer.accountBudget}
-              className="rounded-md border border-line bg-surface px-4 py-3 font-medium outline-none transition focus:border-pine focus:bg-panel"
+              className="rounded-xl border border-line bg-surface px-4 py-3 font-medium outline-none transition focus:border-pine focus:bg-panel"
             >
               <option value="not_set">Not set</option>
               <option value="under_1000">Under $1,000</option>
@@ -186,7 +186,7 @@ export function SettingsForm() {
             <select
               name="investingExperience"
               defaultValue={customer.investingExperience}
-              className="rounded-md border border-line bg-surface px-4 py-3 font-medium outline-none transition focus:border-pine focus:bg-panel"
+              className="rounded-xl border border-line bg-surface px-4 py-3 font-medium outline-none transition focus:border-pine focus:bg-panel"
             >
               <option value="beginner">Beginner</option>
               <option value="intermediate">Intermediate</option>
@@ -198,7 +198,7 @@ export function SettingsForm() {
             <select
               name="positionSizePreference"
               defaultValue={customer.positionSizePreference}
-              className="rounded-md border border-line bg-surface px-4 py-3 font-medium outline-none transition focus:border-pine focus:bg-panel"
+              className="rounded-xl border border-line bg-surface px-4 py-3 font-medium outline-none transition focus:border-pine focus:bg-panel"
             >
               <option value="small">Small and careful</option>
               <option value="moderate">Moderate</option>
@@ -210,7 +210,7 @@ export function SettingsForm() {
             <select
               name="setupPreference"
               defaultValue={customer.setupPreference}
-              className="rounded-md border border-line bg-surface px-4 py-3 font-medium outline-none transition focus:border-pine focus:bg-panel"
+              className="rounded-xl border border-line bg-surface px-4 py-3 font-medium outline-none transition focus:border-pine focus:bg-panel"
             >
               <option value="steady">Steadier setups</option>
               <option value="balanced">Balanced setups</option>
@@ -225,7 +225,7 @@ export function SettingsForm() {
               min="0"
               max="100"
               defaultValue={customer.minimumConfidence}
-              className="rounded-md border border-line bg-surface px-4 py-3 font-medium outline-none transition focus:border-pine focus:bg-panel"
+              className="rounded-xl border border-line bg-surface px-4 py-3 font-medium outline-none transition focus:border-pine focus:bg-panel"
             />
           </label>
           <label className="grid gap-2 text-sm font-bold text-ink">
@@ -236,13 +236,13 @@ export function SettingsForm() {
               min="0"
               max="100"
               defaultValue={customer.maxRiskScore}
-              className="rounded-md border border-line bg-surface px-4 py-3 font-medium outline-none transition focus:border-pine focus:bg-panel"
+              className="rounded-xl border border-line bg-surface px-4 py-3 font-medium outline-none transition focus:border-pine focus:bg-panel"
             />
           </label>
         </div>
       </section>
 
-      <section className="rounded-lg border border-line bg-panel p-6 shadow-soft">
+      <section className="rounded-3xl border border-line/80 bg-white p-6 shadow-[0_20px_70px_rgba(7,20,24,0.07)]">
         <div className="grid gap-5 lg:grid-cols-[1fr_auto] lg:items-start">
           <div>
             <h2 className="text-xl font-bold text-ink">Morning alerts</h2>
@@ -252,7 +252,7 @@ export function SettingsForm() {
               before the 9:30 AM open.
             </p>
           </div>
-          <label className="inline-flex cursor-pointer items-center gap-3 self-start rounded-md border border-line bg-surface px-4 py-3 text-sm font-bold text-ink">
+          <label className="inline-flex cursor-pointer items-center gap-3 self-start rounded-xl border border-line bg-surface px-4 py-3 text-sm font-bold text-ink">
             <input
               name="morningAlertsEnabled"
               type="checkbox"
@@ -269,7 +269,7 @@ export function SettingsForm() {
             <select
               name="alertChannel"
               defaultValue={customer.alertChannel}
-              className="rounded-md border border-line bg-surface px-4 py-3 font-medium outline-none transition focus:border-pine focus:bg-panel"
+              className="rounded-xl border border-line bg-surface px-4 py-3 font-medium outline-none transition focus:border-pine focus:bg-panel"
             >
               <option value="email">Email</option>
               <option value="none">None</option>
@@ -281,7 +281,7 @@ export function SettingsForm() {
               name="alertTime"
               type="time"
               defaultValue={customer.alertTime}
-              className="rounded-md border border-line bg-surface px-4 py-3 font-medium outline-none transition focus:border-pine focus:bg-panel"
+              className="rounded-xl border border-line bg-surface px-4 py-3 font-medium outline-none transition focus:border-pine focus:bg-panel"
             />
           </label>
         </div>
@@ -289,7 +289,7 @@ export function SettingsForm() {
         <div className="mt-5 flex flex-col gap-3 sm:flex-row">
           <button
             type="submit"
-            className="rounded-md bg-pine px-4 py-3 text-sm font-bold text-white transition hover:bg-ink"
+            className="rounded-2xl bg-pine px-4 py-3 text-sm font-bold text-white transition hover:bg-ink"
           >
             Save settings
           </button>

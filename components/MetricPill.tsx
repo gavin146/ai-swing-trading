@@ -13,11 +13,11 @@ const toneStyles = {
 
 export function MetricPill({ label, value, tone = "neutral" }: MetricPillProps) {
   return (
-    <div className={`rounded-lg px-3 py-2 ${toneStyles[tone]}`}>
+    <div className={`rounded-2xl px-3 py-3 ${toneStyles[tone]}`}>
       <p className="text-[11px] font-black uppercase tracking-normal opacity-70">
         {label}
       </p>
-      <p className="mt-1 text-sm font-bold">{value}</p>
+      <p className="mt-1 text-sm font-black leading-5">{value}</p>
     </div>
   );
 }

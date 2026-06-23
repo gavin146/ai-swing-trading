@@ -25,7 +25,7 @@ export function CustomerStatus() {
     return (
       <Link
         href="/login"
-        className="rounded-lg border border-line bg-panel px-3 py-2 font-bold text-ink hover:border-pine hover:shadow-soft"
+        className="rounded-xl border border-line bg-white px-3 py-2 font-bold text-ink hover:border-pine hover:shadow-soft"
       >
         Log in
       </Link>
@@ -42,14 +42,14 @@ export function CustomerStatus() {
     <div className="flex items-center gap-2">
       <Link
         href="/settings"
-        className="rounded-lg bg-mint px-3 py-2 text-sm font-black text-pine hover:bg-lime hover:text-ink"
+        className="rounded-xl bg-mint px-3 py-2 text-sm font-black text-pine hover:bg-lime hover:text-ink"
       >
         {customer.fullName || customer.email}
       </Link>
       <button
         type="button"
         onClick={handleLogout}
-        className="rounded-lg border border-line bg-panel px-3 py-2 text-sm font-bold text-ink hover:border-pine hover:shadow-soft"
+        className="rounded-xl border border-line bg-white px-3 py-2 text-sm font-bold text-ink hover:border-pine hover:shadow-soft"
       >
         Log out
       </button>

@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
-import { BrandMark } from "@/components/BrandMark";
 import {
   isAdminCustomer,
   loginCustomer,
@@ -89,11 +88,12 @@ export function LoginForm() {
   }
 
   return (
-    <section className="premium-panel w-full max-w-md rounded-xl p-6">
-      <BrandMark />
-
-      <div className="mt-8">
-        <h1 className="text-3xl font-bold text-ink">Welcome back</h1>
+    <section className="w-full max-w-md rounded-3xl border border-line/70 bg-white p-6 shadow-[0_24px_80px_rgba(7,20,24,0.08)] sm:p-8">
+      <div>
+        <p className="text-xs font-black uppercase tracking-normal text-pine">
+          Secure sign in
+        </p>
+        <h1 className="mt-3 text-3xl font-black text-ink">Welcome back</h1>
         <p className="mt-2 text-sm leading-6 text-ink/60">
           Sign in to review today&apos;s ranked opportunities, saved preferences, and
           morning email settings.
@@ -127,7 +127,7 @@ export function LoginForm() {
         <button
           type="submit"
           disabled={loading}
-          className="mt-2 rounded-lg bg-ink px-4 py-3 text-sm font-black text-white shadow-[0_14px_34px_rgba(7,20,24,0.16)] hover:bg-pine disabled:cursor-not-allowed disabled:opacity-70"
+          className="mt-2 rounded-2xl bg-ink px-4 py-3 text-sm font-black text-white shadow-[0_14px_34px_rgba(7,20,24,0.16)] hover:bg-pine disabled:cursor-not-allowed disabled:opacity-70"
         >
           {loading ? "Opening dashboard..." : "Log in"}
         </button>
@@ -135,7 +135,7 @@ export function LoginForm() {
           type="button"
           onClick={handlePasswordReset}
           disabled={loading}
-          className="rounded-lg border border-line bg-panel px-4 py-3 text-sm font-bold text-ink hover:border-pine hover:shadow-soft disabled:cursor-not-allowed disabled:opacity-70"
+          className="rounded-2xl border border-line bg-panel px-4 py-3 text-sm font-bold text-ink hover:border-pine hover:shadow-soft disabled:cursor-not-allowed disabled:opacity-70"
         >
           Send password reset
         </button>

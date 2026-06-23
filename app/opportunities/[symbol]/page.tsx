@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { AppHeader } from "@/components/AppHeader";
+import { AppShell } from "@/components/AppShell";
 import { OpportunityDetailView } from "@/components/OpportunityDetailView";
 import { opportunityFromRow } from "@/lib/opportunities";
 import { getOpportunityBySymbol } from "@/lib/repositories/opportunities";
@@ -32,14 +32,18 @@ export default async function OpportunityDetailPage({
   const opportunity = result.rows[0] ? opportunityFromRow(result.rows[0]) : undefined;
 
   return (
-    <main className="min-h-screen">
-      <AppHeader active="dashboard" />
+    <AppShell
+      active="dashboard"
+      eyebrow="Opportunity analysis"
+      title={opportunity ? `${opportunity.symbol} trade review` : `${symbol.toUpperCase()} review`}
+      subtitle="A structured breakdown of the setup, score quality, entry range, target, stop, and estimated swing-trade window."
+    >
       <OpportunityDetailView
         dataSource={result.source}
         fallbackReason={result.reason}
         initialOpportunity={opportunity}
         symbol={symbol}
       />
-    </main>
+    </AppShell>
   );
 }

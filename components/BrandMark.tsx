@@ -4,6 +4,7 @@ import { brand } from "@/lib/brand";
 type BrandMarkProps = {
   compact?: boolean;
   href?: string;
+  inverse?: boolean;
 };
 
 function Mark() {
@@ -35,19 +36,21 @@ function Mark() {
   );
 }
 
-export function BrandMark({ compact = false, href = "/" }: BrandMarkProps) {
+export function BrandMark({ compact = false, href = "/", inverse = false }: BrandMarkProps) {
   return (
     <Link href={href} className="group inline-flex items-center gap-3">
       <Mark />
       {compact ? null : (
         <span className="leading-none">
           <span className="flex items-center gap-2">
-            <span className="text-lg font-black tracking-normal text-ink">{brand.appName}</span>
+            <span className={`text-lg font-black tracking-normal ${inverse ? "text-white" : "text-ink"}`}>
+              {brand.appName}
+            </span>
             <span className="rounded-md bg-lime px-1.5 py-1 text-[10px] font-black leading-none text-ink">
               {brand.badge}
             </span>
           </span>
-          <span className="mt-1 block text-xs font-semibold text-ink/55">
+          <span className={`mt-1 block text-xs font-semibold ${inverse ? "text-white/60" : "text-ink/55"}`}>
             {brand.tagline}
           </span>
         </span>

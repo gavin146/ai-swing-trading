@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
-import { BrandMark } from "@/components/BrandMark";
 import {
   isAdminCustomer,
   rememberAuthenticatedCustomer,
@@ -110,16 +109,17 @@ export function SignupForm() {
   }
 
   return (
-    <section className="premium-panel w-full max-w-3xl rounded-xl p-6">
-      <BrandMark />
-
-      <div className="mt-8">
-        <h1 className="text-3xl font-bold text-ink">Create your account</h1>
+    <section className="w-full max-w-3xl rounded-3xl border border-line/70 bg-white p-6 shadow-[0_24px_80px_rgba(7,20,24,0.08)] sm:p-8">
+      <div>
+        <p className="text-xs font-black uppercase tracking-normal text-pine">
+          Step 1 of 1
+        </p>
+        <h1 className="mt-3 text-3xl font-black text-ink">Create your investor profile</h1>
         <p className="mt-2 text-sm leading-6 text-ink/60">
           Set up your profile for pre-market stock ideas, email alerts, and
           beginner-friendly trade explanations.
         </p>
-        <p className="mt-3 rounded-md bg-surface px-3 py-2 text-xs font-bold leading-5 text-ink/60">
+        <p className="mt-3 rounded-2xl bg-surface px-3 py-2 text-xs font-bold leading-5 text-ink/60">
           Admin tools unlock for {SWINGFI_ADMIN_EMAIL} and emails approved by an
           existing admin. Everyone else gets the open beta customer experience.
         </p>
@@ -195,14 +195,14 @@ export function SignupForm() {
             ].map(([value, label, description]) => (
               <label
                 key={value}
-                className="rounded-lg border border-line bg-surface p-4 text-sm transition hover:border-pine"
+                className="rounded-2xl border border-line bg-surface p-4 text-sm transition hover:border-pine"
               >
                 <input
                   name="riskProfile"
                   type="radio"
                   value={value}
                   defaultChecked={value === "balanced"}
-                  className="mr-2 accent-pine"
+                className="mr-2 accent-pine"
                 />
                 <span className="font-black text-ink">{label}</span>
                 <span className="mt-1 block text-xs font-semibold leading-5 text-ink/55">
@@ -270,7 +270,7 @@ export function SignupForm() {
         <button
           type="submit"
           disabled={loading}
-          className="rounded-lg bg-ink px-4 py-3 text-sm font-black text-white shadow-[0_14px_34px_rgba(7,20,24,0.16)] hover:bg-pine disabled:cursor-not-allowed disabled:opacity-70 sm:col-span-2"
+          className="rounded-2xl bg-ink px-4 py-3 text-sm font-black text-white shadow-[0_14px_34px_rgba(7,20,24,0.16)] hover:bg-pine disabled:cursor-not-allowed disabled:opacity-70 sm:col-span-2"
         >
           {loading ? "Creating account..." : "Sign up"}
         </button>

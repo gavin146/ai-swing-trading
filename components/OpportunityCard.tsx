@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { Opportunity } from "@/lib/opportunities";
 import { MetricPill } from "./MetricPill";
+import { ScoreMeter } from "./ScoreMeter";
 
 type OpportunityCardProps = {
   animationDelay?: number;
@@ -17,82 +18,105 @@ function scoreTone(score: number) {
 export function OpportunityCard({ animationDelay = 0, opportunity, rank }: OpportunityCardProps) {
   return (
     <article
-      className="motion-card flex h-full flex-col rounded-xl border border-line bg-panel p-5 shadow-soft transition will-change-transform hover:-translate-y-1 hover:border-pine/35 hover:shadow-lift"
+      className="motion-card flex h-full flex-col overflow-hidden rounded-3xl border border-line/80 bg-white shadow-[0_20px_70px_rgba(7,20,24,0.075)] transition will-change-transform hover:-translate-y-1 hover:border-pine/35 hover:shadow-lift"
       style={{ animationDelay: `${animationDelay}ms` }}
     >
-      <div className="signal-line mb-4 h-1 rounded-full" />
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <span className="rounded-md bg-ink px-2 py-1 text-xs font-black text-white">
-              #{rank}
-            </span>
-            <span className="rounded-md bg-surface px-2 py-1 text-xs font-semibold text-ink/65">
-              {opportunity.assetType}
-            </span>
+      <div className="signal-line h-1.5" />
+      <div className="flex flex-1 flex-col p-5 sm:p-6">
+        <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="rounded-full bg-ink px-3 py-1 text-xs font-black text-white">
+                Rank #{rank}
+              </span>
+              <span className="rounded-full bg-surface px-3 py-1 text-xs font-bold text-ink/58 ring-1 ring-line/70">
+                {opportunity.assetType}
+              </span>
+              <span className="rounded-full bg-mint px-3 py-1 text-xs font-black text-pine">
+                {opportunity.tradeQuality}
+              </span>
+            </div>
+            <h2 className="mt-4 text-3xl font-black tracking-normal text-ink">
+              {opportunity.symbol}
+            </h2>
+            <p className="mt-1 text-sm font-semibold text-ink/55">{opportunity.name}</p>
           </div>
-          <h2 className="mt-4 text-2xl font-bold text-ink">{opportunity.symbol}</h2>
-          <p className="mt-1 text-sm font-medium text-ink/60">{opportunity.name}</p>
-          <p className="mt-3 rounded-lg bg-sky/80 px-3 py-2 text-sm font-bold text-ink">
-            {opportunity.scoreLabel}
-          </p>
+          <div className="rounded-2xl border border-line bg-surface px-4 py-3 sm:min-w-36">
+            <p className="text-xs font-black uppercase tracking-normal text-ink/42">
+              Opportunity
+            </p>
+            <p className="mt-1 text-4xl font-black text-pine">
+              {opportunity.opportunityScore}
+            </p>
+            <p className="mt-1 text-xs font-bold text-ink/52">{opportunity.scoreLabel}</p>
+          </div>
         </div>
-        <div className="min-w-20 rounded-lg border border-line bg-surface p-3 text-center">
-          <p className="text-[11px] font-black uppercase tracking-normal text-ink/55">
-            Score
-          </p>
-          <p className="mt-1 text-2xl font-black text-pine">
-            {opportunity.opportunityScore}
-          </p>
+
+        <div className="mt-5 grid gap-3 sm:grid-cols-3">
+          <ScoreMeter
+            label="Opportunity"
+            score={opportunity.opportunityScore}
+            sublabel={opportunity.scoreLabel}
+          />
+          <ScoreMeter
+            label="Confidence"
+            score={opportunity.confidenceScore}
+            sublabel={opportunity.confidenceLabel}
+            tone="confidence"
+          />
+          <ScoreMeter
+            label="Risk"
+            score={opportunity.riskScore}
+            sublabel={opportunity.riskLabel}
+            tone="risk"
+          />
         </div>
+
+        <p className="mt-5 rounded-2xl border border-line/80 bg-surface p-4 text-sm font-medium leading-7 text-ink/68">
+          {opportunity.rankingSummary}
+        </p>
+
+        <div className="mt-5 grid gap-3 sm:grid-cols-3">
+          <div className="rounded-2xl border border-line/80 bg-white p-4">
+            <p className="text-xs font-black uppercase tracking-normal text-ink/42">
+              Entry range
+            </p>
+            <p className="mt-2 text-sm font-black leading-5 text-ink">
+              {opportunity.entryRange}
+            </p>
+          </div>
+          <div className="rounded-2xl border border-line/80 bg-white p-4">
+            <p className="text-xs font-black uppercase tracking-normal text-ink/42">
+              Target
+            </p>
+            <p className="mt-2 text-sm font-black text-pine">{opportunity.targetPrice}</p>
+          </div>
+          <div className="rounded-2xl border border-line/80 bg-white p-4">
+            <p className="text-xs font-black uppercase tracking-normal text-ink/42">
+              Stop loss
+            </p>
+            <p className="mt-2 text-sm font-black text-coral">{opportunity.stopLoss}</p>
+          </div>
+        </div>
+
+        <div className="mt-3 grid gap-3 sm:grid-cols-4">
+          <MetricPill
+            label="Potential gain"
+            value={opportunity.potentialGain}
+            tone={scoreTone(opportunity.opportunityScore)}
+          />
+          <MetricPill label="Potential loss" value={opportunity.potentialLoss} tone="risk" />
+          <MetricPill label="Buy window" value={opportunity.estimatedBuyWindow} tone="neutral" />
+          <MetricPill label="Est. sell" value={opportunity.estimatedSellWindow} tone="caution" />
+        </div>
+
+        <Link
+          href={`/opportunities/${opportunity.symbol}`}
+          className="mt-5 rounded-2xl bg-ink px-4 py-3 text-center text-sm font-black text-white shadow-[0_16px_36px_rgba(7,20,24,0.18)] hover:bg-pine"
+        >
+          View full analysis
+        </Link>
       </div>
-
-      <div className="mt-5 grid grid-cols-2 gap-3">
-        <MetricPill
-          label="Confidence"
-          value={`${opportunity.confidenceScore}/100`}
-          tone={scoreTone(opportunity.confidenceScore)}
-        />
-        <MetricPill
-          label="Risk"
-          value={`${opportunity.riskScore}/100`}
-          tone={opportunity.riskScore >= 55 ? "risk" : "positive"}
-        />
-      </div>
-
-      <p className="mt-4 text-sm leading-6 text-ink/65">{opportunity.rankingSummary}</p>
-
-      <dl className="mt-5 grid gap-3 text-sm">
-        <div className="flex items-center justify-between gap-4 border-t border-line pt-3">
-          <dt className="font-semibold text-ink/55">Entry range</dt>
-          <dd className="text-right font-bold text-ink">{opportunity.entryRange}</dd>
-        </div>
-        <div className="flex items-center justify-between gap-4 border-t border-line pt-3">
-          <dt className="font-semibold text-ink/55">Target price</dt>
-          <dd className="font-bold text-pine">{opportunity.targetPrice}</dd>
-        </div>
-        <div className="flex items-center justify-between gap-4 border-t border-line pt-3">
-          <dt className="font-semibold text-ink/55">Stop loss</dt>
-          <dd className="font-bold text-coral">{opportunity.stopLoss}</dd>
-        </div>
-        <div className="grid grid-cols-2 gap-3 border-t border-line pt-3">
-          <div>
-            <dt className="font-semibold text-ink/55">Buy window</dt>
-            <dd className="mt-1 font-bold text-ink">{opportunity.estimatedBuyWindow}</dd>
-          </div>
-          <div className="text-right">
-            <dt className="font-semibold text-ink/55">Est. sell</dt>
-            <dd className="mt-1 font-bold text-pine">{opportunity.estimatedSellWindow}</dd>
-          </div>
-        </div>
-      </dl>
-
-      <Link
-        href={`/opportunities/${opportunity.symbol}`}
-        className="mt-auto rounded-lg bg-ink px-4 py-3 text-center text-sm font-black text-white shadow-[0_14px_34px_rgba(7,20,24,0.16)] hover:bg-pine"
-      >
-        View analysis
-      </Link>
     </article>
   );
 }

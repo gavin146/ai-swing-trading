@@ -1,9 +1,29 @@
 import { LoginForm } from "@/components/LoginForm";
+import { BrandMark } from "@/components/BrandMark";
 
 export default function LoginPage() {
   return (
-    <main className="grid min-h-screen place-items-center px-4 py-10">
-      <LoginForm />
+    <main className="min-h-screen bg-[linear-gradient(135deg,#071418_0%,#0b3d3f_42%,#f5f7fb_42%,#f5f7fb_100%)] px-4 py-8">
+      <section className="mx-auto grid min-h-[calc(100vh-4rem)] max-w-6xl overflow-hidden rounded-3xl border border-white/30 bg-white shadow-[0_30px_90px_rgba(7,20,24,0.16)] lg:grid-cols-[0.9fr_1.1fr]">
+        <div className="bg-[linear-gradient(145deg,#071418,#0b3d3f)] p-8 text-white sm:p-10">
+          <BrandMark href="/" inverse />
+          <div className="mt-16 max-w-md">
+            <p className="text-xs font-black uppercase tracking-normal text-lime">
+              Welcome back
+            </p>
+            <h1 className="mt-4 text-4xl font-black leading-tight">
+              Open today&apos;s brief and review your ranked setups
+            </h1>
+            <p className="mt-5 text-sm font-semibold leading-7 text-white/68">
+              The dashboard keeps the trade plan visible: confidence, risk, entry,
+              target, stop, and the reason each ticker ranked.
+            </p>
+          </div>
+        </div>
+        <div className="grid place-items-center p-5 sm:p-8">
+          <LoginForm />
+        </div>
+      </section>
     </main>
   );
 }

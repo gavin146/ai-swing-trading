@@ -103,18 +103,21 @@ export function PickHistoryPanel() {
   }, [picks]);
 
   return (
-    <section className="mt-8 grid gap-5">
-      <div className="rounded-xl border border-line bg-panel p-5 shadow-soft">
+    <section className="grid gap-5">
+      <div className="rounded-3xl border border-line/80 bg-white p-6 shadow-[0_20px_70px_rgba(7,20,24,0.07)]">
         <div className="grid gap-2 sm:grid-cols-[1fr_auto] sm:items-center">
           <div>
-            <p className="text-sm font-bold text-ink">
-              {customer ? `${customer.fullName || customer.email}'s saved lists` : "Account required"}
+            <p className="text-xs font-black uppercase tracking-normal text-pine">
+              Customer archive
             </p>
-            <p className="mt-1 text-sm leading-6 text-ink/60">{status}</p>
+            <h2 className="mt-2 text-2xl font-black text-ink">
+              {customer ? `${customer.fullName || customer.email}'s saved lists` : "Account required"}
+            </h2>
+            <p className="mt-2 text-sm font-medium leading-6 text-ink/60">{status}</p>
           </div>
           <Link
             href="/dashboard"
-            className="rounded-lg border border-line bg-surface px-4 py-3 text-center text-sm font-bold text-ink hover:border-pine"
+            className="rounded-2xl border border-line bg-surface px-4 py-3 text-center text-sm font-bold text-ink hover:border-pine"
           >
             Today&apos;s dashboard
           </Link>
@@ -123,8 +126,18 @@ export function PickHistoryPanel() {
 
       {grouped.length ? (
         grouped.map((group) => (
-          <div key={group.date} className="rounded-xl border border-line bg-panel p-5 shadow-soft">
-            <h2 className="text-xl font-black text-ink">{group.date}</h2>
+          <div key={group.date} className="overflow-hidden rounded-3xl border border-line/80 bg-white shadow-[0_20px_70px_rgba(7,20,24,0.07)]">
+            <div className="flex flex-col gap-2 border-b border-line bg-surface px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-xs font-black uppercase tracking-normal text-pine">
+                  Morning run
+                </p>
+                <h2 className="mt-1 text-xl font-black text-ink">{group.date}</h2>
+              </div>
+              <span className="rounded-full bg-mint px-3 py-1 text-xs font-black text-pine">
+                {group.items.length} saved picks
+              </span>
+            </div>
             <div className="mt-4 w-full overflow-x-auto">
               <table className="w-full min-w-[900px] border-collapse text-left text-sm">
                 <thead>
@@ -148,7 +161,7 @@ export function PickHistoryPanel() {
 
                     return (
                       <tr key={item.id} className="border-b border-line last:border-b-0">
-                        <td className="py-4 pr-4 font-bold text-ink">#{item.rank}</td>
+                        <td className="py-4 pl-5 pr-4 font-bold text-ink">#{item.rank}</td>
                         <td className="py-4 pr-4">
                           <Link
                             href={`/opportunities/${opportunity.symbol}`}
@@ -169,7 +182,7 @@ export function PickHistoryPanel() {
                         <td className="py-4 pr-4 font-bold text-coral">
                           {currency(opportunity.stop_loss)}
                         </td>
-                        <td className="py-4 pr-4">{opportunity.holding_period_days} days</td>
+                        <td className="py-4 pr-5">{opportunity.holding_period_days} days</td>
                       </tr>
                     );
                   })}
@@ -179,7 +192,7 @@ export function PickHistoryPanel() {
           </div>
         ))
       ) : (
-        <div className="rounded-xl border border-line bg-panel p-6 shadow-soft">
+        <div className="rounded-3xl border border-line bg-white p-6 shadow-soft">
           <p className="text-sm font-black uppercase tracking-normal text-pine">
             Waiting for saved picks
           </p>

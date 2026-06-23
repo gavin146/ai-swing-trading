@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { OpportunityCard } from "@/components/OpportunityCard";
+import { ScoreGuide } from "@/components/ScoreGuide";
+import { SummaryTile } from "@/components/SummaryTile";
 import {
   getCurrentCustomer,
   getCustomerDailyPickLimit,
@@ -222,134 +224,171 @@ export function DashboardOpportunities({
 
   return (
     <>
-      <div className="motion-card mt-6 rounded-xl border border-line bg-panel p-5 shadow-soft">
-        <div className="grid gap-3 lg:grid-cols-[1fr_auto] lg:items-center">
-          <div>
-            <p className="text-sm font-bold text-ink">
-              {customer ? `${customer.fullName || customer.email}'s picks today` : "Daily picks"}
-            </p>
-          <p className="mt-1 text-sm leading-6 text-ink/60">
+      <div className="motion-card overflow-hidden rounded-3xl border border-line/80 bg-white shadow-[0_24px_80px_rgba(7,20,24,0.08)]">
+        <div className="grid gap-0 xl:grid-cols-[1fr_360px]">
+          <div className="p-6 sm:p-8">
+            <div className="signal-line mb-6 h-1.5 max-w-56 rounded-full" />
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="rounded-full bg-ink px-3 py-1 text-xs font-black uppercase tracking-normal text-white">
+                Pre-market list
+              </span>
+              <span className="rounded-full bg-mint px-3 py-1 text-xs font-black uppercase tracking-normal text-pine">
+                {dataSource === "supabase" ? "Live data" : "Preview"}
+              </span>
+            </div>
+            <h2 className="mt-5 max-w-3xl text-3xl font-black tracking-normal text-ink sm:text-4xl">
+              {customer ? "Ranked around your risk profile" : "Today's ranked opportunities"}
+            </h2>
+            <p className="mt-4 max-w-3xl text-sm font-medium leading-7 text-ink/62">
               {customer
                 ? `Showing ${dailyPicks.length} personalized picks from ${opportunities.length} agent-ranked opportunities. ${personalized.directMatchCount} directly match your confidence and risk settings${
                     personalized.closestFitCount > 0
-                      ? "; the rest are the closest high-quality fits so your list stays useful."
+                      ? "; the rest are the closest high-quality fits so the list stays useful."
                       : "."
                   }`
-                : `Showing ${dailyPicks.length} agent-ranked opportunities.`}
-          </p>
-          {dataSource === "empty" ? (
-            <p className="mt-2 rounded-md bg-coral/15 px-3 py-2 text-sm font-bold text-ink/70">
-              No live picks are available yet{fallbackReason ? `: ${fallbackReason}` : "."}
+                : `Showing ${dailyPicks.length} agent-ranked opportunities. Create a profile to personalize the list by risk, budget, and confidence preference.`}
             </p>
-          ) : dataSource === "agent-preview" ? (
-            <p className="mt-2 rounded-md bg-sky px-3 py-2 text-sm font-bold text-ink/70">
-              Live agent preview is showing because saved Supabase picks are not active yet.
-              {fallbackReason ? ` ${fallbackReason}` : ""}
-            </p>
-          ) : (
-            <p className="mt-2 rounded-md bg-mint px-3 py-2 text-sm font-bold text-pine">
-              Live Supabase data is active. These picks are loaded from persisted agent results.
-            </p>
-          )}
-        </div>
-          <div className="rounded-lg bg-surface px-3 py-2 text-sm font-bold text-ink/70">
-            Min confidence {customer?.minimumConfidence ?? 0} / Max risk{" "}
-            {customer?.maxRiskScore ?? 100}
+            <div className="mt-6 grid grid-cols-3 gap-2 sm:gap-3">
+              <div className="rounded-2xl border border-line/80 bg-surface p-3 sm:p-4">
+                <p className="text-xs font-black uppercase tracking-normal text-ink/45">
+                  Confidence
+                </p>
+                <p className="mt-2 text-xl font-black text-ink sm:text-2xl">
+                  {customer?.minimumConfidence ?? 70}
+                  <span className="text-sm text-ink/42">/100</span>
+                </p>
+              </div>
+              <div className="rounded-2xl border border-line/80 bg-surface p-3 sm:p-4">
+                <p className="text-xs font-black uppercase tracking-normal text-ink/45">
+                  Max risk
+                </p>
+                <p className="mt-2 text-xl font-black text-ink sm:text-2xl">
+                  {customer?.maxRiskScore ?? 65}
+                  <span className="text-sm text-ink/42">/100</span>
+                </p>
+              </div>
+              <div className="rounded-2xl border border-line/80 bg-surface p-3 sm:p-4">
+                <p className="text-xs font-black uppercase tracking-normal text-ink/45">
+                  Review
+                </p>
+                <p className="mt-2 text-xl font-black text-ink sm:text-2xl">8:30 ET</p>
+              </div>
+            </div>
           </div>
+          <div className="hidden border-t border-line bg-[linear-gradient(145deg,#071418,#0b3d3f)] p-6 text-white sm:block xl:border-l xl:border-t-0">
+            <p className="text-xs font-black uppercase tracking-normal text-lime">
+              Today&apos;s read
+            </p>
+            <p className={`mt-4 text-5xl font-black ${summary.strength.tone === "text-coral" ? "text-coral" : "text-white"}`}>
+              {summary.strength.label}
+            </p>
+            <p className="mt-4 text-sm font-semibold leading-7 text-white/68">
+              {summary.strength.description}
+            </p>
+            <div className="mt-6 rounded-2xl border border-white/14 bg-white/8 p-4">
+              <p className="text-xs font-black uppercase tracking-normal text-white/48">
+                List quality
+              </p>
+              <p className="mt-2 text-4xl font-black text-lime">
+                {summary.avgOpportunity}
+                <span className="text-base text-white/44">/100</span>
+              </p>
+              <p className="mt-2 text-xs font-semibold leading-5 text-white/55">
+                Average opportunity score for the picks shown today.
+              </p>
+            </div>
+          </div>
+        </div>
+        {dataSource === "empty" ? (
+          <p className="border-t border-line bg-coral/12 px-6 py-4 text-sm font-bold text-ink/70">
+            No live picks are available yet{fallbackReason ? `: ${fallbackReason}` : "."}
+          </p>
+        ) : dataSource === "agent-preview" ? (
+          <p className="border-t border-line bg-sky px-6 py-4 text-sm font-bold text-ink/70">
+            Live agent preview is showing because saved Supabase picks are not active yet.
+            {fallbackReason ? ` ${fallbackReason}` : ""}
+          </p>
+        ) : null}
+      </div>
+
+      <div className="mt-7 flex flex-col gap-4">
+        <div>
+          <p className="text-xs font-black uppercase tracking-normal text-pine">
+            Ranked opportunities
+          </p>
+          <h2 className="mt-2 text-2xl font-black tracking-normal text-ink">
+            Analyst-style cards with the full trade plan visible
+          </h2>
+        </div>
+        <div className="grid gap-5 xl:grid-cols-2">
+          {dailyPicks.length > 0 ? (
+            dailyPicks.map((opportunity, index) => (
+              <OpportunityCard
+                key={opportunity.symbol}
+                opportunity={opportunity}
+                rank={index + 1}
+                animationDelay={Math.min(index * 35, 360)}
+              />
+            ))
+          ) : (
+            <div className="rounded-3xl border border-line bg-panel p-6 shadow-soft xl:col-span-2">
+              <p className="text-sm font-black uppercase tracking-normal text-pine">
+                Waiting for live analysis
+              </p>
+              <h2 className="mt-3 text-2xl font-black text-ink">
+                No ranked opportunities have been saved yet
+              </h2>
+              <p className="mt-3 max-w-2xl text-sm leading-6 text-ink/60">
+                Connect Supabase in Vercel, run the database schema, and make sure
+                `FMP_API_KEY` is configured. Until then, the dashboard cannot load saved
+                rankings or generate a live preview.
+              </p>
+            </div>
+          )}
         </div>
       </div>
 
       {dailyPicks.length > 0 ? (
         <div
-          className={`mt-5 grid gap-3 transition-opacity duration-200 sm:grid-cols-2 xl:grid-cols-5 ${
+          className={`mt-7 grid gap-4 transition-opacity duration-200 sm:grid-cols-2 xl:grid-cols-5 ${
             ready ? "opacity-100" : "opacity-70"
           }`}
         >
-          <div className="motion-card rounded-xl border border-line bg-panel p-4 shadow-[0_10px_30px_rgba(7,20,24,0.05)] [animation-delay:40ms]">
-            <p className="text-xs font-black uppercase tracking-normal text-ink/55">
-              List strength
-            </p>
-            <p className={`mt-2 text-3xl font-black ${summary.strength.tone}`}>
-              {summary.strength.label}
-            </p>
-            <p className="mt-2 text-sm font-semibold leading-6 text-ink/60">
-              {summary.strength.description}
-            </p>
-            <p className="mt-3 text-xs font-bold uppercase tracking-normal text-ink/45">
-              Avg score {summary.avgOpportunity}/100
-            </p>
-          </div>
-          <div className="motion-card rounded-xl border border-line bg-panel p-4 shadow-[0_10px_30px_rgba(7,20,24,0.05)] [animation-delay:80ms]">
-            <p className="text-xs font-black uppercase tracking-normal text-ink/55">
-              Cleaner setups
-            </p>
-            <p className="mt-2 text-3xl font-black text-pine">{summary.highQualityCount}</p>
-            <p className="mt-2 text-sm font-semibold leading-6 text-ink/60">
-              Picks scoring 75+ out of 100.
-            </p>
-            <p className="mt-3 text-xs font-bold uppercase tracking-normal text-ink/45">
-              {summary.watchlistCount} watchlist-quality ideas
-            </p>
-          </div>
-          <div className="motion-card rounded-xl border border-line bg-panel p-4 shadow-[0_10px_30px_rgba(7,20,24,0.05)] [animation-delay:120ms]">
-            <p className="text-xs font-black uppercase tracking-normal text-ink/55">
-              Lower-risk ideas
-            </p>
-            <p className="mt-2 text-3xl font-black text-pine">{summary.lowerRiskCount}</p>
-            <p className="mt-2 text-sm font-semibold leading-6 text-ink/60">
-              Picks with risk scores below 45.
-            </p>
-          </div>
-          <div className="motion-card rounded-xl border border-line bg-panel p-4 shadow-[0_10px_30px_rgba(7,20,24,0.05)] [animation-delay:160ms]">
-            <p className="text-xs font-black uppercase tracking-normal text-ink/55">
-              Avg upside
-            </p>
-            <p className="mt-2 text-3xl font-black text-pine">
-              +{summary.avgGain.toFixed(1)}%
-            </p>
-            <p className="mt-2 text-sm font-semibold leading-6 text-ink/60">
-              Average upside to target.
-            </p>
-          </div>
-          <div className="motion-card rounded-xl border border-line bg-panel p-4 shadow-[0_10px_30px_rgba(7,20,24,0.05)] [animation-delay:200ms]">
-            <p className="text-xs font-black uppercase tracking-normal text-ink/55">
-              Avg downside
-            </p>
-            <p className="mt-2 text-3xl font-black text-coral">
-              -{summary.avgLoss.toFixed(1)}%
-            </p>
-            <p className="mt-2 text-sm font-semibold leading-6 text-ink/60">
-              Average planned downside to stop.
-            </p>
-          </div>
+          <SummaryTile
+            label="Cleaner setups"
+            value={summary.highQualityCount}
+            description="Picks scoring 75+ out of 100."
+            tone="positive"
+          />
+          <SummaryTile
+            label="Watchlist"
+            value={summary.watchlistCount}
+            description="Ideas that need disciplined entries."
+            tone="neutral"
+          />
+          <SummaryTile
+            label="Lower risk"
+            value={summary.lowerRiskCount}
+            description="Picks with risk scores below 45."
+            tone="positive"
+          />
+          <SummaryTile
+            label="Avg upside"
+            value={`+${summary.avgGain.toFixed(1)}%`}
+            description="Average upside to target."
+            tone="positive"
+          />
+          <SummaryTile
+            label="Avg downside"
+            value={`-${summary.avgLoss.toFixed(1)}%`}
+            description="Average planned downside."
+            tone="risk"
+          />
         </div>
       ) : null}
 
-      <div className="mt-8 grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-        {dailyPicks.length > 0 ? (
-          dailyPicks.map((opportunity, index) => (
-            <OpportunityCard
-              key={opportunity.symbol}
-              opportunity={opportunity}
-              rank={index + 1}
-              animationDelay={Math.min(index * 35, 360)}
-            />
-          ))
-        ) : (
-          <div className="rounded-xl border border-line bg-panel p-6 shadow-soft md:col-span-2 xl:col-span-3">
-            <p className="text-sm font-black uppercase tracking-normal text-pine">
-              Waiting for live analysis
-            </p>
-            <h2 className="mt-3 text-2xl font-black text-ink">
-              No ranked opportunities have been saved yet
-            </h2>
-            <p className="mt-3 max-w-2xl text-sm leading-6 text-ink/60">
-              Connect Supabase in Vercel, run the database schema, and make sure
-              `FMP_API_KEY` is configured. Until then, the dashboard cannot load saved
-              rankings or generate a live preview.
-            </p>
-          </div>
-        )}
+      <div className="mt-7">
+        <ScoreGuide />
       </div>
     </>
   );
