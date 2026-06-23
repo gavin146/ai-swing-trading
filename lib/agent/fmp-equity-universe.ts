@@ -855,7 +855,7 @@ export async function runFmpDailyRankingAgent({
     combinedMacro,
     universeSymbols,
     screenerRows,
-    Boolean(symbols),
+    true,
   );
   const universe = universeResult.candidates;
   const skippedCount = universeSymbols.length - universe.length;
@@ -901,10 +901,10 @@ export async function runFmpDailyRankingAgent({
           : "Government macro data fell back to a neutral placeholder for this run.",
         ...combinedMacro.notes,
         skippedCount > 0
-          ? `${skippedCount} symbols were skipped because no starter fallback was available.`
+          ? `${skippedCount} symbols were skipped because no screener or starter fallback was available.`
           : livePriceCount === universe.length
             ? "All requested symbols were ranked with live FMP price candles."
-            : "All requested symbols were ranked; symbols without live FMP candles used starter technical fallbacks.",
+            : "All requested symbols were ranked; symbols without complete live FMP candles used conservative screener or starter fallbacks.",
       ],
     },
     summaryPrefix: "FMP-backed morning agent",
