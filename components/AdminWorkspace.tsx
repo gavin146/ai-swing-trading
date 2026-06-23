@@ -144,7 +144,7 @@ export function AdminWorkspace() {
         <div className="rounded-lg bg-ink p-4 text-white sm:grid sm:grid-cols-[1fr_auto] sm:items-start sm:gap-4 lg:block">
           <div className="min-w-0">
           <p className="text-xs font-black uppercase tracking-normal text-white/60">
-            TradePilot admin
+            SwingFi admin
           </p>
           <p className="mt-2 break-words text-sm font-bold">{adminCustomer.email}</p>
           <p className="mt-2 text-xs font-semibold leading-5 text-white/62">

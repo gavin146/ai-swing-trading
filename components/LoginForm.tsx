@@ -75,7 +75,7 @@ export function LoginForm() {
       </form>
 
       <p className="mt-6 text-center text-sm text-ink/65">
-        New to TradePilot AI?{" "}
+        New to SwingFi?{" "}
         <Link href="/signup" className="font-bold text-pine">
           Create an account
         </Link>

@@ -1,4 +1,4 @@
-# TradePilot AI Agent Costs And Deployment
+# SwingFi Agent Costs And Deployment
 
 ## Current State
 

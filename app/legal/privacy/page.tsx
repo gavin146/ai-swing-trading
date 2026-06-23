@@ -12,7 +12,7 @@ export default function PrivacyPage() {
         <h1 className="mt-3 text-4xl font-bold text-ink">Privacy policy</h1>
         <div className="mt-6 grid gap-4 text-sm leading-7 text-ink/70">
           <p>
-            TradePilot AI collects account details, alert preferences, usage events,
+            SwingFi collects account details, alert preferences, usage events,
             email delivery records, and clicked analysis links so the service can provide
             daily picks and improve product quality.
           </p>

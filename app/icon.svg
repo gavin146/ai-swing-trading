@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <radialGradient id="shine" cx="24%" cy="16%" r="58%">
+      <stop offset="0" stop-color="#ffffff" stop-opacity=".42"/>
+      <stop offset=".42" stop-color="#ffffff" stop-opacity=".08"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="base" x1="80" y1="64" x2="432" y2="448" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#061c1f"/>
+      <stop offset=".58" stop-color="#0b3d3f"/>
+      <stop offset="1" stop-color="#b7f34b"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="18" stdDeviation="18" flood-color="#061c1f" flood-opacity=".24"/>
+    </filter>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#base)"/>
+  <rect width="512" height="512" rx="112" fill="url(#shine)"/>
+  <path d="M94 329c78-132 176 20 324-177" fill="none" stroke="#ffffff" stroke-width="28" stroke-linecap="round" filter="url(#shadow)"/>
+  <path d="M360 151h58v58" fill="none" stroke="#b7f34b" stroke-width="28" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="256" y="294" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="112" font-weight="900" fill="#ffffff" letter-spacing="-4">SF</text>
+</svg>

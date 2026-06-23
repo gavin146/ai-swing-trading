@@ -1,4 +1,4 @@
-# TradePilot AI Ranking Methodology
+# SwingFi Ranking Methodology
 
 The daily agent ranks stocks with a weighted scoring system. It now supports mock mode for demos and FMP mode for the first live market-data slice.
 

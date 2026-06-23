@@ -49,7 +49,7 @@ export function buildMorningAlertMessage(args: {
     ? ` for ${args.customerName.trim().split(/\s+/)[0]}`
     : "";
 
-  return `TradePilot AI morning brief${recipient}: market is ${args.marketRegime}. Top picks: ${picks}. Review risk before trading.`;
+  return `SwingFi morning brief${recipient}: market is ${args.marketRegime}. Top picks: ${picks}. Review risk before trading.`;
 }
 
 export function buildMorningEmailAlert(args: {
@@ -64,11 +64,11 @@ export function buildMorningEmailAlert(args: {
   return buildBrandedMorningEmail({
     analysisUrl: (symbol) => getAnalysisUrl(symbol, args.customerId),
     customerName: args.customerName,
-    intro: "Your pre-market TradePilot brief is ready.",
+    intro: "Your pre-market SwingFi brief is ready.",
     marketRegime: args.marketRegime,
     opportunities: top,
     signoff: "Review risk, position size, and your own plan before trading.",
-    subject: `TradePilot AI morning picks${top.length ? `: ${top.map((item) => item.symbol).join(", ")}` : ""}`,
+    subject: `SwingFi morning picks${top.length ? `: ${top.map((item) => item.symbol).join(", ")}` : ""}`,
     unsubscribeUrl,
   });
 }

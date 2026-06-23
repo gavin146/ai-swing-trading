@@ -12,7 +12,7 @@ export default function DisclaimerPage() {
         <h1 className="mt-3 text-4xl font-bold text-ink">Not financial advice</h1>
         <div className="mt-6 grid gap-4 text-sm leading-7 text-ink/70">
           <p>
-            TradePilot AI provides research, ranking tools, educational explanations,
+            SwingFi provides research, ranking tools, educational explanations,
             and modeled trade plans for review. The service does not provide
             personalized investment, legal, tax, or financial advice.
           </p>

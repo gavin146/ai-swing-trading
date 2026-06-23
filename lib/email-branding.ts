@@ -45,7 +45,7 @@ function statCard(label: string, value: string, color = "#071418") {
 
 function getGreeting(customerName: string) {
   const cleaned = customerName.trim();
-  const genericNames = new Set(["investor", "tradepilot customer", "demo investor"]);
+  const genericNames = new Set(["investor", "swingfi customer", "demo investor"]);
 
   if (!cleaned || genericNames.has(cleaned.toLowerCase())) {
     return "Good morning.";
@@ -107,14 +107,14 @@ export function buildBrandedMorningEmail(args: BrandedMorningEmailArgs) {
       .join("\n") || "No live ranked opportunities have been saved yet.";
   const subject =
     args.subject ??
-    `TradePilot AI morning picks${top.length ? `: ${top.map((item) => item.symbol).join(", ")}` : ""}`;
+    `SwingFi morning picks${top.length ? `: ${top.map((item) => item.symbol).join(", ")}` : ""}`;
   const unsubscribe = args.unsubscribeUrl
     ? `<a href="${args.unsubscribeUrl}" style="color:#52615b;text-decoration:underline;">Unsubscribe</a>`
     : "";
 
   return {
     subject,
-    text: `${greeting}\n\n${args.intro}\nMarket regime: ${args.marketRegime}\n\nTop opportunities:\n${textRows}\n\n${args.signoff}\n\nTradePilot AI is research software, not financial advice.${args.unsubscribeUrl ? `\n\nUnsubscribe: ${args.unsubscribeUrl}` : ""}`,
+    text: `${greeting}\n\n${args.intro}\nMarket regime: ${args.marketRegime}\n\nTop opportunities:\n${textRows}\n\n${args.signoff}\n\nSwingFi is research software, not financial advice.${args.unsubscribeUrl ? `\n\nUnsubscribe: ${args.unsubscribeUrl}` : ""}`,
     html: `
       <div style="margin:0;padding:0;background:#f5f7fb;">
         <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;background:#f5f7fb;">
@@ -126,10 +126,10 @@ export function buildBrandedMorningEmail(args: BrandedMorningEmailArgs) {
                     <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
                       <tr>
                         <td>
-                          <div style="display:inline-block;border:1px solid rgba(255,255,255,.22);border-radius:12px;background:rgba(255,255,255,.10);padding:10px 12px;color:#ffffff;font-weight:900;letter-spacing:.02em;">TP</div>
+                          <div style="display:inline-block;border:1px solid rgba(255,255,255,.22);border-radius:12px;background:rgba(255,255,255,.10);padding:10px 12px;color:#ffffff;font-weight:900;letter-spacing:.02em;">SF</div>
                           <div style="display:inline-block;margin-left:12px;vertical-align:middle;">
-                            <div style="color:#ffffff;font-size:22px;font-weight:900;line-height:1;">TradePilot <span style="display:inline-block;border-radius:6px;background:#b7f34b;color:#071418;font-size:11px;padding:4px 6px;vertical-align:middle;">AI</span></div>
-                            <div style="margin-top:6px;color:rgba(255,255,255,.74);font-size:13px;font-weight:700;">Swing intelligence platform</div>
+                            <div style="color:#ffffff;font-size:22px;font-weight:900;line-height:1;">SwingFi <span style="display:inline-block;border-radius:6px;background:#b7f34b;color:#071418;font-size:11px;padding:4px 6px;vertical-align:middle;">AI</span></div>
+                            <div style="margin-top:6px;color:rgba(255,255,255,.74);font-size:13px;font-weight:700;">Daily swing trade intelligence</div>
                           </div>
                         </td>
                         <td align="right" style="color:rgba(255,255,255,.78);font-size:12px;font-weight:800;text-transform:uppercase;">Pre-market brief</td>
@@ -165,10 +165,10 @@ export function buildBrandedMorningEmail(args: BrandedMorningEmailArgs) {
                     </table>
                     <div style="margin-top:20px;border-radius:14px;background:#f5f7fb;border:1px solid #d8e0ea;padding:16px;">
                       <p style="margin:0;color:#071418;font-size:14px;font-weight:900;">Before trading</p>
-                      <p style="margin:6px 0 0;color:#52615b;font-size:13px;line-height:1.6;">${safeSignoff} TradePilot AI is research software, not financial advice.</p>
+                      <p style="margin:6px 0 0;color:#52615b;font-size:13px;line-height:1.6;">${safeSignoff} SwingFi is research software, not financial advice.</p>
                     </div>
                     <p style="margin:18px 0 0;color:#697770;font-size:12px;line-height:1.6;">
-                      You are receiving this because morning alerts are enabled for your TradePilot AI account. ${unsubscribe}
+                      You are receiving this because morning alerts are enabled for your SwingFi account. ${unsubscribe}
                     </p>
                   </td>
                 </tr>

@@ -1,4 +1,4 @@
-# TradePilot AI Production Readiness
+# SwingFi Production Readiness
 
 ## Hosting
 

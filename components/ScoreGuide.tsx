@@ -8,7 +8,7 @@ export function ScoreGuide() {
           </p>
           <h2 className="mt-3 text-2xl font-black text-ink">How to read today&apos;s picks</h2>
           <p className="mt-3 text-sm leading-6 text-ink/65">
-            TradePilot scores are meant to help you compare setups quickly. They are
+            SwingFi scores are meant to help you compare setups quickly. They are
             decision support, not a command to buy.
           </p>
           <div className="mt-4 grid gap-2 text-sm font-semibold text-ink/70">

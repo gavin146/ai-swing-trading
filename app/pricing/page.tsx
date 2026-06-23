@@ -28,7 +28,7 @@ export default function PricingPage() {
             Open beta
           </p>
           <h1 className="mt-3 text-5xl font-bold leading-tight text-ink">
-            Start free while TradePilot AI is in beta
+            Start free while SwingFi is in beta
           </h1>
           <p className="mt-5 text-base leading-8 text-ink/68">
             The product is open while we validate the daily rankings, email workflow,

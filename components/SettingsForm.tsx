@@ -74,7 +74,7 @@ export function SettingsForm() {
         <p className="text-sm font-bold uppercase tracking-normal text-pine">Account required</p>
         <h2 className="mt-3 text-2xl font-black text-ink">Create a profile to save settings</h2>
         <p className="mt-2 max-w-2xl text-sm leading-6 text-ink/60">
-          TradePilot is open while we finish the product, but profile preferences need a
+          SwingFi is open while we finish the product, but profile preferences need a
           local account so alerts, saved picks, and filters stay attached to you.
         </p>
         <div className="mt-5 flex flex-col gap-3 sm:flex-row">
@@ -247,7 +247,7 @@ export function SettingsForm() {
           <div>
             <h2 className="text-xl font-bold text-ink">Morning alerts</h2>
             <p className="mt-2 text-sm leading-6 text-ink/60">
-              TradePilot runs the ranking check before the market opens, then emails
+              SwingFi runs the ranking check before the market opens, then emails
               your daily stock analysis link. 8:30 AM Eastern gives you time to review
               before the 9:30 AM open.
             </p>

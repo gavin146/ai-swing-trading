@@ -221,7 +221,7 @@ function syncCustomerProfile(customer: CustomerProfile | null) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(customer),
   }).catch((error) => {
-    console.warn("TradePilot customer sync failed", error);
+    console.warn("SwingFi customer sync failed", error);
   });
 }
 

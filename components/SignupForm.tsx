@@ -122,7 +122,7 @@ export function SignupForm() {
             Pick preferences
           </p>
           <p className="mt-1 text-sm leading-6 text-ink/60">
-            TradePilot uses these answers to prioritize the daily list around your risk
+            SwingFi uses these answers to prioritize the daily list around your risk
             comfort, confidence needs, and account size.
           </p>
         </div>

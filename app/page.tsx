@@ -68,7 +68,7 @@ export default async function LandingPage() {
               Daily swing trade ideas explained for beginner investors
             </h1>
             <p className="mt-6 max-w-2xl text-lg leading-8 text-ink/70">
-              TradePilot AI ranks high-quality stock opportunities before the market
+              SwingFi ranks high-quality stock opportunities before the market
               opens, explains why each setup scored well, and shows the buy range,
               target, stop loss, confidence, risk, and estimated holding window.
             </p>
@@ -87,7 +87,7 @@ export default async function LandingPage() {
               </Link>
             </div>
             <div className="mt-8 grid gap-3 sm:grid-cols-3">
-              {["8:30 AM ET brief", "Top 30 ranked ideas", "Risk-first explanations"].map(
+              {["8:30 AM ET brief", "Top 90 ranked ideas", "Risk-first explanations"].map(
                 (item) => (
                   <div
                     key={item}
@@ -110,7 +110,7 @@ export default async function LandingPage() {
                 </p>
               </div>
               <div className="rounded-lg bg-lime px-3 py-2 text-sm font-black text-ink">
-                30 ranked
+                90 ranked
               </div>
             </div>
             <div className="mt-4 grid gap-4">
@@ -181,7 +181,7 @@ export default async function LandingPage() {
                     Today&apos;s ranked opportunities will appear here after the morning run
                   </h2>
                   <p className="mt-3 text-sm leading-6 text-ink/60">
-                    TradePilot AI displays only saved live analysis. Once the production
+                    SwingFi displays only saved live analysis. Once the production
                     database and scheduled agent are active, this panel will show the top
                     current opportunities.
                   </p>
@@ -301,7 +301,7 @@ export default async function LandingPage() {
             <p className="mt-3 max-w-2xl text-sm leading-7 text-white/68">
               Create an account to set alert preferences, review the dashboard, and
               receive the morning stock analysis when production email is connected.
-              TradePilot AI is research software and does not place trades for users.
+              SwingFi is research software and does not place trades for users.
             </p>
           </div>
           <div className="flex flex-col gap-3 sm:flex-row">

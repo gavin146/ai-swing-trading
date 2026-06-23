@@ -4,9 +4,16 @@ import { AppMotionShell } from "@/components/AppMotionShell";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "TradePilot AI",
+  title: {
+    default: "SwingFi",
+    template: "%s | SwingFi",
+  },
   description:
-    "A SaaS foundation for discovering swing trading opportunities across stocks, ETFs, and crypto.",
+    "AI-ranked swing trade opportunities with beginner-friendly risk, confidence, entry, target, and stop-loss analysis.",
+  icons: {
+    icon: "/icon.svg",
+  },
+  manifest: "/manifest.webmanifest",
 };
 
 export default function RootLayout({
@@ -20,7 +27,7 @@ export default function RootLayout({
         <AppMotionShell>{children}</AppMotionShell>
         <footer className="border-t border-line bg-surface px-4 py-6 text-sm text-ink/60">
           <div className="mx-auto flex max-w-7xl flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <p>TradePilot AI is research software, not financial advice.</p>
+            <p>SwingFi is research software, not financial advice.</p>
             <nav className="flex flex-wrap gap-4 font-bold text-ink/70">
               <Link href="/legal/disclaimer" className="hover:text-pine">
                 Disclaimer

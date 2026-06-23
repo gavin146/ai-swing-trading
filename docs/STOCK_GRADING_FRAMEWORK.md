@@ -1,8 +1,8 @@
-# TradePilot AI Stock Grading Framework
+# SwingFi Stock Grading Framework
 
 ## Purpose
 
-TradePilot AI grades stocks for short-to-medium-term swing trading opportunities. The goal is not to predict the market perfectly. The goal is to find trade setups where trend, company quality, risk, liquidity, and market context are aligned enough to give beginner investors a structured opportunity to review.
+SwingFi grades stocks for short-to-medium-term swing trading opportunities. The goal is not to predict the market perfectly. The goal is to find trade setups where trend, company quality, risk, liquidity, and market context are aligned enough to give beginner investors a structured opportunity to review.
 
 The score is designed for swing trades, not day trades or long-term buy-and-hold investing.
 
@@ -37,7 +37,7 @@ A high score does not mean the trade is guaranteed to work. It means the model s
 
 ## Technical Score
 
-The Technical Score is the most important part of the model because TradePilot AI is focused on swing trading.
+The Technical Score is the most important part of the model because SwingFi is focused on swing trading.
 
 The model looks for:
 
@@ -228,7 +228,7 @@ It is based on the holding-period estimate and the setup risk.
 
 This does not mean the user must sell on that exact day. It means the trade should be actively reviewed around that window.
 
-## What Makes A Great TradePilot AI Setup
+## What Makes A Great SwingFi Setup
 
 A high-quality setup usually has:
 
@@ -287,7 +287,7 @@ Still needs to be connected:
 
 The score is currently a structured ranking model, not a fully market-verified trading system.
 
-To become market verified, TradePilot AI needs:
+To become market verified, SwingFi needs:
 
 - Historical backtesting
 - Daily pick outcome tracking
@@ -303,7 +303,7 @@ Only after those are measured should the score be described as validated.
 
 ## Plain-English Summary
 
-TradePilot AI grades stocks by asking:
+SwingFi grades stocks by asking:
 
 ```text
 Is the chart strong?

@@ -12,7 +12,7 @@ export default function TermsPage() {
         <h1 className="mt-3 text-4xl font-bold text-ink">Terms of use</h1>
         <div className="mt-6 grid gap-4 text-sm leading-7 text-ink/70">
           <p>
-            TradePilot AI is a software and research tool for reviewing market
+            SwingFi is a software and research tool for reviewing market
             opportunities. You agree not to treat rankings, alerts, or explanations as
             guaranteed outcomes or personalized investment advice.
           </p>

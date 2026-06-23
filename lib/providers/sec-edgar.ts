@@ -25,7 +25,7 @@ function normalizeCik(cik: string | number | undefined | null) {
 function getSecUserAgent() {
   return (
     process.env.SEC_USER_AGENT ??
-    "TradePilotAI/1.0 contact=tradestockswithai@gmail.com"
+    "SwingFi/1.0 contact=tradestockswithai@gmail.com"
   );
 }
 

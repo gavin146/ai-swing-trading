@@ -39,7 +39,7 @@ function buildSmsTemplate(args: {
     ? ` for ${args.customerName.trim().split(/\s+/)[0]}`
     : "";
 
-  return `TradePilot AI${recipient}: market ${args.marketRegime}. ${picks}. Review risk before trading.`;
+  return `SwingFi${recipient}: market ${args.marketRegime}. ${picks}. Review risk before trading.`;
 }
 
 export function AdminCommunicationsPanel() {
@@ -48,7 +48,7 @@ export function AdminCommunicationsPanel() {
   const [customerName, setCustomerName] = useState("");
   const [testEmail, setTestEmail] = useState("");
   const [testPhone, setTestPhone] = useState("");
-  const [subject, setSubject] = useState("TradePilot AI morning picks are ready");
+  const [subject, setSubject] = useState("SwingFi morning picks are ready");
   const [intro, setIntro] = useState(
     "Your daily stock analysis is ready before the market opens.",
   );
