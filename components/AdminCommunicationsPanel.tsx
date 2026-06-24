@@ -151,6 +151,7 @@ export function AdminCommunicationsPanel() {
   );
   const smsSegments = Math.max(1, Math.ceil(smsTemplate.length / 160));
   const topSymbols = opportunities.slice(0, 5).map((item) => item.symbol);
+  const sendDestinationReady = channel === "email" ? Boolean(testEmail) : Boolean(testPhone);
 
   async function sendTest() {
     setSending(true);
@@ -196,7 +197,7 @@ export function AdminCommunicationsPanel() {
   }
 
   return (
-    <section className="premium-panel mb-6 rounded-xl p-6">
+    <section className="premium-panel mb-6 rounded-3xl p-5 sm:p-6">
       <div className="signal-line mb-5 h-1.5 max-w-48 rounded-full" />
       <div className="grid gap-5 lg:grid-cols-[1fr_auto] lg:items-start">
         <div>
@@ -209,25 +210,48 @@ export function AdminCommunicationsPanel() {
             will see, then send a test before enabling scheduled delivery.
           </p>
         </div>
-        <div className="rounded-lg bg-surface px-3 py-2 text-sm font-bold text-ink/70">
+        <div className="rounded-2xl bg-surface px-3 py-2 text-sm font-bold text-ink/70">
           Top symbols: {topSymbols.join(", ") || "None"}
         </div>
       </div>
 
+      <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {[
+          ["Provider", emailConfig.emailReady ? "Ready" : "Blocked", emailConfig.emailReady],
+          ["Pick data", opportunities.length ? `${opportunities.length} loaded` : "Missing", Boolean(opportunities.length)],
+          ["Destination", sendDestinationReady ? "Entered" : "Needed", sendDestinationReady],
+          ["Approval", confirmed ? "Confirmed" : "Unchecked", confirmed],
+        ].map(([label, value, ready]) => (
+          <div
+            key={String(label)}
+            className={`rounded-2xl border p-4 ${
+              ready ? "border-pine/20 bg-mint" : "border-line bg-surface"
+            }`}
+          >
+            <p className="text-xs font-black uppercase tracking-normal text-ink/45">
+              {label}
+            </p>
+            <p className={`mt-2 text-xl font-black ${ready ? "text-pine" : "text-ink"}`}>
+              {value}
+            </p>
+          </div>
+        ))}
+      </div>
+
       <div className="mt-6 grid gap-6 xl:grid-cols-[380px_1fr]">
-        <div className="grid gap-4 rounded-xl border border-line bg-panel p-4">
-          <div className="grid grid-cols-2 rounded-lg bg-surface p-1 text-sm font-bold">
+        <div className="grid gap-4 rounded-2xl border border-line bg-panel p-4">
+          <div className="grid grid-cols-2 rounded-2xl bg-surface p-1 text-sm font-bold">
             <button
               type="button"
               onClick={() => setChannel("email")}
-              className={`rounded-md px-3 py-2 ${channel === "email" ? "bg-ink text-white" : "text-ink/65"}`}
+              className={`rounded-xl px-3 py-2 ${channel === "email" ? "bg-ink text-white" : "text-ink/65"}`}
             >
               Email
             </button>
             <button
               type="button"
               onClick={() => setChannel("sms")}
-              className={`rounded-md px-3 py-2 ${channel === "sms" ? "bg-ink text-white" : "text-ink/65"}`}
+              className={`rounded-xl px-3 py-2 ${channel === "sms" ? "bg-ink text-white" : "text-ink/65"}`}
             >
               SMS
             </button>
@@ -239,7 +263,7 @@ export function AdminCommunicationsPanel() {
               value={customerName}
               onChange={(event) => setCustomerName(event.target.value)}
               placeholder="Optional, uses first name only"
-              className="rounded-md border border-line bg-surface px-4 py-3 font-medium outline-none focus:border-pine focus:bg-panel"
+              className="rounded-xl border border-line bg-surface px-4 py-3 font-medium outline-none focus:border-pine focus:bg-panel"
             />
           </label>
 
@@ -248,7 +272,7 @@ export function AdminCommunicationsPanel() {
             <select
               value={marketRegime}
               onChange={(event) => setMarketRegime(event.target.value)}
-              className="rounded-md border border-line bg-surface px-4 py-3 font-medium outline-none focus:border-pine focus:bg-panel"
+              className="rounded-xl border border-line bg-surface px-4 py-3 font-medium outline-none focus:border-pine focus:bg-panel"
             >
               <option value="risk-on">risk-on</option>
               <option value="balanced">balanced</option>
@@ -264,7 +288,7 @@ export function AdminCommunicationsPanel() {
                   type="email"
                   value={testEmail}
                   onChange={(event) => setTestEmail(event.target.value)}
-                  className="rounded-md border border-line bg-surface px-4 py-3 font-medium outline-none focus:border-pine focus:bg-panel"
+                  className="rounded-xl border border-line bg-surface px-4 py-3 font-medium outline-none focus:border-pine focus:bg-panel"
                 />
               </label>
               <label className="grid gap-2 text-sm font-bold text-ink">
@@ -272,7 +296,7 @@ export function AdminCommunicationsPanel() {
                 <input
                   value={subject}
                   onChange={(event) => setSubject(event.target.value)}
-                  className="rounded-md border border-line bg-surface px-4 py-3 font-medium outline-none focus:border-pine focus:bg-panel"
+                  className="rounded-xl border border-line bg-surface px-4 py-3 font-medium outline-none focus:border-pine focus:bg-panel"
                 />
               </label>
               <label className="grid gap-2 text-sm font-bold text-ink">
@@ -281,7 +305,7 @@ export function AdminCommunicationsPanel() {
                   rows={3}
                   value={intro}
                   onChange={(event) => setIntro(event.target.value)}
-                  className="resize-none rounded-md border border-line bg-surface px-4 py-3 font-medium leading-6 outline-none focus:border-pine focus:bg-panel"
+                  className="resize-none rounded-xl border border-line bg-surface px-4 py-3 font-medium leading-6 outline-none focus:border-pine focus:bg-panel"
                 />
               </label>
               <label className="grid gap-2 text-sm font-bold text-ink">
@@ -290,7 +314,7 @@ export function AdminCommunicationsPanel() {
                   rows={3}
                   value={signoff}
                   onChange={(event) => setSignoff(event.target.value)}
-                  className="resize-none rounded-md border border-line bg-surface px-4 py-3 font-medium leading-6 outline-none focus:border-pine focus:bg-panel"
+                  className="resize-none rounded-xl border border-line bg-surface px-4 py-3 font-medium leading-6 outline-none focus:border-pine focus:bg-panel"
                 />
               </label>
             </>
@@ -302,12 +326,12 @@ export function AdminCommunicationsPanel() {
                 value={testPhone}
                 onChange={(event) => setTestPhone(event.target.value)}
                 placeholder="+15551234567"
-                className="rounded-md border border-line bg-surface px-4 py-3 font-medium outline-none focus:border-pine focus:bg-panel"
+                className="rounded-xl border border-line bg-surface px-4 py-3 font-medium outline-none focus:border-pine focus:bg-panel"
               />
             </label>
           )}
 
-          <label className="flex items-start gap-3 rounded-lg border border-line bg-surface p-3 text-sm font-semibold leading-6 text-ink/70">
+          <label className="flex items-start gap-3 rounded-2xl border border-line bg-surface p-3 text-sm font-semibold leading-6 text-ink/70">
             <input
               type="checkbox"
               checked={confirmed}
@@ -325,16 +349,16 @@ export function AdminCommunicationsPanel() {
               (channel === "email" ? !testEmail : !testPhone)
             }
             onClick={() => void sendTest()}
-            className="rounded-lg bg-ink px-4 py-3 text-sm font-black text-white shadow-[0_14px_34px_rgba(7,20,24,0.16)] hover:bg-pine disabled:cursor-not-allowed disabled:opacity-60"
+            className="rounded-2xl bg-ink px-4 py-3 text-sm font-black text-white shadow-[0_14px_34px_rgba(7,20,24,0.16)] hover:bg-pine disabled:cursor-not-allowed disabled:opacity-60"
           >
             {sending ? "Sending..." : `Send test ${channel}`}
           </button>
 
-          <p className="rounded-md bg-surface px-3 py-2 text-sm font-bold text-ink/70">
+          <p className="rounded-2xl bg-surface px-3 py-2 text-sm font-bold text-ink/70">
             {status}
           </p>
           <div
-            className={`rounded-md px-3 py-2 text-sm font-bold ${
+            className={`rounded-2xl px-3 py-2 text-sm font-bold ${
               emailConfig.emailReady ? "bg-mint text-pine" : "bg-coral/15 text-ink/70"
             }`}
           >

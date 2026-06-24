@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { AdminAccessPanel } from "@/components/AdminAccessPanel";
+import { AdminCommandCenter } from "@/components/AdminCommandCenter";
 import { AdminCommunicationsPanel } from "@/components/AdminCommunicationsPanel";
 import { AdminCustomerPanel } from "@/components/AdminCustomerPanel";
 import { AdminOperationsPanel } from "@/components/AdminOperationsPanel";
@@ -16,6 +17,7 @@ import {
 } from "@/lib/customer-store";
 
 type AdminTab =
+  | "overview"
   | "operations"
   | "backtesting"
   | "access"
@@ -23,47 +25,75 @@ type AdminTab =
   | "customers"
   | "opportunities";
 
-const adminTabs: Array<{
+const adminTabGroups: Array<{
+  label: string;
+  tabs: Array<{
   key: AdminTab;
   label: string;
   description: string;
+  }>;
 }> = [
   {
-    key: "operations",
-    label: "System controls",
-    description: "Agent runs, production checks, and integration status.",
+    label: "Command",
+    tabs: [
+      {
+        key: "overview",
+        label: "Overview",
+        description: "Run status, alerts, customers, API health, and blockers.",
+      },
+    ],
   },
   {
-    key: "backtesting",
-    label: "Backtesting",
-    description: "Outcome tracking and self-learning calibration.",
+    label: "Daily operations",
+    tabs: [
+      {
+        key: "operations",
+        label: "Agent controls",
+        description: "Run the morning analysis and check integrations.",
+      },
+      {
+        key: "backtesting",
+        label: "Backtesting",
+        description: "Outcome tracking and self-learning calibration.",
+      },
+      {
+        key: "opportunities",
+        label: "Opportunities",
+        description: "Create, update, and remove ranked trade ideas.",
+      },
+    ],
   },
   {
-    key: "access",
-    label: "Admin access",
-    description: "Approve team emails and account setup.",
+    label: "Customer growth",
+    tabs: [
+      {
+        key: "communications",
+        label: "Alert studio",
+        description: "Design branded email and SMS templates.",
+      },
+      {
+        key: "customers",
+        label: "Customers",
+        description: "Profiles, alert preferences, and link activity.",
+      },
+    ],
   },
   {
-    key: "communications",
-    label: "Alert studio",
-    description: "Design branded email and SMS templates.",
-  },
-  {
-    key: "customers",
-    label: "Customers",
-    description: "Profiles, alert preferences, and link activity.",
-  },
-  {
-    key: "opportunities",
-    label: "Opportunities",
-    description: "Create, update, and remove ranked trade ideas.",
+    label: "Security",
+    tabs: [
+      {
+        key: "access",
+        label: "Admin access",
+        description: "Approve team emails and account setup.",
+      },
+    ],
   },
 ];
 
 export function AdminWorkspace() {
   const [customer, setCustomer] = useState<CustomerProfile | null>(null);
   const [loaded, setLoaded] = useState(false);
-  const [activeTab, setActiveTab] = useState<AdminTab>("operations");
+  const [activeTab, setActiveTab] = useState<AdminTab>("overview");
 
   useEffect(() => {
     const refresh = () => {
@@ -82,6 +112,7 @@ export function AdminWorkspace() {
   }, []);
 
   const activePanel = useMemo(() => {
+    if (activeTab === "overview") return <AdminCommandCenter onNavigate={setActiveTab} />;
     if (activeTab === "backtesting") return <BacktestPanel />;
     if (activeTab === "access") return <AdminAccessPanel />;
     if (activeTab === "communications") return <AdminCommunicationsPanel />;
@@ -156,28 +187,37 @@ export function AdminWorkspace() {
           </span>
         </div>
 
-        <nav className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:mt-4 lg:grid-cols-1">
-          {adminTabs.map((tab) => {
-            const isActive = activeTab === tab.key;
+        <nav className="mt-3 grid gap-4 lg:mt-4">
+          {adminTabGroups.map((group) => (
+            <div key={group.label}>
+              <p className="px-2 text-[11px] font-black uppercase tracking-normal text-ink/38">
+                {group.label}
+              </p>
+              <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-1">
+                {group.tabs.map((tab) => {
+                  const isActive = activeTab === tab.key;
 
-            return (
-              <button
-                key={tab.key}
-                type="button"
-                onClick={() => setActiveTab(tab.key)}
-                className={`min-h-[74px] rounded-2xl border px-3 py-3 text-left transition sm:px-4 ${
-                  isActive
-                    ? "border-pine bg-mint text-ink shadow-soft"
-                    : "border-transparent bg-transparent text-ink/68 hover:border-line hover:bg-surface"
-                }`}
-              >
-                <span className="block text-sm font-black">{tab.label}</span>
-                <span className="mt-1 hidden text-xs font-semibold leading-5 text-ink/55 sm:block">
-                  {tab.description}
-                </span>
-              </button>
-            );
-          })}
+                  return (
+                    <button
+                      key={tab.key}
+                      type="button"
+                      onClick={() => setActiveTab(tab.key)}
+                      className={`min-h-[74px] rounded-2xl border px-3 py-3 text-left transition sm:px-4 ${
+                        isActive
+                          ? "border-pine bg-mint text-ink shadow-soft"
+                          : "border-transparent bg-transparent text-ink/68 hover:border-line hover:bg-surface"
+                      }`}
+                    >
+                      <span className="block text-sm font-black">{tab.label}</span>
+                      <span className="mt-1 hidden text-xs font-semibold leading-5 text-ink/55 sm:block">
+                        {tab.description}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
         </nav>
 
         <div className="mt-3 rounded-2xl border border-line bg-surface p-3 sm:mt-4 sm:p-4">

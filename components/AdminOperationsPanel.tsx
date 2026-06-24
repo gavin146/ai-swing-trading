@@ -105,14 +105,14 @@ export function AdminOperationsPanel() {
   }
 
   return (
-    <section className="premium-panel mb-6 rounded-xl p-6">
+    <section className="premium-panel mb-6 rounded-3xl p-5 sm:p-6">
       <div className="signal-line mb-5 h-1.5 max-w-48 rounded-full" />
       <div className="grid gap-5 lg:grid-cols-[1fr_auto] lg:items-start">
         <div>
           <p className="text-sm font-bold uppercase tracking-normal text-pine">
-            Admin operations
+            Daily agent controls
           </p>
-            <h1 className="mt-3 text-3xl font-black text-ink">System controls</h1>
+            <h1 className="mt-3 text-3xl font-black text-ink">Run the morning analysis</h1>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-ink/60">
             Run the daily agent, save rankings, and check production integrations.
             Recommended schedule: 8:30 AM Eastern, before the 9:30 AM market open,
@@ -124,22 +124,59 @@ export function AdminOperationsPanel() {
             type="button"
             onClick={() => void runAgent()}
             disabled={runningAgent}
-            className="rounded-lg bg-ink px-4 py-3 text-sm font-black text-white shadow-[0_14px_34px_rgba(7,20,24,0.16)] hover:bg-pine disabled:cursor-not-allowed disabled:opacity-70"
+            className="rounded-2xl bg-ink px-4 py-3 text-sm font-black text-white shadow-[0_14px_34px_rgba(7,20,24,0.16)] hover:bg-pine disabled:cursor-not-allowed disabled:opacity-70"
           >
             {runningAgent ? "Running..." : "Run agent"}
           </button>
           <Link
             href="/backtests"
-            className="rounded-lg border border-line bg-surface px-4 py-3 text-center text-sm font-bold text-ink hover:border-pine"
+            className="rounded-2xl border border-line bg-surface px-4 py-3 text-center text-sm font-bold text-ink hover:border-pine"
           >
             View backtests
           </Link>
         </div>
       </div>
 
+      <div className="mt-6 grid gap-3 lg:grid-cols-4">
+        {[
+          [
+            "1. Data intake",
+            status?.marketDataReady ? "FMP market data ready" : "FMP market data missing",
+            status?.marketDataReady,
+          ],
+          [
+            "2. AI scoring",
+            status?.openAiReady ? "OpenAI key ready" : "OpenAI key missing",
+            status?.openAiReady,
+          ],
+          [
+            "3. Save picks",
+            status?.livePersistenceReady ? "Supabase writes ready" : "Supabase writes blocked",
+            status?.livePersistenceReady,
+          ],
+          [
+            "4. Send alerts",
+            status?.emailReady ? "Email ready" : "Email blocked",
+            status?.emailReady,
+          ],
+        ].map(([label, description, ready]) => (
+          <div
+            key={String(label)}
+            className={`rounded-2xl border p-4 ${
+              ready ? "border-pine/20 bg-mint" : "border-coral/20 bg-coral/10"
+            }`}
+          >
+            <p className={`text-xs font-black uppercase tracking-normal ${ready ? "text-pine/70" : "text-coral"}`}>
+              {label}
+            </p>
+            <p className="mt-2 text-sm font-black text-ink">{description}</p>
+          </div>
+        ))}
+      </div>
+
       <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
         {statusLabels.map(([key, label]) => (
-          <div key={key} className="rounded-md bg-surface px-3 py-3">
+          <div key={key} className="rounded-2xl bg-surface px-3 py-3">
             <p className="text-[11px] font-bold uppercase tracking-normal text-ink/55">
               {label}
             </p>
@@ -166,11 +203,11 @@ export function AdminOperationsPanel() {
         ))}
       </div>
 
-      <p className="mt-4 rounded-md bg-surface px-3 py-2 text-sm font-bold text-ink/70">
+      <p className="mt-4 rounded-2xl bg-surface px-4 py-3 text-sm font-bold text-ink/70">
         {message}
       </p>
 
-      <div className="mt-4 grid gap-3 rounded-lg border border-line bg-surface p-4 md:grid-cols-3">
+      <div className="mt-4 grid gap-3 rounded-2xl border border-line bg-surface p-4 md:grid-cols-3">
         <div>
           <p className="text-xs font-black uppercase tracking-normal text-ink/55">
             Email provider
@@ -197,7 +234,7 @@ export function AdminOperationsPanel() {
         </div>
       </div>
 
-      <div className="mt-4 grid gap-3 rounded-lg border border-line bg-panel p-4 md:grid-cols-[1fr_auto] md:items-end">
+      <div className="mt-4 grid gap-3 rounded-2xl border border-line bg-panel p-4 md:grid-cols-[1fr_auto] md:items-end">
         <label className="grid gap-2 text-sm font-bold text-ink">
           Production admin API secret
           <input
@@ -205,7 +242,7 @@ export function AdminOperationsPanel() {
             value={adminToken}
             onChange={(event) => setAdminToken(event.target.value)}
             placeholder="Paste ADMIN_API_SECRET for protected admin actions"
-            className="rounded-md border border-line bg-surface px-4 py-3 font-medium outline-none transition focus:border-pine focus:bg-panel"
+            className="rounded-xl border border-line bg-surface px-4 py-3 font-medium outline-none transition focus:border-pine focus:bg-panel"
           />
         </label>
         <div className="flex gap-2">
@@ -219,7 +256,7 @@ export function AdminOperationsPanel() {
                   : "Admin token cleared from this browser.",
               );
             }}
-            className="rounded-md bg-pine px-4 py-3 text-sm font-bold text-white transition hover:bg-ink"
+            className="rounded-xl bg-pine px-4 py-3 text-sm font-bold text-white transition hover:bg-ink"
           >
             Save
           </button>
@@ -230,7 +267,7 @@ export function AdminOperationsPanel() {
               setStoredAdminToken("");
               setMessage("Admin token cleared from this browser.");
             }}
-            className="rounded-md border border-line bg-surface px-4 py-3 text-sm font-bold text-ink transition hover:border-pine"
+            className="rounded-xl border border-line bg-surface px-4 py-3 text-sm font-bold text-ink transition hover:border-pine"
           >
             Clear
           </button>

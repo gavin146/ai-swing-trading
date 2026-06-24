@@ -87,9 +87,15 @@ export function AdminCustomerPanel() {
   );
   const totalClicks = usage.reduce((total, item) => total + item.emailLinkClicks, 0);
   const activeCustomers = usage.filter((item) => item.emailLinkClicks > 0).length;
+  const alertCustomers = customers.filter((customer) => customer.morningAlertsEnabled).length;
+  const adminCustomers = customers.filter((customer) => customer.role === "admin").length;
+  const customersWithoutPreferences = customers.filter(
+    (customer) =>
+      customer.accountBudget === "not_set" || customer.investingExperience === "beginner",
+  ).length;
 
   return (
-    <section className="premium-panel mb-6 rounded-xl p-6">
+    <section className="premium-panel mb-6 rounded-3xl p-5 sm:p-6">
       <div className="grid gap-5 lg:grid-cols-[1fr_auto] lg:items-start">
         <div>
           <p className="text-sm font-bold uppercase tracking-normal text-pine">
@@ -109,17 +115,75 @@ export function AdminCustomerPanel() {
           </p>
         </div>
         <div className="grid grid-cols-2 gap-3 sm:min-w-72">
-          <div className="rounded-lg bg-mint px-4 py-3 ring-1 ring-pine/10">
+          <div className="rounded-2xl bg-mint px-4 py-3 ring-1 ring-pine/10">
             <p className="text-xs font-black uppercase tracking-normal text-pine/70">
               Monthly clicks
             </p>
             <p className="mt-1 text-2xl font-black text-pine">{totalClicks}</p>
           </div>
-          <div className="rounded-lg bg-sky px-4 py-3 ring-1 ring-ink/5">
+          <div className="rounded-2xl bg-sky px-4 py-3 ring-1 ring-ink/5">
             <p className="text-xs font-black uppercase tracking-normal text-ink/55">
               Active users
             </p>
             <p className="mt-1 text-2xl font-black text-ink">{activeCustomers}</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {[
+          ["Total customers", customers.length, "Profiles in Supabase"],
+          ["Morning alerts", alertCustomers, "Users receiving daily alerts"],
+          ["Admin users", adminCustomers, "Accounts with full access"],
+          ["Needs profile polish", customersWithoutPreferences, "Beginner or incomplete setup"],
+        ].map(([label, value, description]) => (
+          <div key={label} className="rounded-2xl border border-line bg-surface p-4">
+            <p className="text-xs font-black uppercase tracking-normal text-ink/45">
+              {label}
+            </p>
+            <p className="mt-2 text-3xl font-black text-ink">{value}</p>
+            <p className="mt-1 text-xs font-semibold leading-5 text-ink/52">
+              {description}
+            </p>
+          </div>
+        ))}
+      </div>
+
+      <div className="mt-6 rounded-2xl border border-line bg-white/78 p-4">
+        <div className="grid gap-4 lg:grid-cols-[0.9fr_1.1fr] lg:items-center">
+          <div>
+            <p className="text-sm font-black text-ink">Customer engagement loop</p>
+            <p className="mt-2 text-sm font-semibold leading-6 text-ink/58">
+              Morning emails send users into tracked analysis links. This panel connects
+              link opens back to customer preferences so we can see what the product is
+              actually getting used for.
+            </p>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-3">
+            <div className="rounded-xl bg-surface px-3 py-3">
+              <p className="text-xs font-black uppercase tracking-normal text-ink/42">
+                Clicks/user
+              </p>
+              <p className="mt-1 text-xl font-black text-ink">
+                {customers.length ? (totalClicks / customers.length).toFixed(1) : "0.0"}
+              </p>
+            </div>
+            <div className="rounded-xl bg-surface px-3 py-3">
+              <p className="text-xs font-black uppercase tracking-normal text-ink/42">
+                Alert coverage
+              </p>
+              <p className="mt-1 text-xl font-black text-ink">
+                {customers.length ? Math.round((alertCustomers / customers.length) * 100) : 0}%
+              </p>
+            </div>
+            <div className="rounded-xl bg-surface px-3 py-3">
+              <p className="text-xs font-black uppercase tracking-normal text-ink/42">
+                Engagement
+              </p>
+              <p className="mt-1 text-xl font-black text-ink">
+                {customers.length ? Math.round((activeCustomers / customers.length) * 100) : 0}%
+              </p>
+            </div>
           </div>
         </div>
       </div>

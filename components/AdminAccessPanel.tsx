@@ -26,6 +26,8 @@ export function AdminAccessPanel() {
   const [message, setMessage] = useState("Add an email before that person creates an account.");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const createdAccounts = records.filter((record) => record.hasAccount).length;
+  const invitedAdmins = records.filter((record) => !record.hasAccount).length;
 
   async function refreshRecords() {
     setLoading(true);
@@ -144,13 +146,13 @@ export function AdminAccessPanel() {
   }
 
   return (
-    <section className="premium-panel mb-6 rounded-xl p-6">
+    <section className="premium-panel mb-6 rounded-3xl p-5 sm:p-6">
       <div className="grid gap-5 lg:grid-cols-[1fr_auto] lg:items-start">
         <div>
           <p className="text-sm font-bold uppercase tracking-normal text-pine">
-            Admin access
+            Security and roles
           </p>
-          <h2 className="mt-3 text-3xl font-black text-ink">Approved admin emails</h2>
+          <h2 className="mt-3 text-3xl font-black text-ink">Approved admin access</h2>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-ink/60">
             Give trusted team members admin access by email. They can then sign up with
             that same email, choose their own password, and automatically unlock the
@@ -164,13 +166,57 @@ export function AdminAccessPanel() {
           Account signup
         </Link>
       </div>
+
+      <div className="mt-6 grid gap-3 sm:grid-cols-3">
+        <div className="rounded-2xl border border-line bg-surface p-4">
+          <p className="text-xs font-black uppercase tracking-normal text-ink/45">
+            Approved admins
+          </p>
+          <p className="mt-2 text-3xl font-black text-ink">{records.length}</p>
+        </div>
+        <div className="rounded-2xl border border-line bg-mint p-4">
+          <p className="text-xs font-black uppercase tracking-normal text-pine/70">
+            Accounts created
+          </p>
+          <p className="mt-2 text-3xl font-black text-pine">{createdAccounts}</p>
+        </div>
+        <div className="rounded-2xl border border-line bg-sky p-4">
+          <p className="text-xs font-black uppercase tracking-normal text-ink/50">
+            Waiting for signup
+          </p>
+          <p className="mt-2 text-3xl font-black text-ink">{invitedAdmins}</p>
+        </div>
+      </div>
+
+      <div className="mt-4 grid gap-3 lg:grid-cols-3">
+        {[
+          [
+            "Owner lock",
+            `${SWINGFI_ADMIN_EMAIL} is the permanent owner account and cannot be removed.`,
+          ],
+          [
+            "Invite flow",
+            "Add an email here first, then that person signs up with the same email and their own password.",
+          ],
+          [
+            "Plan bypass",
+            "Admin users automatically keep full access when paid subscription tiers are added.",
+          ],
+        ].map(([title, text]) => (
+          <div key={title} className="rounded-2xl border border-line bg-white/78 p-4">
+            <p className="text-sm font-black text-ink">{title}</p>
+            <p className="mt-2 text-xs font-semibold leading-5 text-ink/58">{text}</p>
+          </div>
+        ))}
+      </div>
+
       {loading ? (
         <p className="mt-4 rounded-md bg-surface px-3 py-2 text-sm font-bold text-ink/60">
           Loading admin access records...
         </p>
       ) : null}
 
-      <form onSubmit={handleGrant} className="mt-6 grid gap-3 rounded-lg bg-surface p-4 md:grid-cols-[1fr_auto]">
+      <form onSubmit={handleGrant} className="mt-6 grid gap-3 rounded-2xl border border-line bg-surface p-4 md:grid-cols-[1fr_auto]">
         <label className="grid gap-2 text-sm font-bold text-ink">
           Admin email
           <input
@@ -178,12 +224,12 @@ export function AdminAccessPanel() {
             type="email"
             required
             placeholder="teammate@example.com"
-            className="rounded-md border border-line bg-panel px-4 py-3 font-medium outline-none transition focus:border-pine focus:bg-white"
+            className="rounded-xl border border-line bg-panel px-4 py-3 font-medium outline-none transition focus:border-pine focus:bg-white"
           />
         </label>
         <button
           type="submit"
-          className="self-end rounded-lg bg-ink px-4 py-3 text-sm font-black text-white shadow-[0_14px_34px_rgba(7,20,24,0.16)] hover:bg-pine"
+          className="self-end rounded-xl bg-ink px-4 py-3 text-sm font-black text-white shadow-[0_14px_34px_rgba(7,20,24,0.16)] hover:bg-pine"
         >
           Grant access
         </button>
@@ -251,7 +297,7 @@ export function AdminAccessPanel() {
         </table>
       </div>
 
-      <p className="mt-5 rounded-md bg-surface px-3 py-2 text-sm font-semibold leading-6 text-ink/65">
+      <p className="mt-5 rounded-2xl bg-surface px-4 py-3 text-sm font-semibold leading-6 text-ink/65">
         Future subscription rule: admin accounts should always bypass plan limits and
         receive full product access, even after paid tiers are added.
       </p>
