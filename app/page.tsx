@@ -7,23 +7,36 @@ export const dynamic = "force-dynamic";
 
 const workflow = [
   {
-    title: "Morning scan",
-    text: "The system screens liquid US stocks before the market opens and narrows the list to the strongest swing setups.",
+    title: "Open the morning brief",
+    text: "Start with the ranked list. The highest-ranked ideas are the first setups to review, not automatic buys.",
   },
   {
-    title: "Plain-English ranking",
-    text: "Each idea shows opportunity, confidence, risk, entry range, target, stop loss, and expected trade window.",
+    title: "Check the trade plan",
+    text: "Look at the entry range, target, stop loss, expected gain, expected loss, and estimated holding window before making a decision.",
   },
   {
-    title: "Customer brief",
-    text: "Users receive a daily email link to the analysis page so they can review the plan without running any agent controls.",
+    title: "Decide if it fits you",
+    text: "Use your risk settings, budget, and confidence preference to decide whether to watch, skip, or research the idea further.",
   },
 ];
 
 const scoreGuide = [
-  ["Opportunity", "How attractive the setup looks across technicals, financial quality, catalysts, macro backdrop, liquidity, and risk."],
-  ["Confidence", "How much the underlying signals agree with each other. Higher confidence means the setup is cleaner, not guaranteed."],
-  ["Risk", "How fragile the setup may be because of volatility, support distance, debt, news risk, or stretched price action."],
+  ["Opportunity score", "The main ranking number. Higher means the setup looks stronger across trend, momentum, reward/risk, company quality, catalysts, and market backdrop."],
+  ["Confidence score", "How much the data agrees. Higher means the setup has cleaner support from multiple signals. It still does not mean the trade is guaranteed."],
+  ["Risk score", "How fragile the setup may be. Lower is better. Higher risk can mean more volatility, wider stop loss, event risk, or stretched price action."],
+];
+
+const beginnerActions = [
+  ["80-100", "High-priority review", "Worth deeper research if risk is acceptable and price is inside the entry range."],
+  ["65-79", "Watchlist review", "Potentially useful, but be patient. Entry discipline matters more than the headline score."],
+  ["Below 65", "Low-priority idea", "Usually better to wait for a cleaner setup or stronger confirmation."],
+];
+
+const cardAnatomy = [
+  ["Entry range", "The price area where the setup is designed to be reviewed. Chasing far above this range can change the risk/reward."],
+  ["Target", "The estimated upside area where taking profit may make sense if the trade works."],
+  ["Stop loss", "The price level that helps define when the idea is likely wrong and risk should be controlled."],
+  ["Trade window", "The estimated swing-trade holding period, usually days to weeks rather than minutes or months."],
 ];
 
 export default async function LandingPage() {
@@ -34,23 +47,28 @@ export default async function LandingPage() {
     <main>
       <section className="border-b border-line/80 bg-panel/85">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-4 sm:px-6 lg:px-8">
-          <BrandMark />
-          <nav className="flex items-center gap-2 text-sm font-bold">
+          <div className="sm:hidden">
+            <BrandMark compact />
+          </div>
+          <div className="hidden sm:block">
+            <BrandMark />
+          </div>
+          <nav className="flex shrink-0 items-center gap-2 text-sm font-bold">
             <Link
               href="/pricing"
-              className="rounded-lg border border-transparent px-4 py-2 text-ink/70 hover:bg-surface hover:text-ink"
+              className="hidden rounded-lg border border-transparent px-4 py-2 text-ink/70 hover:bg-surface hover:text-ink sm:inline-flex"
             >
               Pricing
             </Link>
             <Link
               href="/login"
-              className="rounded-lg border border-line bg-surface px-4 py-2 text-ink hover:border-pine"
+              className="rounded-lg border border-line bg-surface px-3 py-2 text-ink hover:border-pine sm:px-4"
             >
               Log in
             </Link>
             <Link
               href="/signup"
-              className="rounded-lg bg-ink px-4 py-2 text-white shadow-[0_12px_28px_rgba(7,20,24,0.16)] hover:bg-pine"
+              className="rounded-lg bg-ink px-3 py-2 text-white shadow-[0_12px_28px_rgba(7,20,24,0.16)] hover:bg-pine sm:px-4"
             >
               Sign up
             </Link>
@@ -62,32 +80,43 @@ export default async function LandingPage() {
         <div className="mx-auto grid min-h-[78vh] max-w-7xl items-center gap-10 px-4 py-10 sm:px-6 lg:grid-cols-[0.9fr_1.1fr] lg:px-8">
           <div>
             <p className="text-sm font-bold uppercase tracking-normal text-pine">
-              Pre-market swing trading intelligence
+              Beginner-friendly swing trading research
             </p>
             <h1 className="mt-4 max-w-3xl text-5xl font-bold leading-[1.02] text-ink sm:text-6xl">
-              Daily swing trade ideas explained for beginner investors
+              Understand today&apos;s stock rankings before you trade
             </h1>
             <p className="mt-6 max-w-2xl text-lg leading-8 text-ink/70">
-              SwingFi ranks high-quality stock opportunities before the market
-              opens, explains why each setup scored well, and shows the buy range,
-              target, stop loss, confidence, risk, and estimated holding window.
+              SwingFi turns the morning market scan into a simple ranked list of swing
+              trade ideas. Each pick explains why it ranked, what price area to review,
+              where the target and stop loss are, how risky it looks, and how long the
+              trade may take to play out.
             </p>
+            <div className="mt-6 rounded-3xl border border-line/80 bg-white/80 p-4 shadow-[0_14px_40px_rgba(7,20,24,0.055)]">
+              <p className="text-xs font-black uppercase tracking-normal text-pine">
+                The beginner rule
+              </p>
+              <p className="mt-2 text-sm font-semibold leading-7 text-ink/68">
+                A ranking is a research starting point. Review the entry range, target,
+                stop loss, confidence, and risk before deciding whether to watch, skip,
+                or research the stock further.
+              </p>
+            </div>
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
               <Link
                 href="/signup"
                 className="rounded-lg bg-ink px-5 py-3 text-center text-sm font-black text-white shadow-[0_18px_42px_rgba(7,20,24,0.2)] hover:bg-pine"
               >
-                Create account
+                Create beginner profile
               </Link>
               <Link
                 href="/dashboard"
                 className="rounded-lg border border-line bg-panel px-5 py-3 text-center text-sm font-bold text-ink hover:border-pine hover:shadow-soft"
               >
-                View dashboard
+                View sample dashboard
               </Link>
             </div>
             <div className="mt-8 grid gap-3 sm:grid-cols-3">
-              {["8:30 AM ET brief", "Top 90 ranked ideas", "Risk-first explanations"].map(
+              {["Morning rankings", "Plain-English scores", "Entry, target, stop"].map(
                 (item) => (
                   <div
                     key={item}
@@ -106,7 +135,7 @@ export default async function LandingPage() {
               <div>
                 <p className="text-sm font-bold text-ink">Today&apos;s customer view</p>
                 <p className="mt-1 text-xs font-medium text-ink/55">
-                  Ranked, explained, and ready to review
+                  Rank first, then review the plan
                 </p>
               </div>
               <div className="rounded-lg bg-lime px-3 py-2 text-sm font-black text-ink">
@@ -195,11 +224,16 @@ export default async function LandingPage() {
       <section className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
         <div className="mb-6 max-w-3xl">
           <p className="text-sm font-bold uppercase tracking-normal text-pine">
-            How it works
+            How to use SwingFi
           </p>
           <h2 className="mt-3 text-3xl font-bold text-ink">
-            A simple daily routine, not a complicated trading terminal
+            A simple daily routine for reviewing ideas
           </h2>
+          <p className="mt-3 text-sm leading-7 text-ink/65">
+            SwingFi is built to help newer traders slow down and compare trade ideas
+            consistently. The goal is not to push more trades. The goal is to make the
+            research process easier to understand.
+          </p>
         </div>
         <div className="grid gap-4 md:grid-cols-3">
           {workflow.map((item, index) => (
@@ -216,15 +250,15 @@ export default async function LandingPage() {
         <div className="mx-auto grid max-w-7xl gap-8 px-4 py-12 sm:px-6 lg:grid-cols-[0.85fr_1.15fr] lg:px-8">
           <div>
             <p className="text-sm font-bold uppercase tracking-normal text-pine">
-              Score clarity
+              Ranking clarity
             </p>
             <h2 className="mt-3 text-3xl font-bold text-ink">
-              The numbers are designed to be understandable
+              What the scores mean in plain English
             </h2>
             <p className="mt-4 text-sm leading-7 text-ink/65">
-              Scores help users compare setups quickly. They are research signals, not
-              promises. Every opportunity still shows the actual entry, target, stop,
-              potential gain, potential loss, and estimated swing-trade timeframe.
+              Scores help you compare setups quickly. They are research signals, not
+              promises. Every opportunity still needs to be checked against the actual
+              entry, target, stop, potential gain, potential loss, and timeframe.
             </p>
           </div>
           <div className="grid gap-3">
@@ -232,6 +266,58 @@ export default async function LandingPage() {
               <div key={title} className="rounded-xl border border-line bg-surface p-4">
                 <h3 className="text-lg font-bold text-ink">{title}</h3>
                 <p className="mt-2 text-sm leading-6 text-ink/65">{text}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
+        <div className="grid gap-8 lg:grid-cols-[0.95fr_1.05fr] lg:items-start">
+          <div>
+            <p className="text-sm font-bold uppercase tracking-normal text-pine">
+              What to do with a ranking
+            </p>
+            <h2 className="mt-3 text-3xl font-bold text-ink">
+              A high rank means review first, not buy immediately
+            </h2>
+            <p className="mt-4 text-sm leading-7 text-ink/65">
+              Beginner traders often get hurt by chasing a stock after seeing a strong
+              signal. SwingFi keeps the trade plan next to the score so you can see
+              whether the price, downside, and timeframe still make sense.
+            </p>
+          </div>
+          <div className="grid gap-3">
+            {beginnerActions.map(([range, label, text]) => (
+              <div key={range} className="rounded-2xl border border-line bg-panel p-4 shadow-[0_10px_28px_rgba(7,20,24,0.05)]">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <p className="text-xl font-black text-ink">{range}</p>
+                  <span className="w-fit rounded-full bg-mint px-3 py-1 text-xs font-black uppercase tracking-normal text-pine">
+                    {label}
+                  </span>
+                </div>
+                <p className="mt-3 text-sm font-semibold leading-6 text-ink/65">{text}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="border-y border-line bg-white/65">
+        <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
+          <div className="mb-6 max-w-3xl">
+            <p className="text-sm font-bold uppercase tracking-normal text-pine">
+              Reading a trade card
+            </p>
+            <h2 className="mt-3 text-3xl font-bold text-ink">
+              Every pick shows the information a beginner should check
+            </h2>
+          </div>
+          <div className="grid gap-4 md:grid-cols-4">
+            {cardAnatomy.map(([title, text]) => (
+              <div key={title} className="rounded-2xl border border-line bg-panel p-5 shadow-soft">
+                <h3 className="text-lg font-black text-ink">{title}</h3>
+                <p className="mt-3 text-sm font-semibold leading-6 text-ink/62">{text}</p>
               </div>
             ))}
           </div>

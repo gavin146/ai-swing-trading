@@ -15,6 +15,18 @@ function scoreTone(score: number) {
   return "caution";
 }
 
+function nextStep(opportunity: Opportunity) {
+  if (opportunity.opportunityScore >= 80 && opportunity.confidenceScore >= 75 && opportunity.riskScore <= 55) {
+    return "High-priority review: check whether the current price is still inside the entry range and whether the stop fits your risk limit.";
+  }
+
+  if (opportunity.opportunityScore >= 65) {
+    return "Watchlist review: useful setup, but wait for a clean entry and keep the stop loss in mind before acting.";
+  }
+
+  return "Lower-priority review: consider waiting for stronger confirmation before spending much time on this idea.";
+}
+
 export function OpportunityCard({ animationDelay = 0, opportunity, rank }: OpportunityCardProps) {
   return (
     <article
@@ -75,6 +87,15 @@ export function OpportunityCard({ animationDelay = 0, opportunity, rank }: Oppor
         <p className="mt-5 rounded-2xl border border-line/80 bg-surface p-4 text-sm font-medium leading-7 text-ink/68">
           {opportunity.rankingSummary}
         </p>
+
+        <div className="mt-3 rounded-2xl border border-pine/10 bg-mint/70 p-4">
+          <p className="text-xs font-black uppercase tracking-normal text-pine/70">
+            What this means
+          </p>
+          <p className="mt-2 text-sm font-semibold leading-6 text-ink/68">
+            {nextStep(opportunity)}
+          </p>
+        </div>
 
         <div className="mt-5 grid gap-3 sm:grid-cols-3">
           <div className="rounded-2xl border border-line/80 bg-white p-4">

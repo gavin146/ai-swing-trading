@@ -311,6 +311,31 @@ export function DashboardOpportunities({
         ) : null}
       </div>
 
+      <div className="mt-5 grid gap-3 md:grid-cols-3">
+        {[
+          [
+            "1. Start with rank",
+            "Higher-ranked ideas are the first setups to review. A rank is not a buy order.",
+          ],
+          [
+            "2. Check risk",
+            "Compare the stop loss and potential loss with your comfort level before focusing on upside.",
+          ],
+          [
+            "3. Use the entry range",
+            "If price has moved far past the entry range, the trade plan may no longer be attractive.",
+          ],
+        ].map(([title, text]) => (
+          <div
+            key={title}
+            className="rounded-2xl border border-line/80 bg-white/78 p-4 shadow-[0_10px_28px_rgba(7,20,24,0.045)]"
+          >
+            <p className="text-sm font-black text-ink">{title}</p>
+            <p className="mt-2 text-xs font-semibold leading-5 text-ink/58">{text}</p>
+          </div>
+        ))}
+      </div>
+
       <div className="mt-7 flex flex-col gap-4">
         <div>
           <p className="text-xs font-black uppercase tracking-normal text-pine">

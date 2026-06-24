@@ -10,14 +10,15 @@ export function ScoreGuide() {
             How to read today&apos;s picks
           </h2>
           <p className="mt-3 text-sm font-medium leading-7 text-ink/62">
-            SwingFi scores are meant to help you compare setups quickly. They are
-            decision support, not a command to buy.
+            SwingFi scores help you compare setups quickly. Use them as a research
+            checklist: review the rank, check the entry range, confirm the downside,
+            then decide whether to watch, skip, or research further.
           </p>
           <div className="mt-5 grid gap-2 text-sm font-semibold text-ink/70">
             {[
-              ["80-100", "Strong setup worth deeper review."],
-              ["65-79", "Watchlist setup that needs good entry discipline."],
-              ["Below 65", "Cautious idea; wait for more confirmation."],
+              ["80-100", "High-priority review. Only consider it if the price is still near the entry range and the stop fits your risk."],
+              ["65-79", "Watchlist setup. Useful to monitor, but patience and entry discipline matter."],
+              ["Below 65", "Lower-priority idea. Usually better to wait for a cleaner setup."],
             ].map(([range, text]) => (
               <p key={range} className="rounded-xl bg-surface px-3 py-2">
                 <span className="font-black text-ink">{range}:</span> {text}
@@ -31,8 +32,8 @@ export function ScoreGuide() {
               Opportunity
             </p>
             <p className="mt-2 text-sm font-semibold leading-6 text-ink">
-              Higher means stronger trend, fundamentals, catalyst tone, macro fit, and
-              reward/risk.
+              The main ranking score. Higher means the setup looks stronger across
+              trend, catalysts, company quality, market backdrop, and reward/risk.
             </p>
           </div>
           <div className="rounded-2xl bg-sky px-4 py-4 ring-1 ring-ink/5">
@@ -40,8 +41,8 @@ export function ScoreGuide() {
               Confidence
             </p>
             <p className="mt-2 text-sm font-semibold leading-6 text-ink">
-              Higher means the ranking has cleaner supporting data and fewer missing
-              inputs.
+              Higher means more signals agree. It means cleaner data support, not a
+              guaranteed outcome.
             </p>
           </div>
           <div className="rounded-2xl bg-coral/20 px-4 py-4 ring-1 ring-coral/20">
@@ -49,8 +50,8 @@ export function ScoreGuide() {
               Risk
             </p>
             <p className="mt-2 text-sm font-semibold leading-6 text-ink">
-              Lower is better. Higher means more volatility, wider stops, or more event
-              risk.
+              Lower is better. Higher can mean more volatility, a wider stop, event
+              risk, or fragile price action.
             </p>
           </div>
         </div>
