@@ -12,8 +12,15 @@ export type EmailLinkEvent = {
 export type CustomerUsageSummary = {
   customerId: string;
   monthKey: string;
+  emailsSent: number;
+  smsSent: number;
+  emailOpens: number;
+  lastEmailOpenAt: string | null;
   emailLinkClicks: number;
+  smsLinkClicks: number;
+  totalLinkClicks: number;
   lastEmailClickAt: string | null;
+  lastLinkClickAt: string | null;
   topSymbols: string[];
 };
 
@@ -123,9 +130,20 @@ export function getCustomerUsageSummaries(date = new Date()) {
 
     return {
       customerId,
+      emailsSent: 0,
+      smsSent: 0,
+      emailOpens: 0,
       monthKey: key,
       emailLinkClicks: customerEvents.length,
+      smsLinkClicks: 0,
+      totalLinkClicks: customerEvents.length,
+      lastEmailOpenAt: null,
       lastEmailClickAt:
+        customerEvents
+          .map((event) => event.clickedAt)
+          .sort()
+          .at(-1) ?? null,
+      lastLinkClickAt:
         customerEvents
           .map((event) => event.clickedAt)
           .sort()

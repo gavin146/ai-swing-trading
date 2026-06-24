@@ -35,6 +35,7 @@ export function AdminCustomerPanel() {
   const [usage, setUsage] = useState<CustomerUsageSummary[]>([]);
   const [dataSource, setDataSource] = useState<CustomerDataSource>("empty");
   const [status, setStatus] = useState("Loading customer analytics...");
+  const [trackingWarning, setTrackingWarning] = useState<string | null>(null);
 
   useEffect(() => {
     const refreshFromServer = async () => {
@@ -47,6 +48,7 @@ export function AdminCustomerPanel() {
           error?: string;
           reason?: string;
           source?: CustomerDataSource;
+          trackingWarning?: string | null;
           usage?: CustomerUsageSummary[];
         };
 
@@ -58,6 +60,7 @@ export function AdminCustomerPanel() {
           setCustomers(payload.customers ?? []);
           setUsage(payload.usage ?? []);
           setDataSource("supabase");
+          setTrackingWarning(payload.trackingWarning ?? null);
           setStatus("Showing live Supabase customer and email-link analytics.");
           return;
         }
@@ -65,6 +68,7 @@ export function AdminCustomerPanel() {
         setCustomers([]);
         setUsage([]);
         setDataSource("empty");
+        setTrackingWarning(null);
         setStatus(
           payload.reason
             ? `No live customer analytics are available: ${payload.reason}`
@@ -74,6 +78,7 @@ export function AdminCustomerPanel() {
         setCustomers([]);
         setUsage([]);
         setDataSource("empty");
+        setTrackingWarning(null);
         setStatus(error instanceof Error ? error.message : "Server data unavailable.");
       }
     };
@@ -85,8 +90,11 @@ export function AdminCustomerPanel() {
     () => new Map(usage.map((item) => [item.customerId, item])),
     [usage],
   );
-  const totalClicks = usage.reduce((total, item) => total + item.emailLinkClicks, 0);
-  const activeCustomers = usage.filter((item) => item.emailLinkClicks > 0).length;
+  const totalClicks = usage.reduce((total, item) => total + item.totalLinkClicks, 0);
+  const totalEmailOpens = usage.reduce((total, item) => total + item.emailOpens, 0);
+  const totalEmailsSent = usage.reduce((total, item) => total + item.emailsSent, 0);
+  const totalSmsSent = usage.reduce((total, item) => total + item.smsSent, 0);
+  const activeCustomers = usage.filter((item) => item.totalLinkClicks > 0).length;
   const alertCustomers = customers.filter((customer) => customer.morningAlertsEnabled).length;
   const adminCustomers = customers.filter((customer) => customer.role === "admin").length;
   const customersWithoutPreferences = customers.filter(
@@ -130,12 +138,18 @@ export function AdminCustomerPanel() {
         </div>
       </div>
 
+      {trackingWarning ? (
+        <p className="mt-4 rounded-2xl bg-amber/12 px-4 py-3 text-sm font-bold leading-6 text-ink/70">
+          {trackingWarning}
+        </p>
+      ) : null}
+
       <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {[
           ["Total customers", customers.length, "Profiles in Supabase"],
           ["Morning alerts", alertCustomers, "Users receiving daily alerts"],
           ["Admin users", adminCustomers, "Accounts with full access"],
-          ["Needs profile polish", customersWithoutPreferences, "Beginner or incomplete setup"],
+          ["Email opens", totalEmailOpens, "Best-effort open tracking"],
         ].map(([label, value, description]) => (
           <div key={label} className="rounded-2xl border border-line bg-surface p-4">
             <p className="text-xs font-black uppercase tracking-normal text-ink/45">
@@ -154,34 +168,45 @@ export function AdminCustomerPanel() {
           <div>
             <p className="text-sm font-black text-ink">Customer engagement loop</p>
             <p className="mt-2 text-sm font-semibold leading-6 text-ink/58">
-              Morning emails send users into tracked analysis links. This panel connects
-              link opens back to customer preferences so we can see what the product is
-              actually getting used for.
+              Morning alerts create sent records, email pixels estimate opens, and
+              tracked links show who clicked through to analysis. SMS does not have a
+              true open event, so texts are measured by sends and clicks.
             </p>
           </div>
-          <div className="grid gap-2 sm:grid-cols-3">
+          <div className="grid gap-2 sm:grid-cols-4">
             <div className="rounded-xl bg-surface px-3 py-3">
               <p className="text-xs font-black uppercase tracking-normal text-ink/42">
-                Clicks/user
+                Sent
               </p>
               <p className="mt-1 text-xl font-black text-ink">
-                {customers.length ? (totalClicks / customers.length).toFixed(1) : "0.0"}
+                {totalEmailsSent + totalSmsSent}
               </p>
             </div>
             <div className="rounded-xl bg-surface px-3 py-3">
               <p className="text-xs font-black uppercase tracking-normal text-ink/42">
-                Alert coverage
+                Open rate
               </p>
               <p className="mt-1 text-xl font-black text-ink">
-                {customers.length ? Math.round((alertCustomers / customers.length) * 100) : 0}%
+                {totalEmailsSent ? Math.round((totalEmailOpens / totalEmailsSent) * 100) : 0}%
               </p>
             </div>
             <div className="rounded-xl bg-surface px-3 py-3">
               <p className="text-xs font-black uppercase tracking-normal text-ink/42">
-                Engagement
+                Click rate
               </p>
               <p className="mt-1 text-xl font-black text-ink">
-                {customers.length ? Math.round((activeCustomers / customers.length) * 100) : 0}%
+                {totalEmailsSent + totalSmsSent
+                  ? Math.round((totalClicks / (totalEmailsSent + totalSmsSent)) * 100)
+                  : 0}
+                %
+              </p>
+            </div>
+            <div className="rounded-xl bg-surface px-3 py-3">
+              <p className="text-xs font-black uppercase tracking-normal text-ink/42">
+                Needs profile
+              </p>
+              <p className="mt-1 text-xl font-black text-ink">
+                {customersWithoutPreferences}
               </p>
             </div>
           </div>
@@ -197,9 +222,11 @@ export function AdminCustomerPanel() {
               <th className="py-3 pr-4">Risk profile</th>
               <th className="py-3 pr-4">Preferences</th>
               <th className="py-3 pr-4">Alerts</th>
-              <th className="py-3 pr-4">Monthly link opens</th>
+              <th className="py-3 pr-4">Sent</th>
+              <th className="py-3 pr-4">Email opens</th>
+              <th className="py-3 pr-4">Link clicks</th>
               <th className="py-3 pr-4">Top viewed symbols</th>
-              <th className="py-3 pr-4">Last link open</th>
+              <th className="py-3 pr-4">Last engagement</th>
               <th className="py-3 pr-4">Last login</th>
             </tr>
           </thead>
@@ -227,21 +254,37 @@ export function AdminCustomerPanel() {
                     {customer.morningAlertsEnabled ? customer.alertChannel : "Off"} at{" "}
                     {customer.alertTime}
                   </td>
-                  <td className="py-4 pr-4 font-bold text-pine">
-                    {customerUsage?.emailLinkClicks ?? 0}
+                  <td className="py-4 pr-4">
+                    <p className="font-bold text-ink">
+                      E {customerUsage?.emailsSent ?? 0} / SMS {customerUsage?.smsSent ?? 0}
+                    </p>
+                  </td>
+                  <td className="py-4 pr-4">
+                    <p className="font-bold text-pine">{customerUsage?.emailOpens ?? 0}</p>
+                    <p className="mt-1 text-xs font-semibold text-ink/50">
+                      {formatDate(customerUsage?.lastEmailOpenAt ?? null)}
+                    </p>
+                  </td>
+                  <td className="py-4 pr-4">
+                    <p className="font-bold text-pine">
+                      {customerUsage?.totalLinkClicks ?? 0}
+                    </p>
+                    <p className="mt-1 text-xs font-semibold text-ink/50">
+                      E {customerUsage?.emailLinkClicks ?? 0} / SMS {customerUsage?.smsLinkClicks ?? 0}
+                    </p>
                   </td>
                   <td className="py-4 pr-4">
                     {customerUsage?.topSymbols.length
                       ? customerUsage.topSymbols.join(", ")
                       : "--"}
                   </td>
-                  <td className="py-4 pr-4">{formatDate(customerUsage?.lastEmailClickAt ?? null)}</td>
+                  <td className="py-4 pr-4">{formatDate(customerUsage?.lastLinkClickAt ?? null)}</td>
                   <td className="py-4 pr-4">{formatDate(customer.lastLoginAt)}</td>
                 </tr>
               );
             }) : (
               <tr>
-                <td colSpan={9} className="py-8 pr-4">
+                <td colSpan={11} className="py-8 pr-4">
                   <div className="rounded-lg border border-line bg-surface p-5">
                     <p className="text-sm font-black uppercase tracking-normal text-pine">
                       No live customers found

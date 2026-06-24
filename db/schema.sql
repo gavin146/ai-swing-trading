@@ -219,6 +219,17 @@ create table email_link_events (
   created_at timestamptz not null default now()
 );
 
+create table alert_open_events (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid references users(id) on delete set null,
+  alert_log_id uuid references alert_logs(id) on delete set null,
+  tracking_id text not null,
+  source text not null default 'morning_email',
+  user_agent text,
+  opened_at timestamptz not null default now(),
+  created_at timestamptz not null default now()
+);
+
 create table app_event_logs (
   id uuid primary key default gen_random_uuid(),
   level text not null check (level in ('info', 'warning', 'error')),
@@ -298,6 +309,8 @@ create index alert_logs_user_id_idx on alert_logs(user_id);
 create index alert_logs_status_idx on alert_logs(status);
 create index email_link_events_user_clicked_idx on email_link_events(user_id, clicked_at desc);
 create index email_link_events_tracking_id_idx on email_link_events(tracking_id);
+create index alert_open_events_user_opened_idx on alert_open_events(user_id, opened_at desc);
+create index alert_open_events_tracking_id_idx on alert_open_events(tracking_id);
 create index app_event_logs_created_at_idx on app_event_logs(created_at desc);
 create index app_event_logs_level_idx on app_event_logs(level);
 create index customer_monthly_usage_user_month_idx on customer_monthly_usage(user_id, month_start desc);
@@ -318,6 +331,7 @@ alter table subscriptions enable row level security;
 alter table daily_picks enable row level security;
 alter table alert_logs enable row level security;
 alter table email_link_events enable row level security;
+alter table alert_open_events enable row level security;
 alter table app_event_logs enable row level security;
 alter table customer_monthly_usage enable row level security;
 alter table watchlists enable row level security;
@@ -406,6 +420,10 @@ for select using (user_id = current_app_user_id() or current_app_user_is_admin()
 
 drop policy if exists email_link_events_own_or_admin_read on email_link_events;
 create policy email_link_events_own_or_admin_read on email_link_events
+for select using (user_id = current_app_user_id() or current_app_user_is_admin());
+
+drop policy if exists alert_open_events_own_or_admin_read on alert_open_events;
+create policy alert_open_events_own_or_admin_read on alert_open_events
 for select using (user_id = current_app_user_id() or current_app_user_is_admin());
 
 drop policy if exists app_event_logs_admin_read on app_event_logs;

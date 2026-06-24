@@ -132,8 +132,8 @@ export function AdminCommandCenter({ onNavigate }: AdminCommandCenterProps) {
         .map(([, label]) => label),
     [status],
   );
-  const monthlyClicks = usage.reduce((total, item) => total + item.emailLinkClicks, 0);
-  const activeCustomers = usage.filter((item) => item.emailLinkClicks > 0).length;
+  const monthlyClicks = usage.reduce((total, item) => total + item.totalLinkClicks, 0);
+  const activeCustomers = usage.filter((item) => item.totalLinkClicks > 0).length;
   const latestOpportunity = opportunities
     .map((item) => item.created_at)
     .sort()

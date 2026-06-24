@@ -19,6 +19,17 @@ function getMonthStart() {
   return `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}-01`;
 }
 
+function getNextMonthStart(monthStart: string) {
+  const date = new Date(`${monthStart}T00:00:00.000Z`);
+  date.setUTCMonth(date.getUTCMonth() + 1);
+
+  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}-01`;
+}
+
+function isSmsSource(source: string | null | undefined) {
+  return source?.toLowerCase().includes("sms") ?? false;
+}
+
 export async function GET(request: NextRequest) {
   if (!isAdminApiRequest(request)) {
     return NextResponse.json(getAdminUnauthorizedResponse(), { status: 403 });
@@ -36,7 +47,13 @@ export async function GET(request: NextRequest) {
   }
 
   const monthStart = getMonthStart();
-  const [{ data: users, error: usersError }, { data: usage, error: usageError }] =
+  const nextMonthStart = getNextMonthStart(monthStart);
+  const [
+    { data: users, error: usersError },
+    { data: alertLogs, error: alertLogsError },
+    { data: linkEvents, error: linkEventsError },
+    openEventsResult,
+  ] =
     await Promise.all([
       supabase
         .from("users")
@@ -46,24 +63,121 @@ export async function GET(request: NextRequest) {
         .order("created_at", { ascending: false })
         .limit(250),
       supabase
-        .from("customer_monthly_usage")
-        .select(
-          "user_id,month_start,email_link_clicks,last_email_click_at,top_symbols",
-        )
-        .eq("month_start", monthStart),
+        .from("alert_logs")
+        .select("user_id,channel,status,sent_at,created_at")
+        .gte("created_at", monthStart)
+        .lt("created_at", nextMonthStart),
+      supabase
+        .from("email_link_events")
+        .select("user_id,symbol,source,clicked_at")
+        .gte("clicked_at", monthStart)
+        .lt("clicked_at", nextMonthStart),
+      supabase
+        .from("alert_open_events")
+        .select("user_id,tracking_id,source,opened_at")
+        .gte("opened_at", monthStart)
+        .lt("opened_at", nextMonthStart),
     ]);
 
-  if (usersError || usageError) {
+  if (usersError || alertLogsError || linkEventsError) {
     return NextResponse.json(
       {
         customers: [],
-        error: usersError?.message ?? usageError?.message ?? "Customer query failed.",
+        error:
+          usersError?.message ??
+          alertLogsError?.message ??
+          linkEventsError?.message ??
+          "Customer query failed.",
         source: "empty",
         usage: [],
       },
       { status: 503 },
     );
   }
+
+  const openEvents = openEventsResult.error ? [] : (openEventsResult.data ?? []);
+  const usageByUser = new Map<
+    string,
+    {
+      emailLinkClicks: number;
+      emailOpens: Set<string>;
+      emailsSent: number;
+      lastEmailClickAt: string | null;
+      lastEmailOpenAt: string | null;
+      lastLinkClickAt: string | null;
+      smsLinkClicks: number;
+      smsSent: number;
+      symbolCounts: Map<string, number>;
+      totalLinkClicks: number;
+    }
+  >();
+
+  function ensureUsage(userId: string) {
+    const current = usageByUser.get(userId);
+    if (current) return current;
+
+    const next = {
+      emailLinkClicks: 0,
+      emailOpens: new Set<string>(),
+      emailsSent: 0,
+      lastEmailClickAt: null,
+      lastEmailOpenAt: null,
+      lastLinkClickAt: null,
+      smsLinkClicks: 0,
+      smsSent: 0,
+      symbolCounts: new Map<string, number>(),
+      totalLinkClicks: 0,
+    };
+
+    usageByUser.set(userId, next);
+    return next;
+  }
+
+  (alertLogs ?? []).forEach((log) => {
+    if (!log.user_id || (log.status !== "sent" && log.status !== "queued")) return;
+    const item = ensureUsage(String(log.user_id));
+
+    if (log.channel === "sms") {
+      item.smsSent += 1;
+    } else if (log.channel === "email") {
+      item.emailsSent += 1;
+    }
+  });
+
+  (linkEvents ?? []).forEach((event) => {
+    if (!event.user_id) return;
+    const item = ensureUsage(String(event.user_id));
+    const clickedAt = String(event.clicked_at);
+
+    item.totalLinkClicks += 1;
+    item.lastLinkClickAt =
+      !item.lastLinkClickAt || clickedAt > item.lastLinkClickAt ? clickedAt : item.lastLinkClickAt;
+
+    if (isSmsSource(String(event.source ?? ""))) {
+      item.smsLinkClicks += 1;
+    } else {
+      item.emailLinkClicks += 1;
+      item.lastEmailClickAt =
+        !item.lastEmailClickAt || clickedAt > item.lastEmailClickAt
+          ? clickedAt
+          : item.lastEmailClickAt;
+    }
+
+    const symbol = String(event.symbol ?? "").toUpperCase();
+    if (symbol) {
+      item.symbolCounts.set(symbol, (item.symbolCounts.get(symbol) ?? 0) + 1);
+    }
+  });
+
+  openEvents.forEach((event) => {
+    if (!event.user_id) return;
+    const item = ensureUsage(String(event.user_id));
+    const openedAt = String(event.opened_at);
+
+    item.emailOpens.add(String(event.tracking_id));
+    item.lastEmailOpenAt =
+      !item.lastEmailOpenAt || openedAt > item.lastEmailOpenAt ? openedAt : item.lastEmailOpenAt;
+  });
 
   return NextResponse.json({
     customers: (users ?? []).map((user) => ({
@@ -87,14 +201,25 @@ export async function GET(request: NextRequest) {
       timezone: String(user.timezone ?? "America/Chicago"),
     })),
     source: "supabase",
-    usage: (usage ?? []).map((item) => ({
-      customerId: String(item.user_id),
-      emailLinkClicks: Number(item.email_link_clicks ?? 0),
-      lastEmailClickAt: item.last_email_click_at ? String(item.last_email_click_at) : null,
-      monthKey: String(item.month_start).slice(0, 7),
-      topSymbols: Array.isArray(item.top_symbols)
-        ? item.top_symbols.map((symbol) => String(symbol))
-        : [],
+    trackingWarning: openEventsResult.error
+      ? `Open tracking is not available yet: ${openEventsResult.error.message}`
+      : null,
+    usage: Array.from(usageByUser.entries()).map(([userId, item]) => ({
+      customerId: userId,
+      emailLinkClicks: item.emailLinkClicks,
+      emailOpens: item.emailOpens.size,
+      emailsSent: item.emailsSent,
+      lastEmailClickAt: item.lastEmailClickAt,
+      lastEmailOpenAt: item.lastEmailOpenAt,
+      lastLinkClickAt: item.lastLinkClickAt,
+      monthKey: monthStart.slice(0, 7),
+      smsLinkClicks: item.smsLinkClicks,
+      smsSent: item.smsSent,
+      topSymbols: Array.from(item.symbolCounts.entries())
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 3)
+        .map(([symbol]) => symbol),
+      totalLinkClicks: item.totalLinkClicks,
     })),
   });
 }

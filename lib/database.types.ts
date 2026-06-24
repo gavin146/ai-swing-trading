@@ -233,6 +233,17 @@ export type EmailLinkEventRow = {
   created_at: string;
 };
 
+export type AlertOpenEventRow = {
+  id: string;
+  user_id: string | null;
+  alert_log_id: string | null;
+  tracking_id: string;
+  source: string;
+  user_agent: string | null;
+  opened_at: string;
+  created_at: string;
+};
+
 export type AppEventLogRow = {
   id: string;
   level: "info" | "warning" | "error";
@@ -352,6 +363,11 @@ export type EmailLinkEventInsert = Omit<EmailLinkEventRow, "id" | "created_at"> 
   created_at?: string;
 };
 
+export type AlertOpenEventInsert = Omit<AlertOpenEventRow, "id" | "created_at"> & {
+  id?: string;
+  created_at?: string;
+};
+
 export type AppEventLogInsert = Omit<AppEventLogRow, "id" | "created_at"> & {
   id?: string;
   created_at?: string;
@@ -394,6 +410,7 @@ export type OpportunityRankingUpdate = Partial<OpportunityRankingInsert>;
 export type DailyPickUpdate = Partial<DailyPickInsert>;
 export type AlertLogUpdate = Partial<AlertLogInsert>;
 export type EmailLinkEventUpdate = Partial<EmailLinkEventInsert>;
+export type AlertOpenEventUpdate = Partial<AlertOpenEventInsert>;
 export type CustomerMonthlyUsageUpdate = Partial<CustomerMonthlyUsageInsert>;
 export type WatchlistUpdate = Partial<WatchlistInsert>;
 export type WatchlistItemUpdate = Partial<WatchlistItemInsert>;
@@ -441,6 +458,11 @@ export type Database = {
         Row: EmailLinkEventRow;
         Insert: EmailLinkEventInsert;
         Update: EmailLinkEventUpdate;
+      };
+      alert_open_events: {
+        Row: AlertOpenEventRow;
+        Insert: AlertOpenEventInsert;
+        Update: AlertOpenEventUpdate;
       };
       customer_monthly_usage: {
         Row: CustomerMonthlyUsageRow;

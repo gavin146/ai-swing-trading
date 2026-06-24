@@ -5,6 +5,7 @@ type BrandedMorningEmailArgs = {
   customerName: string;
   intro: string;
   marketRegime: string;
+  openTrackingUrl?: string;
   opportunities: OpportunityRow[];
   signoff: string;
   subject?: string;
@@ -111,12 +112,16 @@ export function buildBrandedMorningEmail(args: BrandedMorningEmailArgs) {
   const unsubscribe = args.unsubscribeUrl
     ? `<a href="${args.unsubscribeUrl}" style="color:#52615b;text-decoration:underline;">Unsubscribe</a>`
     : "";
+  const openPixel = args.openTrackingUrl
+    ? `<img src="${args.openTrackingUrl}" width="1" height="1" alt="" style="display:none;width:1px;height:1px;opacity:0;border:0;" />`
+    : "";
 
   return {
     subject,
     text: `${greeting}\n\n${args.intro}\nMarket regime: ${args.marketRegime}\n\nTop opportunities:\n${textRows}\n\n${args.signoff}\n\nSwingFi is research software, not financial advice.${args.unsubscribeUrl ? `\n\nUnsubscribe: ${args.unsubscribeUrl}` : ""}`,
     html: `
       <div style="margin:0;padding:0;background:#f5f7fb;">
+        ${openPixel}
         <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;background:#f5f7fb;">
           <tr>
             <td align="center" style="padding:28px 14px;">

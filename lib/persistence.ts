@@ -541,6 +541,32 @@ export async function persistEmailLinkClick(args: {
   } satisfies PersistenceResult;
 }
 
+export async function persistAlertOpen(args: {
+  trackingId: string;
+  customerId?: string | null;
+  source?: string | null;
+  userAgent?: string | null;
+}) {
+  const supabase = createSupabaseAdminClient();
+
+  if (!supabase) {
+    return notConfigured();
+  }
+
+  const { error } = await supabase.from("alert_open_events").insert({
+    user_id: cleanUserId(args.customerId),
+    alert_log_id: null,
+    tracking_id: args.trackingId,
+    source: args.source ?? "morning_email",
+    user_agent: args.userAgent ?? null,
+  });
+
+  return {
+    persisted: !error,
+    error: error?.message,
+  } satisfies PersistenceResult;
+}
+
 export async function unsubscribeEmailAlerts(args: {
   customerId?: string | null;
   email?: string | null;
