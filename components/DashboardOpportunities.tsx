@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { type Dispatch, type SetStateAction, useEffect, useMemo, useState } from "react";
 import { OpportunityCard } from "@/components/OpportunityCard";
 import { ScoreGuide } from "@/components/ScoreGuide";
 import { SummaryTile } from "@/components/SummaryTile";
@@ -17,6 +17,10 @@ type DashboardOpportunitiesProps = {
   fallbackReason?: string;
   initialOpportunities: Opportunity[];
 };
+
+type DashboardView = "top" | "watchlist" | "higher-risk";
+
+const dashboardActionStorageKey = "swingfi-dashboard-actions";
 
 function listStrength(score: number) {
   if (score >= 80) {
@@ -110,8 +114,30 @@ export function DashboardOpportunities({
   initialOpportunities,
 }: DashboardOpportunitiesProps) {
   const [opportunities] = useState(initialOpportunities);
+  const [activeView, setActiveView] = useState<DashboardView>("top");
   const [customer, setCustomer] = useState<CustomerProfile | null>(null);
   const [ready, setReady] = useState(false);
+  const [savedSymbols, setSavedSymbols] = useState<Set<string>>(new Set());
+  const [skippedSymbols, setSkippedSymbols] = useState<Set<string>>(new Set());
+  const [watchedSymbols, setWatchedSymbols] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    try {
+      const stored = window.localStorage.getItem(dashboardActionStorageKey);
+      if (!stored) return;
+      const parsed = JSON.parse(stored) as {
+        saved?: string[];
+        skipped?: string[];
+        watched?: string[];
+      };
+
+      setSavedSymbols(new Set(parsed.saved ?? []));
+      setSkippedSymbols(new Set(parsed.skipped ?? []));
+      setWatchedSymbols(new Set(parsed.watched ?? []));
+    } catch {
+      window.localStorage.removeItem(dashboardActionStorageKey);
+    }
+  }, []);
 
   useEffect(() => {
     const refresh = () => {
@@ -130,6 +156,19 @@ export function DashboardOpportunities({
       window.removeEventListener("swingfi-customer-updated", refresh);
     };
   }, [dataSource]);
+
+  useEffect(() => {
+    if (!ready) return;
+
+    window.localStorage.setItem(
+      dashboardActionStorageKey,
+      JSON.stringify({
+        saved: [...savedSymbols],
+        skipped: [...skippedSymbols],
+        watched: [...watchedSymbols],
+      }),
+    );
+  }, [ready, savedSymbols, skippedSymbols, watchedSymbols]);
 
   const personalized = useMemo(() => {
     if (!customer) {
@@ -172,6 +211,96 @@ export function DashboardOpportunities({
     };
   }, [customer, opportunities]);
   const dailyPicks = personalized.dailyPicks;
+
+  const visiblePicks = useMemo(() => {
+    const activePicks = dailyPicks.filter(
+      (opportunity) => !skippedSymbols.has(opportunity.symbol),
+    );
+
+    if (activeView === "top") {
+      return activePicks.slice(0, 5);
+    }
+
+    if (activeView === "watchlist") {
+      const explicitWatchlist = activePicks.filter(
+        (opportunity) =>
+          watchedSymbols.has(opportunity.symbol) || savedSymbols.has(opportunity.symbol),
+      );
+
+      if (explicitWatchlist.length > 0) {
+        return explicitWatchlist;
+      }
+
+      return activePicks
+        .filter(
+          (opportunity) =>
+            opportunity.opportunityScore >= 60 &&
+            (opportunity.opportunityScore < 75 || opportunity.confidenceScore < 72),
+        )
+        .slice(0, 8);
+    }
+
+    return activePicks
+      .filter(
+        (opportunity) =>
+          opportunity.riskScore >= Math.max(customer?.maxRiskScore ?? 55, 55) ||
+          percentNumber(opportunity.potentialGain) >= 8,
+      )
+      .slice(0, 8);
+  }, [activeView, customer?.maxRiskScore, dailyPicks, savedSymbols, skippedSymbols, watchedSymbols]);
+
+  const viewOptions = useMemo(
+    () => [
+      {
+        count: Math.min(5, dailyPicks.filter((item) => !skippedSymbols.has(item.symbol)).length),
+        description: "Start here when you only have a few minutes.",
+        key: "top" as const,
+        label: "Top 5",
+      },
+      {
+        count:
+          savedSymbols.size + watchedSymbols.size > 0
+            ? dailyPicks.filter(
+                (item) =>
+                  !skippedSymbols.has(item.symbol) &&
+                  (savedSymbols.has(item.symbol) || watchedSymbols.has(item.symbol)),
+              ).length
+            : dailyPicks.filter(
+                (item) =>
+                  !skippedSymbols.has(item.symbol) &&
+                  item.opportunityScore >= 60 &&
+                  (item.opportunityScore < 75 || item.confidenceScore < 72),
+              ).length,
+        description: "Saved ideas plus setups worth monitoring.",
+        key: "watchlist" as const,
+        label: "Watchlist",
+      },
+      {
+        count: dailyPicks.filter(
+          (item) =>
+            !skippedSymbols.has(item.symbol) &&
+            (item.riskScore >= Math.max(customer?.maxRiskScore ?? 55, 55) ||
+              percentNumber(item.potentialGain) >= 8),
+        ).length,
+        description: "More upside potential, but less forgiving.",
+        key: "higher-risk" as const,
+        label: "Higher risk",
+      },
+    ],
+    [customer?.maxRiskScore, dailyPicks, savedSymbols, skippedSymbols, watchedSymbols],
+  );
+
+  const toggleSymbol = (symbol: string, setter: Dispatch<SetStateAction<Set<string>>>) => {
+    setter((current) => {
+      const next = new Set(current);
+      if (next.has(symbol)) {
+        next.delete(symbol);
+      } else {
+        next.add(symbol);
+      }
+      return next;
+    });
+  };
 
   const summary = useMemo(() => {
     const avgOpportunity =
@@ -311,6 +440,116 @@ export function DashboardOpportunities({
         ) : null}
       </div>
 
+      <div className="sticky top-[126px] z-20 mt-5 rounded-3xl border border-line/80 bg-surface/88 p-3 shadow-[0_18px_54px_rgba(7,20,24,0.08)] backdrop-blur-2xl md:top-[86px]">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <p className="text-xs font-black uppercase tracking-normal text-pine">
+              Today&apos;s decision desk
+            </p>
+            <p className="mt-1 text-sm font-semibold text-ink/58">
+              Showing {visiblePicks.length} active picks. {skippedSymbols.size} skipped ideas are hidden.
+            </p>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-3">
+            {viewOptions.map((option) => (
+              <button
+                key={option.key}
+                type="button"
+                onClick={() => setActiveView(option.key)}
+                className={`rounded-2xl border px-4 py-3 text-left transition ${
+                  activeView === option.key
+                    ? "border-ink bg-ink text-white shadow-[0_14px_34px_rgba(7,20,24,0.16)]"
+                    : "border-line/80 bg-white text-ink hover:border-pine/35"
+                }`}
+              >
+                <span className="flex items-center justify-between gap-3 text-sm font-black">
+                  {option.label}
+                  <span className={activeView === option.key ? "text-white/58" : "text-ink/42"}>
+                    {option.count}
+                  </span>
+                </span>
+                <span
+                  className={`mt-1 block text-xs font-semibold leading-5 ${
+                    activeView === option.key ? "text-white/62" : "text-ink/52"
+                  }`}
+                >
+                  {option.description}
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-7 flex flex-col gap-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p className="text-xs font-black uppercase tracking-normal text-pine">
+              Ranked opportunities
+            </p>
+            <h2 className="mt-2 text-2xl font-black tracking-normal text-ink">
+              Review the plan, then save, watch, or skip
+            </h2>
+          </div>
+          {skippedSymbols.size > 0 ? (
+            <button
+              type="button"
+              onClick={() => setSkippedSymbols(new Set())}
+              className="rounded-full border border-line bg-white px-4 py-2 text-sm font-black text-ink/62 transition hover:border-pine/35 hover:text-ink"
+            >
+              Restore skipped
+            </button>
+          ) : null}
+        </div>
+        <div className="grid gap-5 xl:grid-cols-2">
+          {dailyPicks.length === 0 ? (
+            <div className="rounded-3xl border border-line bg-panel p-6 shadow-soft xl:col-span-2">
+              <p className="text-sm font-black uppercase tracking-normal text-pine">
+                Waiting for live analysis
+              </p>
+              <h2 className="mt-3 text-2xl font-black text-ink">
+                No ranked opportunities have been saved yet
+              </h2>
+              <p className="mt-3 max-w-2xl text-sm leading-6 text-ink/60">
+                Connect Supabase in Vercel, run the database schema, and make sure
+                `FMP_API_KEY` is configured. Until then, the dashboard cannot load saved
+                rankings or generate a live preview.
+              </p>
+            </div>
+          ) : visiblePicks.length > 0 ? (
+            visiblePicks.map((opportunity, index) => (
+              <OpportunityCard
+                key={opportunity.symbol}
+                compact
+                isSaved={savedSymbols.has(opportunity.symbol)}
+                isWatched={watchedSymbols.has(opportunity.symbol)}
+                opportunity={opportunity}
+                rank={index + 1}
+                animationDelay={Math.min(index * 35, 360)}
+                onSave={() => toggleSymbol(opportunity.symbol, setSavedSymbols)}
+                onWatch={() => toggleSymbol(opportunity.symbol, setWatchedSymbols)}
+                onSkip={() =>
+                  setSkippedSymbols((current) => new Set(current).add(opportunity.symbol))
+                }
+              />
+            ))
+          ) : (
+            <div className="rounded-3xl border border-line bg-white p-6 shadow-soft xl:col-span-2">
+              <p className="text-sm font-black uppercase tracking-normal text-pine">
+                Nothing in this view
+              </p>
+              <h2 className="mt-3 text-2xl font-black text-ink">
+                Try another tab or restore skipped picks
+              </h2>
+              <p className="mt-3 max-w-2xl text-sm leading-6 text-ink/60">
+                This keeps the dashboard focused on the decisions you have not already
+                moved past.
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+
       <div className="mt-5 grid gap-3 md:grid-cols-3">
         {[
           [
@@ -334,43 +573,6 @@ export function DashboardOpportunities({
             <p className="mt-2 text-xs font-semibold leading-5 text-ink/58">{text}</p>
           </div>
         ))}
-      </div>
-
-      <div className="mt-7 flex flex-col gap-4">
-        <div>
-          <p className="text-xs font-black uppercase tracking-normal text-pine">
-            Ranked opportunities
-          </p>
-          <h2 className="mt-2 text-2xl font-black tracking-normal text-ink">
-            Analyst-style cards with the full trade plan visible
-          </h2>
-        </div>
-        <div className="grid gap-5 xl:grid-cols-2">
-          {dailyPicks.length > 0 ? (
-            dailyPicks.map((opportunity, index) => (
-              <OpportunityCard
-                key={opportunity.symbol}
-                opportunity={opportunity}
-                rank={index + 1}
-                animationDelay={Math.min(index * 35, 360)}
-              />
-            ))
-          ) : (
-            <div className="rounded-3xl border border-line bg-panel p-6 shadow-soft xl:col-span-2">
-              <p className="text-sm font-black uppercase tracking-normal text-pine">
-                Waiting for live analysis
-              </p>
-              <h2 className="mt-3 text-2xl font-black text-ink">
-                No ranked opportunities have been saved yet
-              </h2>
-              <p className="mt-3 max-w-2xl text-sm leading-6 text-ink/60">
-                Connect Supabase in Vercel, run the database schema, and make sure
-                `FMP_API_KEY` is configured. Until then, the dashboard cannot load saved
-                rankings or generate a live preview.
-              </p>
-            </div>
-          )}
-        </div>
       </div>
 
       {dailyPicks.length > 0 ? (

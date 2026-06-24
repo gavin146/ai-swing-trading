@@ -33,9 +33,20 @@ function navClass(isActive: boolean) {
   }`;
 }
 
+function topNavClass(isActive: boolean) {
+  return `shrink-0 rounded-full px-4 py-2 text-sm font-black transition ${
+    isActive
+      ? "bg-ink text-white shadow-[0_12px_28px_rgba(7,20,24,0.16)]"
+      : "text-ink/58 hover:bg-white hover:text-ink"
+  }`;
+}
+
 export function AppShell({ active, children, eyebrow, subtitle, title }: AppShellProps) {
   const [customer, setCustomer] = useState<CustomerProfile | null>(null);
   const isAdmin = isAdminCustomer(customer);
+  const isOperationsPage = active === "admin" || active === "agent";
+  const visibleLinks = [...customerLinks, ...(isAdmin ? adminLinks : [])];
+  const isActiveLink = (key: string) => active === key;
 
   useEffect(() => {
     const refresh = () => setCustomer(getCurrentCustomer());
@@ -50,13 +61,81 @@ export function AppShell({ active, children, eyebrow, subtitle, title }: AppShel
     };
   }, []);
 
+  if (!isOperationsPage) {
+    return (
+      <main className="min-h-screen bg-[linear-gradient(180deg,#f7fafb_0%,#eef4f6_46%,#f7fafb_100%)]">
+        <header className="sticky top-0 z-40 border-b border-line/70 bg-surface/88 backdrop-blur-2xl">
+          <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-4 sm:px-6 lg:px-8">
+            <div className="flex items-center justify-between gap-4">
+              <div className="min-w-0">
+                <div className="lg:hidden">
+                  <BrandMark compact />
+                </div>
+                <div className="hidden lg:block">
+                  <BrandMark />
+                </div>
+              </div>
+
+              <nav className="hidden items-center gap-1 rounded-full border border-line/75 bg-white/74 p-1 shadow-[0_10px_28px_rgba(7,20,24,0.055)] md:flex">
+                {visibleLinks.map((item) => (
+                  <Link key={item.href} href={item.href} className={topNavClass(isActiveLink(item.key))}>
+                    {item.label}
+                  </Link>
+                ))}
+              </nav>
+
+              <CustomerStatus />
+            </div>
+
+            <nav className="max-w-full overflow-x-auto rounded-2xl border border-line/70 bg-white/74 p-1 text-sm font-bold shadow-[0_10px_28px_rgba(7,20,24,0.05)] md:hidden">
+              <div className="flex min-w-max gap-2">
+                {visibleLinks.map((item) => (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={`shrink-0 rounded-xl px-3 py-2 ${
+                      isActiveLink(item.key) ? "bg-ink text-white" : "text-ink/64"
+                    }`}
+                  >
+                    {item.label}
+                  </Link>
+                ))}
+              </div>
+            </nav>
+          </div>
+        </header>
+
+        <section className="mx-auto max-w-7xl px-4 py-7 sm:px-6 lg:px-8">
+          <div className="mb-6 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              {eyebrow ? (
+                <p className="text-xs font-black uppercase tracking-normal text-pine">
+                  {eyebrow}
+                </p>
+              ) : null}
+              <h1 className="mt-2 max-w-4xl text-3xl font-black tracking-normal text-ink sm:text-4xl">
+                {title}
+              </h1>
+            </div>
+            {subtitle ? (
+              <p className="max-w-2xl text-sm font-semibold leading-7 text-ink/58 lg:text-right">
+                {subtitle}
+              </p>
+            ) : null}
+          </div>
+          {children}
+        </section>
+      </main>
+    );
+  }
+
   return (
     <main className="min-h-screen bg-[linear-gradient(180deg,#f7fafb_0%,#eef4f6_46%,#f7fafb_100%)]">
       <aside className="fixed inset-y-0 left-0 z-40 hidden w-72 border-r border-line/75 bg-white/82 px-4 py-5 shadow-[18px_0_54px_rgba(7,20,24,0.06)] backdrop-blur-2xl lg:block">
         <BrandMark />
         <nav className="mt-8 grid gap-2">
           {customerLinks.map((item) => (
-            <Link key={item.href} href={item.href} className={navClass(active === item.key)}>
+            <Link key={item.href} href={item.href} className={navClass(isActiveLink(item.key))}>
               <span className="grid h-8 w-8 place-items-center rounded-lg bg-surface text-xs font-black text-inherit ring-1 ring-line/70 group-hover:bg-panel">
                 {item.symbol}
               </span>
@@ -72,7 +151,7 @@ export function AppShell({ active, children, eyebrow, subtitle, title }: AppShel
             </p>
             <nav className="mt-3 grid gap-2">
               {adminLinks.map((item) => (
-                <Link key={item.href} href={item.href} className={navClass(active === item.key)}>
+                <Link key={item.href} href={item.href} className={navClass(isActiveLink(item.key))}>
                   <span className="grid h-8 w-8 place-items-center rounded-lg bg-surface text-xs font-black text-inherit ring-1 ring-line/70 group-hover:bg-panel">
                     {item.symbol}
                   </span>
@@ -114,17 +193,17 @@ export function AppShell({ active, children, eyebrow, subtitle, title }: AppShel
             </div>
             <nav className="max-w-full overflow-x-auto rounded-2xl border border-line/70 bg-white/74 p-1 text-sm font-bold shadow-[0_10px_28px_rgba(7,20,24,0.05)] lg:hidden">
               <div className="flex min-w-max gap-2">
-              {[...customerLinks, ...(isAdmin ? adminLinks : [])].map((item) => (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={`shrink-0 rounded-xl px-3 py-2 ${
-                    active === item.key ? "bg-ink text-white" : "text-ink/64"
-                  }`}
-                >
-                  {item.label}
-                </Link>
-              ))}
+                {visibleLinks.map((item) => (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={`shrink-0 rounded-xl px-3 py-2 ${
+                      isActiveLink(item.key) ? "bg-ink text-white" : "text-ink/64"
+                    }`}
+                  >
+                    {item.label}
+                  </Link>
+                ))}
               </div>
             </nav>
           </div>

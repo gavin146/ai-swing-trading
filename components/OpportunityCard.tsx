@@ -1,3 +1,5 @@
+"use client";
+
 import Link from "next/link";
 import type { Opportunity } from "@/lib/opportunities";
 import { MetricPill } from "./MetricPill";
@@ -5,6 +7,12 @@ import { ScoreMeter } from "./ScoreMeter";
 
 type OpportunityCardProps = {
   animationDelay?: number;
+  compact?: boolean;
+  isSaved?: boolean;
+  isWatched?: boolean;
+  onSave?: () => void;
+  onSkip?: () => void;
+  onWatch?: () => void;
   opportunity: Opportunity;
   rank: number;
 };
@@ -27,15 +35,47 @@ function nextStep(opportunity: Opportunity) {
   return "Lower-priority review: consider waiting for stronger confirmation before spending much time on this idea.";
 }
 
-export function OpportunityCard({ animationDelay = 0, opportunity, rank }: OpportunityCardProps) {
+function MiniScore({
+  label,
+  score,
+  tone = "text-ink",
+}: {
+  label: string;
+  score: number;
+  tone?: string;
+}) {
+  return (
+    <div className="rounded-2xl border border-line/80 bg-surface px-3 py-3">
+      <p className="text-xs font-black uppercase tracking-normal text-ink/42">{label}</p>
+      <p className={`mt-1 text-2xl font-black ${tone}`}>
+        {score}
+        <span className="text-xs text-ink/38">/100</span>
+      </p>
+    </div>
+  );
+}
+
+export function OpportunityCard({
+  animationDelay = 0,
+  compact = false,
+  isSaved = false,
+  isWatched = false,
+  onSave,
+  onSkip,
+  onWatch,
+  opportunity,
+  rank,
+}: OpportunityCardProps) {
   return (
     <article
-      className="motion-card flex h-full flex-col overflow-hidden rounded-3xl border border-line/80 bg-white shadow-[0_20px_70px_rgba(7,20,24,0.075)] transition will-change-transform hover:-translate-y-1 hover:border-pine/35 hover:shadow-lift"
+      className={`motion-card flex h-full flex-col overflow-hidden border border-line/80 bg-white shadow-[0_20px_70px_rgba(7,20,24,0.075)] transition will-change-transform hover:-translate-y-1 hover:border-pine/35 hover:shadow-lift ${
+        compact ? "rounded-2xl" : "rounded-3xl"
+      }`}
       style={{ animationDelay: `${animationDelay}ms` }}
     >
       <div className="signal-line h-1.5" />
-      <div className="flex flex-1 flex-col p-5 sm:p-6">
-        <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
+      <div className={`flex flex-1 flex-col ${compact ? "p-4 sm:p-5" : "p-5 sm:p-6"}`}>
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <span className="rounded-full bg-ink px-3 py-1 text-xs font-black text-white">
@@ -48,47 +88,57 @@ export function OpportunityCard({ animationDelay = 0, opportunity, rank }: Oppor
                 {opportunity.tradeQuality}
               </span>
             </div>
-            <h2 className="mt-4 text-3xl font-black tracking-normal text-ink">
+            <h2 className={`mt-4 font-black tracking-normal text-ink ${compact ? "text-2xl" : "text-3xl"}`}>
               {opportunity.symbol}
             </h2>
             <p className="mt-1 text-sm font-semibold text-ink/55">{opportunity.name}</p>
           </div>
-          <div className="rounded-2xl border border-line bg-surface px-4 py-3 sm:min-w-36">
+          <div className="rounded-2xl border border-line bg-surface px-4 py-3 sm:min-w-32">
             <p className="text-xs font-black uppercase tracking-normal text-ink/42">
               Opportunity
             </p>
-            <p className="mt-1 text-4xl font-black text-pine">
+            <p className={`mt-1 font-black text-pine ${compact ? "text-3xl" : "text-4xl"}`}>
               {opportunity.opportunityScore}
             </p>
             <p className="mt-1 text-xs font-bold text-ink/52">{opportunity.scoreLabel}</p>
           </div>
         </div>
 
-        <div className="mt-5 grid gap-3 sm:grid-cols-3">
-          <ScoreMeter
-            label="Opportunity"
-            score={opportunity.opportunityScore}
-            sublabel={opportunity.scoreLabel}
-          />
-          <ScoreMeter
-            label="Confidence"
-            score={opportunity.confidenceScore}
-            sublabel={opportunity.confidenceLabel}
-            tone="confidence"
-          />
-          <ScoreMeter
-            label="Risk"
-            score={opportunity.riskScore}
-            sublabel={opportunity.riskLabel}
-            tone="risk"
-          />
-        </div>
+        {compact ? (
+          <div className="mt-4 grid grid-cols-3 gap-2">
+            <MiniScore label="Score" score={opportunity.opportunityScore} tone="text-pine" />
+            <MiniScore label="Trust" score={opportunity.confidenceScore} />
+            <MiniScore label="Risk" score={opportunity.riskScore} tone="text-coral" />
+          </div>
+        ) : (
+          <div className="mt-5 grid gap-3 sm:grid-cols-3">
+            <ScoreMeter
+              label="Opportunity"
+              score={opportunity.opportunityScore}
+              sublabel={opportunity.scoreLabel}
+            />
+            <ScoreMeter
+              label="Confidence"
+              score={opportunity.confidenceScore}
+              sublabel={opportunity.confidenceLabel}
+              tone="confidence"
+            />
+            <ScoreMeter
+              label="Risk"
+              score={opportunity.riskScore}
+              sublabel={opportunity.riskLabel}
+              tone="risk"
+            />
+          </div>
+        )}
 
-        <p className="mt-5 rounded-2xl border border-line/80 bg-surface p-4 text-sm font-medium leading-7 text-ink/68">
+        <p className={`mt-5 rounded-2xl border border-line/80 bg-surface text-sm font-medium leading-7 text-ink/68 ${
+          compact ? "p-3" : "p-4"
+        }`}>
           {opportunity.rankingSummary}
         </p>
 
-        <div className="mt-3 rounded-2xl border border-pine/10 bg-mint/70 p-4">
+        <div className={`mt-3 rounded-2xl border border-pine/10 bg-mint/70 ${compact ? "p-3" : "p-4"}`}>
           <p className="text-xs font-black uppercase tracking-normal text-pine/70">
             What this means
           </p>
@@ -131,12 +181,52 @@ export function OpportunityCard({ animationDelay = 0, opportunity, rank }: Oppor
           <MetricPill label="Est. sell" value={opportunity.estimatedSellWindow} tone="caution" />
         </div>
 
-        <Link
-          href={`/opportunities/${opportunity.symbol}`}
-          className="mt-5 rounded-2xl bg-ink px-4 py-3 text-center text-sm font-black text-white shadow-[0_16px_36px_rgba(7,20,24,0.18)] hover:bg-pine"
-        >
-          View full analysis
-        </Link>
+        {compact ? (
+          <div className="mt-5 grid gap-2 sm:grid-cols-[1.2fr_1fr_1fr_0.9fr]">
+            <Link
+              href={`/opportunities/${opportunity.symbol}`}
+              className="rounded-2xl bg-ink px-4 py-3 text-center text-sm font-black text-white shadow-[0_16px_36px_rgba(7,20,24,0.18)] hover:bg-pine"
+            >
+              Review
+            </Link>
+            <button
+              type="button"
+              onClick={onSave}
+              className={`rounded-2xl border px-4 py-3 text-sm font-black transition ${
+                isSaved
+                  ? "border-pine bg-mint text-pine"
+                  : "border-line bg-white text-ink/66 hover:border-pine/35 hover:text-ink"
+              }`}
+            >
+              {isSaved ? "Saved" : "Save"}
+            </button>
+            <button
+              type="button"
+              onClick={onWatch}
+              className={`rounded-2xl border px-4 py-3 text-sm font-black transition ${
+                isWatched
+                  ? "border-amber bg-amber/12 text-ink"
+                  : "border-line bg-white text-ink/66 hover:border-amber/45 hover:text-ink"
+              }`}
+            >
+              {isWatched ? "Watching" : "Watch"}
+            </button>
+            <button
+              type="button"
+              onClick={onSkip}
+              className="rounded-2xl border border-line bg-white px-4 py-3 text-sm font-black text-ink/56 transition hover:border-coral/35 hover:text-coral"
+            >
+              Skip
+            </button>
+          </div>
+        ) : (
+          <Link
+            href={`/opportunities/${opportunity.symbol}`}
+            className="mt-5 rounded-2xl bg-ink px-4 py-3 text-center text-sm font-black text-white shadow-[0_16px_36px_rgba(7,20,24,0.18)] hover:bg-pine"
+          >
+            View full analysis
+          </Link>
+        )}
       </div>
     </article>
   );
