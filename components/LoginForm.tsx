@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
 import { PasswordField } from "@/components/PasswordField";
 import { ToastNotice, type ToastTone } from "@/components/ToastNotice";
@@ -60,6 +60,7 @@ function friendlyLoginError(error: unknown) {
 
 export function LoginForm() {
   const router = useRouter();
+  const pathname = usePathname();
   const [notice, setNotice] = useState<AuthNotice | null>(null);
   const [loading, setLoading] = useState(false);
   const [recoveryMode, setRecoveryMode] = useState(false);
@@ -76,13 +77,22 @@ export function LoginForm() {
     async function prepareRecoverySession() {
       const params = new URLSearchParams(window.location.search);
       const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+      const tokenHash = params.get("token_hash");
       const isRecovery =
+        pathname === "/reset-password" ||
         params.get("reset") === "1" ||
         params.has("code") ||
+        (params.get("type") === "recovery" && Boolean(tokenHash)) ||
         hashParams.get("type") === "recovery";
 
       setRecoveryMode(isRecovery);
-      if (!isRecovery) return;
+      if (!isRecovery) {
+        if (params.get("updated") === "1") {
+          showNotice("success", "Password updated. Log in with your new password.", "Password updated");
+          window.history.replaceState({}, "", "/login");
+        }
+        return;
+      }
 
       const supabase = createSupabaseBrowserClient();
       if (!supabase) {
@@ -108,7 +118,25 @@ export function LoginForm() {
           return;
         }
 
-        window.history.replaceState({}, "", "/login?reset=1");
+        window.history.replaceState({}, "", `${pathname}?reset=1`);
+      } else if (tokenHash && params.get("type") === "recovery") {
+        const { error: verifyError } = await supabase.auth.verifyOtp({
+          token_hash: tokenHash,
+          type: "recovery",
+        });
+        if (verifyError) {
+          if (mounted) {
+            showNotice(
+              "warning",
+              "This password reset link is expired or invalid. Request a fresh reset email.",
+              "Reset link expired",
+            );
+            setRecoveryReady(false);
+          }
+          return;
+        }
+
+        window.history.replaceState({}, "", `${pathname}?reset=1`);
       }
 
       const { data } = await supabase.auth.getSession();
@@ -129,7 +157,7 @@ export function LoginForm() {
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [pathname]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -287,10 +315,8 @@ export function LoginForm() {
       return;
     }
 
-    window.history.replaceState({}, "", "/login");
-    setRecoveryMode(false);
     setNewPassword("");
-    showNotice("success", "Password updated. Log in with your new password.", "Password updated");
+    router.push("/login?updated=1");
   }
 
   return (

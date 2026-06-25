@@ -43,12 +43,12 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? request.nextUrl.origin;
+  const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? request.nextUrl.origin).replace(/\/$/, "");
   const { data, error } = await supabase.auth.admin.generateLink({
     type: "recovery",
     email,
     options: {
-      redirectTo: `${appUrl}/login?reset=1`,
+      redirectTo: `${appUrl}/reset-password`,
     },
   });
 
@@ -59,7 +59,9 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const resetUrl = data.properties.action_link;
+  const resetUrl = data.properties.hashed_token
+    ? `${appUrl}/reset-password?token_hash=${encodeURIComponent(data.properties.hashed_token)}&type=recovery`
+    : data.properties.action_link;
   const safeResetUrl = escapeHtml(resetUrl);
   const html = buildBrandedEmail({
     eyebrow: "SwingFi security",
