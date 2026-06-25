@@ -18,6 +18,7 @@ create table users (
   role user_role not null default 'customer',
   stripe_customer_id text unique,
   phone text,
+  preferred_brokerage text not null default 'none' check (preferred_brokerage in ('none', 'schwab', 'fidelity', 'robinhood', 'etrade', 'interactive_brokers', 'other')),
   risk_profile risk_profile not null default 'balanced',
   account_budget text not null default 'not_set' check (account_budget in ('not_set', 'under_1000', '1000_5000', '5000_25000', '25000_plus')),
   investing_experience text not null default 'beginner' check (investing_experience in ('beginner', 'intermediate', 'advanced')),

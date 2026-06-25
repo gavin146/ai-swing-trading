@@ -17,7 +17,7 @@ export async function generateMetadata({
   const normalizedSymbol = symbol.toUpperCase();
 
   return {
-    title: `${normalizedSymbol} opportunity | SwingFi`,
+    title: `${normalizedSymbol} opportunity`,
     description: `SwingFi swing trade analysis for ${normalizedSymbol}.`,
   };
 }

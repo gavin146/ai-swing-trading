@@ -383,6 +383,21 @@ export function rankEquityCandidates(
   }: RankOptions = {},
 ): AgentRunResult {
   const uniqueUniverse = dedupeUniverseBySymbol(universe);
+  const effectiveDataQuality = {
+    ...dataQuality,
+    marketCoverage: dataQuality.marketCoverage ?? {
+      status: "thin" as const,
+      requestedUniverseLimit: uniqueUniverse.length,
+      screenerCount: uniqueUniverse.length,
+      detailedCandidateTarget: uniqueUniverse.length,
+      detailedCandidateCount: uniqueUniverse.length,
+      qualifiedCandidateCount: uniqueUniverse.length,
+      rankedCandidateCount: uniqueUniverse.length,
+      minimumScreenerCount: uniqueUniverse.length,
+      minimumDetailedCandidateCount: uniqueUniverse.length,
+      warning: "Mock mode or direct-symbol mode did not scan the broad live market.",
+    },
+  };
   const marketRegime = getMarketRegime(uniqueUniverse);
   const runId = mockUuid(`${source}-agent-run`, asOf.toISOString().slice(0, 10));
   const ranked = uniqueUniverse
@@ -409,9 +424,9 @@ export function rankEquityCandidates(
     })) satisfies RankedEquityOpportunity[];
   const calibratedCandidateCount = ranked.filter((item) => item.calibration.length > 0).length;
   const dataQualityWithCalibration = {
-    ...dataQuality,
+    ...effectiveDataQuality,
     notes: [
-      ...dataQuality.notes,
+      ...effectiveDataQuality.notes,
       calibratedCandidateCount > 0
         ? `Backtest calibration adjusted ${calibratedCandidateCount} of the selected ${ranked.length} opportunities before scores reached the UI.`
         : "Backtest calibration was checked; no selected opportunities triggered an active penalty.",

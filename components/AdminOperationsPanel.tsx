@@ -32,6 +32,17 @@ type StatusPayload = {
 };
 
 type AdminRunPayload = {
+  dataQuality?: {
+    marketCoverage?: {
+      requestedUniverseLimit?: number;
+      screenerCount?: number;
+      detailedCandidateCount?: number;
+      detailedCandidateTarget?: number;
+      qualifiedCandidateCount?: number;
+      status?: string;
+      warning?: string | null;
+    };
+  };
   selectedCount: number;
   persisted?: boolean;
   persistence?: {
@@ -79,7 +90,7 @@ export function AdminOperationsPanel() {
       const response = await fetch("/api/admin/run-agent", {
         method: "POST",
         headers: getAdminHeaders({ "Content-Type": "application/json" }),
-        body: JSON.stringify({ limit: 90 }),
+        body: JSON.stringify({ detailedLimit: 350, limit: 30, universeLimit: 1000 }),
       });
 
       if (!response.ok) {
@@ -88,12 +99,16 @@ export function AdminOperationsPanel() {
       }
 
       const payload = (await response.json()) as AdminRunPayload;
+      const coverage = payload.dataQuality?.marketCoverage;
+      const coverageText = coverage
+        ? ` Market scanned ${coverage.screenerCount ?? "n/a"}/${coverage.requestedUniverseLimit ?? "n/a"}; deep analyzed ${coverage.detailedCandidateCount ?? "n/a"}/${coverage.detailedCandidateTarget ?? "n/a"}.`
+        : "";
       setMessage(
         payload.persisted
-          ? `Agent ranked and saved ${payload.selectedCount} opportunities.`
+          ? `Agent ranked and saved ${payload.selectedCount} opportunities.${coverageText}`
           : `Agent ranked ${payload.selectedCount} opportunities but did not save them: ${
               payload.persistence?.reason ?? payload.persistence?.error ?? "Supabase persistence unavailable."
-            }`,
+            }${coverageText}`,
       );
     } catch (error) {
       setMessage(

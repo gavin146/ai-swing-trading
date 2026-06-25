@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import type { AlertChannel, RiskProfile, SubscriptionStatus, UserRole } from "@/lib/database.types";
+import { normalizePreferredBrokerage } from "@/lib/brokerages";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -13,6 +14,10 @@ const positionSizePreferences = new Set(["small", "moderate", "aggressive"]);
 const riskProfiles = new Set<RiskProfile>(["conservative", "balanced", "aggressive"]);
 const setupPreferences = new Set(["steady", "balanced", "momentum"]);
 const activeSubscriptionStatuses = new Set<SubscriptionStatus>(["active", "trialing"]);
+
+function isMissingPreferredBrokerageColumn(error: { message?: string } | null | undefined) {
+  return Boolean(error?.message?.toLowerCase().includes("preferred_brokerage"));
+}
 
 function normalizeEmail(value: unknown) {
   return String(value ?? "").trim().toLowerCase();
@@ -103,6 +108,7 @@ export async function POST(request: NextRequest) {
     minimum_confidence: clampScore(body?.minimumConfidence, 70),
     morning_alerts_enabled: Boolean(body?.morningAlertsEnabled),
     phone: cleanText(body?.phone),
+    preferred_brokerage: normalizePreferredBrokerage(body?.preferredBrokerage),
     investing_experience: investingExperience,
     position_size_preference: positionSizePreference,
     risk_profile: riskProfile,
@@ -111,14 +117,31 @@ export async function POST(request: NextRequest) {
     timezone: cleanText(body?.timezone, "America/Chicago") || "America/Chicago",
   };
 
-  const { data, error } = await supabase
+  let { data, error } = await supabase
     .from("users")
     .upsert(payload, { onConflict: "email" })
     .select("id,email,role,email_verified_at")
     .single();
 
+  if (isMissingPreferredBrokerageColumn(error)) {
+    const legacyPayload: Record<string, unknown> = { ...payload };
+    delete legacyPayload.preferred_brokerage;
+    const retry = await supabase
+      .from("users")
+      .upsert(legacyPayload, { onConflict: "email" })
+      .select("id,email,role,email_verified_at")
+      .single();
+
+    data = retry.data;
+    error = retry.error;
+  }
+
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 503 });
+  }
+
+  if (!data) {
+    return NextResponse.json({ error: "Could not sync your SwingFi profile." }, { status: 503 });
   }
 
   const { data: subscription } = await supabase
@@ -135,6 +158,7 @@ export async function POST(request: NextRequest) {
       email: data.email,
       emailVerifiedAt: data.email_verified_at,
       id: data.id,
+      preferredBrokerage: normalizePreferredBrokerage(body?.preferredBrokerage),
       role: data.role,
       subscriptionStatus: subscription?.status ?? null,
     },

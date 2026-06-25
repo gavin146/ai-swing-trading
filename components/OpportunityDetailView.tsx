@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { BrokerageLaunchPanel } from "@/components/BrokerageLaunchPanel";
 import { MetricPill } from "@/components/MetricPill";
 import { ScoreMeter } from "@/components/ScoreMeter";
 import { TradeStatGrid } from "@/components/TradeStatGrid";
@@ -326,7 +327,7 @@ export function OpportunityDetailView({
               ))}
             </div>
             <div className="mt-4 grid gap-4 md:grid-cols-2">
-              <MetricPill label="Buy window" value={opportunity.estimatedBuyWindow} />
+              <MetricPill label="Entry window" value={opportunity.estimatedBuyWindow} />
               <MetricPill label="Estimated sell window" value={opportunity.estimatedSellWindow} tone="caution" />
             </div>
           </section>
@@ -376,6 +377,11 @@ export function OpportunityDetailView({
               news, earnings, liquidity, and position size before placing any trade.
             </p>
           </section>
+
+          <BrokerageLaunchPanel
+            opportunity={opportunity}
+            preferredBrokerage={customer?.preferredBrokerage}
+          />
         </aside>
       </div>
     </section>

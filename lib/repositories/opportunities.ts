@@ -21,6 +21,18 @@ export type OpportunityTrustPanel = {
   runSource: string;
   summary: string | null;
   universeCount: number;
+  marketCoverage: {
+    status: "healthy" | "thin" | "blocked" | "unknown";
+    requestedUniverseLimit: number | null;
+    screenerCount: number | null;
+    detailedCandidateTarget: number | null;
+    detailedCandidateCount: number | null;
+    qualifiedCandidateCount: number | null;
+    rankedCandidateCount: number | null;
+    minimumScreenerCount: number | null;
+    minimumDetailedCandidateCount: number | null;
+    warning: string | null;
+  };
 };
 
 export type OpportunityListResult = {
@@ -108,6 +120,53 @@ function feedText(status: OpportunityTrustStatus, liveText: string) {
   return "Not available for this run.";
 }
 
+function asCoverageNumber(value: unknown) {
+  const parsed = Number(value);
+
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function parseMarketCoverage(
+  value: unknown,
+  fallbackUniverseCount: number | null | undefined,
+): OpportunityTrustPanel["marketCoverage"] {
+  const fallbackCount = Number(fallbackUniverseCount ?? 0) || null;
+
+  if (!value || typeof value !== "object") {
+    return {
+      status: "unknown",
+      requestedUniverseLimit: null,
+      screenerCount: null,
+      detailedCandidateTarget: null,
+      detailedCandidateCount: fallbackCount,
+      qualifiedCandidateCount: null,
+      rankedCandidateCount: fallbackCount,
+      minimumScreenerCount: null,
+      minimumDetailedCandidateCount: null,
+      warning: null,
+    };
+  }
+
+  const row = value as Record<string, unknown>;
+  const status = row.status;
+
+  return {
+    status:
+      status === "healthy" || status === "thin" || status === "blocked"
+        ? status
+        : "unknown",
+    requestedUniverseLimit: asCoverageNumber(row.requestedUniverseLimit),
+    screenerCount: asCoverageNumber(row.screenerCount),
+    detailedCandidateTarget: asCoverageNumber(row.detailedCandidateTarget),
+    detailedCandidateCount: asCoverageNumber(row.detailedCandidateCount),
+    qualifiedCandidateCount: asCoverageNumber(row.qualifiedCandidateCount),
+    rankedCandidateCount: asCoverageNumber(row.rankedCandidateCount),
+    minimumScreenerCount: asCoverageNumber(row.minimumScreenerCount),
+    minimumDetailedCandidateCount: asCoverageNumber(row.minimumDetailedCandidateCount),
+    warning: typeof row.warning === "string" && row.warning.trim() ? row.warning : null,
+  };
+}
+
 function buildTrustPanel(args: {
   calibrationRuleCount?: number;
   completedAt?: string | null;
@@ -126,6 +185,10 @@ function buildTrustPanel(args: {
   const eventData = trustStatus(quality.eventData);
   const financialData = trustStatus(quality.financialData);
   const calibrationRuleCount = args.calibrationRuleCount ?? 0;
+  const marketCoverage = parseMarketCoverage(
+    (quality as { marketCoverage?: unknown }).marketCoverage,
+    args.universeCount ?? args.selectedCount,
+  );
 
   return {
     calibrationRuleCount,
@@ -166,6 +229,7 @@ function buildTrustPanel(args: {
     runSource: args.source,
     summary: args.summary ?? null,
     universeCount: Number(args.universeCount ?? args.selectedCount ?? 0),
+    marketCoverage,
   };
 }
 

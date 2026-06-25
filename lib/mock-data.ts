@@ -18,6 +18,7 @@ export const mockUsers: UserRow[] = [
     role: "admin",
     stripe_customer_id: null,
     phone: null,
+    preferred_brokerage: "none",
     risk_profile: "balanced",
     account_budget: "not_set",
     investing_experience: "beginner",

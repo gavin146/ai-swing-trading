@@ -9,12 +9,20 @@ import type {
   SubscriptionStatus,
   UserRole,
 } from "@/lib/database.types";
+import { normalizePreferredBrokerage } from "@/lib/brokerages";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 const ownerAdminEmail = "gavin@onefear.co";
+const userSelectBase =
+  "id,email,full_name,role,auth_user_id,phone,risk_profile,account_budget,investing_experience,position_size_preference,setup_preference,minimum_confidence,max_risk_score,morning_alerts_enabled,alert_channel,alert_time,timezone,email_verified_at,last_login_at,created_at";
+const userSelectWithBrokerage = `${userSelectBase},preferred_brokerage`;
+
+function isMissingPreferredBrokerageColumn(error: { message?: string } | null | undefined) {
+  return Boolean(error?.message?.toLowerCase().includes("preferred_brokerage"));
+}
 
 function cleanText(value: unknown, fallback = "") {
   return String(value ?? fallback).trim();
@@ -65,6 +73,7 @@ function toCustomer(row: Record<string, unknown>, subscriptionStatus: Subscripti
     minimumConfidence: Number(row.minimum_confidence ?? (riskProfile === "conservative" ? 78 : riskProfile === "aggressive" ? 62 : 70)),
     morningAlertsEnabled: Boolean(row.morning_alerts_enabled ?? true),
     phone: cleanText(row.phone),
+    preferredBrokerage: normalizePreferredBrokerage(row.preferred_brokerage),
     positionSizePreference: (row.position_size_preference ?? "small") as PositionSizePreference,
     riskProfile,
     role: (row.role ?? "customer") as UserRole,
@@ -102,25 +111,45 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Your login session could not be verified." }, { status: 401 });
   }
 
-  let { data: userRow, error: userError } = await supabase
+  const initialUserResult = await supabase
     .from("users")
-    .select(
-      "id,email,full_name,role,auth_user_id,phone,risk_profile,account_budget,investing_experience,position_size_preference,setup_preference,minimum_confidence,max_risk_score,morning_alerts_enabled,alert_channel,alert_time,timezone,email_verified_at,last_login_at,created_at",
-    )
+    .select(userSelectWithBrokerage)
     .eq("auth_user_id", authUser.id)
     .maybeSingle();
+  let userRow = initialUserResult.data as Record<string, unknown> | null;
+  let userError = initialUserResult.error;
+
+  if (isMissingPreferredBrokerageColumn(userError)) {
+    const fallback = await supabase
+      .from("users")
+      .select(userSelectBase)
+      .eq("auth_user_id", authUser.id)
+      .maybeSingle();
+
+    userRow = fallback.data as Record<string, unknown> | null;
+    userError = fallback.error;
+  }
 
   if (!userRow && !userError) {
     const byEmail = await supabase
       .from("users")
-      .select(
-        "id,email,full_name,role,auth_user_id,phone,risk_profile,account_budget,investing_experience,position_size_preference,setup_preference,minimum_confidence,max_risk_score,morning_alerts_enabled,alert_channel,alert_time,timezone,email_verified_at,last_login_at,created_at",
-      )
+      .select(userSelectWithBrokerage)
       .eq("email", email)
       .maybeSingle();
 
-    userRow = byEmail.data;
+    userRow = byEmail.data as Record<string, unknown> | null;
     userError = byEmail.error;
+
+    if (isMissingPreferredBrokerageColumn(userError)) {
+      const fallbackByEmail = await supabase
+        .from("users")
+        .select(userSelectBase)
+        .eq("email", email)
+        .maybeSingle();
+
+      userRow = fallbackByEmail.data as Record<string, unknown> | null;
+      userError = fallbackByEmail.error;
+    }
   }
 
   if (userError) {
@@ -149,16 +178,54 @@ export async function POST(request: NextRequest) {
         minimum_confidence: riskProfile === "conservative" ? 78 : riskProfile === "aggressive" ? 62 : 70,
         morning_alerts_enabled: true,
         phone: cleanText(authUser.user_metadata?.phone),
+        preferred_brokerage: normalizePreferredBrokerage(authUser.user_metadata?.preferred_brokerage),
         position_size_preference: "small",
         risk_profile: riskProfile,
         role,
         setup_preference: "balanced",
         timezone: "America/Chicago",
       })
-      .select(
-        "id,email,full_name,role,auth_user_id,phone,risk_profile,account_budget,investing_experience,position_size_preference,setup_preference,minimum_confidence,max_risk_score,morning_alerts_enabled,alert_channel,alert_time,timezone,email_verified_at,last_login_at,created_at",
-      )
+      .select(userSelectWithBrokerage)
       .single();
+
+    if (isMissingPreferredBrokerageColumn(insertError)) {
+      const { data: legacyInserted, error: legacyInsertError } = await supabase
+        .from("users")
+        .insert({
+          account_budget: "not_set",
+          alert_channel: "email" as AlertChannel,
+          alert_time: "08:30",
+          auth_user_id: authUser.id,
+          created_at: authUser.created_at ?? now,
+          email,
+          full_name: fullName,
+          investing_experience: "beginner",
+          last_login_at: now,
+          max_risk_score: riskProfile === "conservative" ? 45 : riskProfile === "aggressive" ? 78 : 65,
+          minimum_confidence: riskProfile === "conservative" ? 78 : riskProfile === "aggressive" ? 62 : 70,
+          morning_alerts_enabled: true,
+          phone: cleanText(authUser.user_metadata?.phone),
+          position_size_preference: "small",
+          risk_profile: riskProfile,
+          role,
+          setup_preference: "balanced",
+          timezone: "America/Chicago",
+        })
+        .select(userSelectBase)
+        .single();
+
+      if (legacyInsertError || !legacyInserted) {
+        return NextResponse.json(
+          { error: legacyInsertError?.message ?? "Could not create your SwingFi profile." },
+          { status: 503 },
+        );
+      }
+
+      userRow = legacyInserted as Record<string, unknown>;
+      return NextResponse.json({
+        customer: toCustomer(userRow as Record<string, unknown>, null),
+      });
+    }
 
     if (insertError || !inserted) {
       return NextResponse.json(
@@ -167,30 +234,39 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    userRow = inserted;
+    userRow = inserted as Record<string, unknown>;
   } else {
     const updatePayload: Record<string, unknown> = { last_login_at: now };
     if (!userRow.auth_user_id) updatePayload.auth_user_id = authUser.id;
     if (userRow.role !== role) updatePayload.role = role;
 
     if (Object.keys(updatePayload).length) {
-      const { data: updated } = await supabase
+      const updated = await supabase
         .from("users")
         .update(updatePayload)
-        .eq("id", userRow.id)
-        .select(
-          "id,email,full_name,role,auth_user_id,phone,risk_profile,account_budget,investing_experience,position_size_preference,setup_preference,minimum_confidence,max_risk_score,morning_alerts_enabled,alert_channel,alert_time,timezone,email_verified_at,last_login_at,created_at",
-        )
+        .eq("id", cleanText(userRow.id))
+        .select(userSelectWithBrokerage)
         .single();
 
-      userRow = updated ?? userRow;
+      if (isMissingPreferredBrokerageColumn(updated.error)) {
+        const fallbackUpdated = await supabase
+          .from("users")
+          .update(updatePayload)
+          .eq("id", cleanText(userRow.id))
+          .select(userSelectBase)
+          .single();
+
+        userRow = (fallbackUpdated.data as Record<string, unknown> | null) ?? userRow;
+      } else {
+        userRow = (updated.data as Record<string, unknown> | null) ?? userRow;
+      }
     }
   }
 
   const { data: subscription } = await supabase
     .from("subscriptions")
     .select("status,updated_at")
-    .eq("user_id", userRow.id)
+    .eq("user_id", cleanText(userRow.id))
     .in("status", ["active", "trialing"])
     .order("updated_at", { ascending: false })
     .limit(1)

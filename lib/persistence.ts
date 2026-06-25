@@ -86,15 +86,19 @@ function personalizedPickScore(opportunity: OpportunityRow, user: PickUserPrefer
   const confidenceGap = Math.max(0, user.minimum_confidence - opportunity.confidence);
   const riskGap = Math.max(0, opportunity.risk_score - user.max_risk_score);
   let penalty = confidenceGap * 1.1 + riskGap * 1.25;
+  const severeRiskGap = Math.max(0, opportunity.risk_score - 70);
 
   if (user.risk_profile === "conservative") {
-    penalty += Math.max(0, opportunity.risk_score - 45) * 0.35;
+    penalty += Math.max(0, opportunity.risk_score - 45) * 0.75;
+    penalty += severeRiskGap * 1.2;
     penalty -= opportunity.confidence >= 78 && opportunity.risk_score <= 45 ? 5 : 0;
   }
 
   if (user.risk_profile === "aggressive") {
     penalty -= opportunity.score >= 75 && opportunity.expected_gain >= 7 ? 4 : 0;
     penalty += opportunity.confidence < 62 ? 6 : 0;
+  } else {
+    penalty += severeRiskGap * 0.65;
   }
 
   if (user.position_size_preference === "small") {
@@ -116,7 +120,7 @@ function personalizedPickScore(opportunity: OpportunityRow, user: PickUserPrefer
   }
 
   if (user.account_budget === "under_1000") {
-    penalty += Math.max(0, opportunity.risk_score - 50) * 0.25;
+    penalty += Math.max(0, opportunity.risk_score - 50) * 0.45;
   }
 
   if (user.account_budget === "1000_5000") {

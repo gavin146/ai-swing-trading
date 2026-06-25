@@ -14,6 +14,14 @@ export type AlertStatus = "preview" | "queued" | "sent" | "failed";
 export type CalibrationConfidence = "low" | "medium" | "high";
 export type InvestingExperience = "beginner" | "intermediate" | "advanced";
 export type PositionSizePreference = "small" | "moderate" | "aggressive";
+export type PreferredBrokerage =
+  | "none"
+  | "schwab"
+  | "fidelity"
+  | "robinhood"
+  | "etrade"
+  | "interactive_brokers"
+  | "other";
 export type RiskProfile = "conservative" | "balanced" | "aggressive";
 export type SetupPreference = "steady" | "balanced" | "momentum";
 export type SubscriptionStatus =
@@ -44,6 +52,7 @@ export type UserRow = {
   role: UserRole;
   stripe_customer_id: string | null;
   phone: string | null;
+  preferred_brokerage: PreferredBrokerage;
   risk_profile: RiskProfile;
   account_budget: AccountBudget;
   investing_experience: InvestingExperience;

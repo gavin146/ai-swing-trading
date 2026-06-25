@@ -15,12 +15,24 @@ function parseLimit(value: unknown) {
   return Math.max(1, Math.min(90, Math.round(parsed)));
 }
 
+function parseRange(value: unknown, fallback: number, min: number, max: number) {
+  const parsed = Number(value ?? fallback);
+
+  if (!Number.isFinite(parsed)) return fallback;
+
+  return Math.max(min, Math.min(max, Math.round(parsed)));
+}
+
 export async function POST(request: NextRequest) {
   if (!isAdminApiRequest(request)) {
     return NextResponse.json(getAdminUnauthorizedResponse(), { status: 403 });
   }
 
-  const body = (await request.json().catch(() => ({}))) as { limit?: number };
+  const body = (await request.json().catch(() => ({}))) as {
+    detailedLimit?: number;
+    limit?: number;
+    universeLimit?: number;
+  };
   const source = "fmp";
 
   if (!process.env.FMP_API_KEY && !process.env.FINANCIAL_DATA_API_KEY) {
@@ -32,7 +44,11 @@ export async function POST(request: NextRequest) {
 
   try {
     const persistedCalibration = await hydrateRuntimeCalibrationFromSupabase();
-    const result = await runFmpDailyRankingAgent({ limit: parseLimit(body.limit) });
+    const result = await runFmpDailyRankingAgent({
+      detailedLimit: parseRange(body.detailedLimit, 350, 30, 500),
+      limit: parseLimit(body.limit),
+      universeLimit: parseRange(body.universeLimit, 1000, 40, 1500),
+    });
     const persistence = await persistAgentRun(result);
     const calibration = summarizeCalibration(result.rankings);
 

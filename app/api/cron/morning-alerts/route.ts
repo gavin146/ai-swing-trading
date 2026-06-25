@@ -32,6 +32,7 @@ async function runMorningAlerts(request: NextRequest) {
   const recipients = recipientResult.recipients;
   const phone = process.env.ALERT_TEST_PHONE;
   const customerName = process.env.ALERT_TEST_CUSTOMER_NAME ?? "";
+  const smsAlertsEnabled = process.env.ENABLE_TWILIO_MORNING_ALERTS === "true";
 
   if (!process.env.FMP_API_KEY && !process.env.FINANCIAL_DATA_API_KEY) {
     await recordAppEvent({
@@ -124,7 +125,7 @@ async function runMorningAlerts(request: NextRequest) {
       }
     }
 
-    if (phone) {
+    if (phone && smsAlertsEnabled) {
       const message = buildMorningAlertMessage({
         customerName,
         marketRegime: result.marketRegime,
@@ -136,6 +137,13 @@ async function runMorningAlerts(request: NextRequest) {
         channel: "sms",
         delivery,
         message,
+      });
+    } else if (phone && !smsAlertsEnabled) {
+      await recordAppEvent({
+        level: "info",
+        source: "morning-alerts-cron",
+        message: "SMS alert delivery skipped because Twilio A2P approval is not enabled for production sends.",
+        metadata: { phoneConfigured: true },
       });
     }
 

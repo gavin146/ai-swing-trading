@@ -14,6 +14,7 @@ import {
   type PositionSizePreference,
   type SetupPreference,
 } from "@/lib/customer-store";
+import { brokerageOptions, type PreferredBrokerage } from "@/lib/brokerages";
 import { ToastNotice } from "@/components/ToastNotice";
 import type { RiskProfile } from "@/lib/database.types";
 
@@ -28,6 +29,7 @@ type SettingsChoices = {
   alertChannel: AlertChannel;
   investingExperience: InvestingExperience;
   positionSizePreference: PositionSizePreference;
+  preferredBrokerage: PreferredBrokerage;
   riskProfile: RiskProfile;
   setupPreference: SetupPreference;
 };
@@ -156,6 +158,7 @@ function getChoicesFromCustomer(customer: CustomerProfile): SettingsChoices {
     alertChannel: customer.alertChannel,
     investingExperience: customer.investingExperience,
     positionSizePreference: customer.positionSizePreference,
+    preferredBrokerage: customer.preferredBrokerage,
     riskProfile: customer.riskProfile,
     setupPreference: customer.setupPreference,
   };
@@ -253,6 +256,9 @@ export function SettingsForm() {
         fullName: String(formData.get("fullName") ?? ""),
         email: String(formData.get("email") ?? ""),
         phone: nextPhone,
+        preferredBrokerage: String(
+          formData.get("preferredBrokerage") ?? "none",
+        ) as PreferredBrokerage,
         investingExperience: String(
           formData.get("investingExperience") ?? "beginner",
         ) as InvestingExperience,
@@ -398,6 +404,23 @@ export function SettingsForm() {
               className="rounded-xl border border-line bg-surface px-4 py-3 font-medium outline-none transition focus:border-pine focus:bg-panel"
             />
           </label>
+        </div>
+      </section>
+
+      <section className="rounded-3xl border border-line/80 bg-white p-6 shadow-[0_20px_70px_rgba(7,20,24,0.07)]">
+        <h2 className="text-xl font-bold text-ink">Brokerage handoff</h2>
+        <p className="mt-2 max-w-3xl text-sm font-semibold leading-6 text-ink/60">
+          Choose the institution SwingFi should prioritize when you open a ranked
+          opportunity. SwingFi never stores brokerage usernames, passwords, or account
+          credentials. Your browser or password manager handles login after the handoff.
+        </p>
+        <div className="mt-5">
+          <ChoiceCards
+            name="preferredBrokerage"
+            onChange={(value) => updateChoice("preferredBrokerage", value)}
+            options={brokerageOptions}
+            value={activeChoices.preferredBrokerage}
+          />
         </div>
       </section>
 

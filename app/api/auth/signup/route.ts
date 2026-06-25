@@ -193,6 +193,7 @@ export async function POST(request: NextRequest) {
         minimumConfidence,
         morningAlertsEnabled: true,
         phone: cleanText(body?.phone),
+        preferredBrokerage: "none",
         positionSizePreference,
         riskProfile,
         role,

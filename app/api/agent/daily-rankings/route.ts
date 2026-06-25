@@ -52,15 +52,15 @@ export async function GET(request: NextRequest) {
   const source = "fmp";
   const universeLimit = parseRange(
     request.nextUrl.searchParams.get("universeLimit"),
-    500,
+    1000,
     5,
-    500,
+    1500,
   );
   const detailedLimit = parseRange(
     request.nextUrl.searchParams.get("detailedLimit"),
-    200,
+    350,
     5,
-    200,
+    500,
   );
 
   try {
@@ -87,9 +87,9 @@ export async function POST(request: NextRequest) {
 
   try {
     const result = await runAgent({
-      detailedLimit: parseRange(body.detailedLimit, 200, 5, 200),
+      detailedLimit: parseRange(body.detailedLimit, 350, 5, 500),
       limit: parseLimit(body.limit),
-      universeLimit: parseRange(body.universeLimit, 500, 5, 500),
+      universeLimit: parseRange(body.universeLimit, 1000, 5, 1500),
     });
     return NextResponse.json(result);
   } catch (error) {

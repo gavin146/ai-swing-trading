@@ -225,7 +225,7 @@ function TodayActionPlan({
           <ActionItem
             label="Avoid chasing"
             title={`${dailyPicks[0]?.symbol ?? "Top pick"} entry discipline`}
-            body={`Do not treat the score as permission to buy far above ${dailyPicks[0]?.entryRange ?? "the entry range"}. The plan changes if price runs away.`}
+            body={`Do not treat the score as permission to chase far above ${dailyPicks[0]?.entryRange ?? "the entry range"}. The plan changes if price runs away.`}
           />
           <ActionItem
             label="Highest risk"
@@ -260,6 +260,25 @@ function DataTrustPanel({
 }) {
   if (!trust) return null;
 
+  const coverage = trust.marketCoverage;
+  const coverageStatus =
+    coverage.status === "healthy"
+      ? "live"
+      : coverage.status === "thin"
+        ? "partial"
+        : coverage.status === "blocked"
+          ? "missing"
+          : "mock";
+  const scannedLabel =
+    coverage.screenerCount !== null && coverage.requestedUniverseLimit !== null
+      ? `${coverage.screenerCount}/${coverage.requestedUniverseLimit}`
+      : coverage.detailedCandidateCount !== null
+        ? `${coverage.detailedCandidateCount} detailed`
+        : "Unknown";
+  const deepLabel =
+    coverage.detailedCandidateCount !== null && coverage.detailedCandidateTarget !== null
+      ? `${coverage.detailedCandidateCount}/${coverage.detailedCandidateTarget}`
+      : "Not saved";
   const statusLabel = {
     checked: "Checked",
     active: `${trust.calibrationRuleCount} active rules`,
@@ -295,6 +314,16 @@ function DataTrustPanel({
         </div>
       </div>
       <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <div className={`rounded-2xl border p-4 ${trustTone(coverageStatus)}`}>
+          <p className="text-xs font-black uppercase tracking-normal opacity-70">
+            Market scanned
+          </p>
+          <p className="mt-2 text-sm font-black">{scannedLabel}</p>
+          <p className="mt-2 text-xs font-semibold leading-5 text-ink/58">
+            Deep analysis: {deepLabel}. Qualified setups:{" "}
+            {coverage.qualifiedCandidateCount ?? "not saved"}.
+          </p>
+        </div>
         {trust.dataFeeds.map((feed) => (
           <div key={feed.label} className={`rounded-2xl border p-4 ${trustTone(feed.status)}`}>
             <p className="text-xs font-black uppercase tracking-normal opacity-70">
@@ -325,6 +354,11 @@ function DataTrustPanel({
           </p>
         </div>
       </div>
+      {coverage.warning ? (
+        <p className="mt-3 rounded-2xl border border-coral/25 bg-coral/10 px-4 py-3 text-sm font-bold leading-6 text-coral">
+          {coverage.warning}
+        </p>
+      ) : null}
     </section>
   );
 }
@@ -416,16 +450,20 @@ function preferenceFitScore(opportunity: Opportunity, customer: CustomerProfile)
   const confidenceGap = Math.max(0, customer.minimumConfidence - opportunity.confidenceScore);
   const riskGap = Math.max(0, opportunity.riskScore - customer.maxRiskScore);
   let penalty = confidenceGap * 1.1 + riskGap * 1.25;
+  const severeRiskGap = Math.max(0, opportunity.riskScore - 70);
   const potentialGain = percentNumber(opportunity.potentialGain);
 
   if (customer.riskProfile === "conservative") {
-    penalty += Math.max(0, opportunity.riskScore - 45) * 0.35;
+    penalty += Math.max(0, opportunity.riskScore - 45) * 0.75;
+    penalty += severeRiskGap * 1.2;
     penalty -= opportunity.confidenceScore >= 78 && opportunity.riskScore <= 45 ? 5 : 0;
   }
 
   if (customer.riskProfile === "aggressive") {
     penalty -= opportunity.opportunityScore >= 75 && potentialGain >= 7 ? 4 : 0;
     penalty += opportunity.confidenceScore < 62 ? 6 : 0;
+  } else {
+    penalty += severeRiskGap * 0.65;
   }
 
   if (customer.positionSizePreference === "small") {
@@ -447,7 +485,7 @@ function preferenceFitScore(opportunity: Opportunity, customer: CustomerProfile)
   }
 
   if (customer.accountBudget === "under_1000") {
-    penalty += Math.max(0, opportunity.riskScore - 50) * 0.25;
+    penalty += Math.max(0, opportunity.riskScore - 50) * 0.45;
   }
 
   if (customer.accountBudget === "1000_5000") {
@@ -460,6 +498,16 @@ function preferenceFitScore(opportunity: Opportunity, customer: CustomerProfile)
     opportunity.riskScore * 0.22 -
     penalty
   );
+}
+
+function topViewRiskCeiling(customer: CustomerProfile | null) {
+  if (!customer) return 72;
+  if (customer.riskProfile === "aggressive" && customer.investingExperience !== "beginner") return 95;
+  if (customer.riskProfile === "conservative" || customer.investingExperience === "beginner") {
+    return Math.min(customer.maxRiskScore + 8, 62);
+  }
+
+  return Math.min(customer.maxRiskScore + 10, 72);
 }
 
 export function DashboardOpportunities({
@@ -632,7 +680,12 @@ export function DashboardOpportunities({
     );
 
     if (activeView === "top") {
-      return activePicks.slice(0, 5);
+      const riskCeiling = topViewRiskCeiling(customer);
+      const calmerPicks = activePicks.filter(
+        (opportunity) => opportunity.riskScore <= riskCeiling,
+      );
+
+      return (calmerPicks.length >= 3 ? calmerPicks : activePicks).slice(0, 5);
     }
 
     if (activeView === "watchlist") {
@@ -661,7 +714,7 @@ export function DashboardOpportunities({
           percentNumber(opportunity.potentialGain) >= 8,
       )
       .slice(0, 8);
-  }, [activeView, customer?.maxRiskScore, dailyPicks, savedSymbols, skippedSymbols, watchedSymbols]);
+  }, [activeView, customer, dailyPicks, savedSymbols, skippedSymbols, watchedSymbols]);
 
   const viewOptions = useMemo(
     () => [

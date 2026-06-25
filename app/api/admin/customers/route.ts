@@ -194,6 +194,7 @@ export async function GET(request: NextRequest) {
       minimumConfidence: Number(user.minimum_confidence ?? 70),
       morningAlertsEnabled: Boolean(user.morning_alerts_enabled),
       phone: String(user.phone ?? ""),
+      preferredBrokerage: "none",
       positionSizePreference: (user.position_size_preference ?? "small") as PositionSizePreference,
       riskProfile: user.risk_profile as RiskProfile,
       role: user.role as UserRole,

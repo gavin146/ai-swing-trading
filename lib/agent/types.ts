@@ -117,6 +117,18 @@ export type AgentRunResult = {
     newsData: "mock" | "live" | "partial";
     eventData: "mock" | "live" | "partial";
     secData: "mock" | "live" | "partial";
+    marketCoverage?: {
+      status: "healthy" | "thin" | "blocked";
+      requestedUniverseLimit: number;
+      screenerCount: number;
+      detailedCandidateTarget: number;
+      detailedCandidateCount: number;
+      qualifiedCandidateCount: number;
+      rankedCandidateCount: number;
+      minimumScreenerCount: number;
+      minimumDetailedCandidateCount: number;
+      warning: string | null;
+    };
     notes: string[];
   };
   universeCount: number;

@@ -160,6 +160,18 @@ function envNumber(name: string, fallback: number, min: number, max: number) {
   return Math.max(min, Math.min(max, Math.round(parsed)));
 }
 
+function envFlag(name: string, fallback = false) {
+  const value = process.env[name];
+
+  if (value === undefined) return fallback;
+
+  return ["1", "true", "yes", "on"].includes(value.toLowerCase());
+}
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 function percentChange(current: number, previous: number) {
   if (!Number.isFinite(current) || !Number.isFinite(previous) || previous === 0) {
     return 0;
@@ -801,9 +813,16 @@ async function buildFmpCandidate(
   const secFrom = daysAgo(asOf, 45);
   const earningsTo = daysAhead(asOf, 90);
 
-  const [candles, profile, incomeStatements, ratios, keyMetrics, news, earnings, secFilings] =
+  const candles = await optionalArray(getFmpHistoricalCandles(symbol, from, to));
+  const fallbackSector = mapSector(fallback.sector);
+  const earlyTechnical = buildTechnicalSnapshot(candles, fallbackSector, benchmarks);
+
+  if (!earlyTechnical) {
+    return null;
+  }
+
+  const [profile, incomeStatements, ratios, keyMetrics, news, earnings, secFilings] =
     await Promise.all([
-    getFmpHistoricalCandles(symbol, from, to),
     optionalValue(getFmpCompanyProfile(symbol)),
     optionalArray(getFmpIncomeStatements(symbol, 4)),
     optionalValue(getFmpRatiosTtm(symbol)),
@@ -816,11 +835,8 @@ async function buildFmpCandidate(
     secFilings.length > 0 ? [] : await optionalArray(getSecSubmissionsByCik(profile?.cik));
   const allSecFilings = secFilings.length > 0 ? secFilings : directSecFilings;
   const sector = mapSector(profile?.sector ?? fallback.sector);
-  const technical = buildTechnicalSnapshot(candles, sector, benchmarks);
-
-  if (!technical) {
-    return null;
-  }
+  const technical =
+    sector === fallbackSector ? earlyTechnical : buildTechnicalSnapshot(candles, sector, benchmarks) ?? earlyTechnical;
 
   const averageVolume = profile?.volAvg ?? profile?.avgVolume ?? fallback.averageVolume ?? candles.at(-1)?.volume ?? 0;
   const marketCapBillions = Math.max(0, (profile?.marketCap ?? fallback.marketCapBillions * 1_000_000_000) / 1_000_000_000);
@@ -1010,7 +1026,9 @@ export async function getFmpEquityUniverse(
     }
   });
 
-  const results = await mapWithConcurrency<string, CandidateBuildResult | null>(symbols, 2, async (symbol) => {
+  const throttleMs = envNumber("FMP_CANDIDATE_DELAY_MS", 150, 0, 2000);
+  const candidateConcurrency = envNumber("FMP_CANDIDATE_CONCURRENCY", 1, 1, 4);
+  const results = await mapWithConcurrency<string, CandidateBuildResult | null>(symbols, candidateConcurrency, async (symbol) => {
     const fallback = fallbackBySymbol.get(symbol);
 
     if (!fallback) {
@@ -1029,34 +1047,38 @@ export async function getFmpEquityUniverse(
           hasLiveEventData: candidate.hasLiveEventData,
           hasLiveSecData: candidate.hasLiveSecData,
         } satisfies CandidateBuildResult;
-      }
-    } catch {
-      if (!allowFallbackForMissing) {
-        return null;
-      }
+	      }
 
-      return {
-        candidate: buildFallbackCandidate(fallback, macro),
-        hasLivePriceData: false,
-        hasLiveFinancialData: false,
-        hasLiveNewsData: false,
-        hasLiveEventData: false,
-        hasLiveSecData: false,
-      } satisfies CandidateBuildResult;
+	      if (!allowFallbackForMissing) {
+	        return null;
+	      }
+
+	      return {
+	        candidate: buildFallbackCandidate(fallback, macro),
+	        hasLivePriceData: false,
+	        hasLiveFinancialData: false,
+	        hasLiveNewsData: false,
+	        hasLiveEventData: false,
+	        hasLiveSecData: false,
+	      } satisfies CandidateBuildResult;
+	    } catch {
+	      if (!allowFallbackForMissing) {
+	        return null;
+	      }
+
+	      return {
+	        candidate: buildFallbackCandidate(fallback, macro),
+	        hasLivePriceData: false,
+	        hasLiveFinancialData: false,
+	        hasLiveNewsData: false,
+	        hasLiveEventData: false,
+	        hasLiveSecData: false,
+	      } satisfies CandidateBuildResult;
+	    } finally {
+	      if (throttleMs > 0) {
+	        await sleep(throttleMs);
+	      }
     }
-
-    if (!allowFallbackForMissing) {
-      return null;
-    }
-
-    return {
-      candidate: buildFallbackCandidate(fallback, macro),
-      hasLivePriceData: false,
-      hasLiveFinancialData: false,
-      hasLiveNewsData: false,
-      hasLiveEventData: false,
-      hasLiveSecData: false,
-    } satisfies CandidateBuildResult;
   });
 
   const builtCandidates = results.filter((result) => result !== null);
@@ -1075,9 +1097,12 @@ export async function runFmpDailyRankingAgent({
   asOf = new Date(),
   limit = 30,
   symbols,
-  universeLimit = envNumber("FMP_UNIVERSE_LIMIT", 800, 40, 1000),
-  detailedLimit = envNumber("FMP_DETAILED_LIMIT", 300, 30, 350),
+  universeLimit = envNumber("FMP_UNIVERSE_LIMIT", 1000, 40, 1500),
+  detailedLimit = envNumber("FMP_DETAILED_LIMIT", 350, 30, 500),
 }: RunFmpOptions = {}): Promise<AgentRunResult> {
+  const minimumScreenerCount = envNumber("FMP_MIN_SCREENER_ROWS", 250, 40, 1500);
+  const minimumDetailedCandidateCount = envNumber("FMP_MIN_DETAILED_CANDIDATES", 120, 30, 500);
+  const coverageGateEnabled = !envFlag("DISABLE_MARKET_COVERAGE_GATE", false);
   const macro = await getFredMacroContext();
   const bls = await getBlsMacroContext();
   const treasury = await getTreasuryMacroContext();
@@ -1109,6 +1134,22 @@ export async function runFmpDailyRankingAgent({
   const qualitySupplementCount =
     qualityUniverse.length < limit ? universe.length - qualityUniverse.length : 0;
   const skippedCount = universeSymbols.length - universe.length;
+  const coverageWarning =
+    symbols
+      ? null
+      : screenerRows.length < minimumScreenerCount
+        ? `Market coverage gate failed: FMP screener returned ${screenerRows.length} rows, below the required ${minimumScreenerCount}.`
+        : universeResult.candidates.length < minimumDetailedCandidateCount
+          ? `Market coverage gate failed: only ${universeResult.candidates.length} detailed live candidates were analyzed, below the required ${minimumDetailedCandidateCount}.`
+          : null;
+  const coverageStatus = coverageWarning ? "blocked" : qualityUniverse.length < limit ? "thin" : "healthy";
+
+  if (coverageGateEnabled && coverageWarning) {
+    throw new Error(
+      `${coverageWarning} The daily ranking run was blocked so customers do not receive a thin market scan. Increase FMP coverage, loosen screener limits, or set DISABLE_MARKET_COVERAGE_GATE=true only for temporary testing.`,
+    );
+  }
+
   const livePriceCount = universeResult.livePriceCount;
   const liveFinancialCount = universeResult.liveFinancialCount;
   const liveNewsCount = universeResult.liveNewsCount;
@@ -1127,6 +1168,18 @@ export async function runFmpDailyRankingAgent({
       newsData: dataQualityLabel(Math.min(liveNewsCount, universe.length), universe.length),
       eventData: dataQualityLabel(Math.min(liveEventCount, universe.length), universe.length),
       secData: dataQualityLabel(Math.min(liveSecCount, universe.length), universe.length),
+      marketCoverage: {
+        status: coverageStatus,
+        requestedUniverseLimit: universeLimit,
+        screenerCount: screenerRows.length,
+        detailedCandidateTarget: detailedLimit,
+        detailedCandidateCount: universeResult.candidates.length,
+        qualifiedCandidateCount: qualityUniverse.length,
+        rankedCandidateCount: universe.length,
+        minimumScreenerCount,
+        minimumDetailedCandidateCount,
+        warning: coverageWarning,
+      },
       notes: [
         "Data quality gate checks market data, news/catalyst data, SEC/corporate event data, macro data, enough liquidity, volume trend, relative strength, and clean technical structure before a symbol is trusted.",
         "Live FMP daily candles are used for technical scoring. FMP profiles, statements, ratios, and key metrics are used for financial scoring when available.",

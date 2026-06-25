@@ -188,9 +188,9 @@ export async function getFmpCompanyScreener(limit = 160) {
     country: "US",
     isEtf: "false",
     isActivelyTrading: "true",
-    priceMoreThan: 5,
-    marketCapMoreThan: 2_000_000_000,
-    volumeMoreThan: 500_000,
+    priceMoreThan: 3,
+    marketCapMoreThan: 500_000_000,
+    volumeMoreThan: 300_000,
     limit,
   });
 }

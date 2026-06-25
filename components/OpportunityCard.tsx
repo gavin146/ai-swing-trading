@@ -177,7 +177,7 @@ export function OpportunityCard({
             tone={scoreTone(opportunity.opportunityScore)}
           />
           <MetricPill label="Potential loss" value={opportunity.potentialLoss} tone="risk" />
-          <MetricPill label="Buy window" value={opportunity.estimatedBuyWindow} tone="neutral" />
+          <MetricPill label="Entry window" value={opportunity.estimatedBuyWindow} tone="neutral" />
           <MetricPill label="Est. sell" value={opportunity.estimatedSellWindow} tone="caution" />
         </div>
 

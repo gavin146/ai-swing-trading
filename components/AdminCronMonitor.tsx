@@ -6,6 +6,18 @@ import { getAdminHeaders } from "@/lib/admin-client";
 type CronItem = {
   errorMessage?: string | null;
   id?: string | null;
+  marketCoverage?: {
+    status: "healthy" | "thin" | "blocked" | "unknown";
+    requestedUniverseLimit: number | null;
+    screenerCount: number | null;
+    detailedCandidateTarget: number | null;
+    detailedCandidateCount: number | null;
+    qualifiedCandidateCount: number | null;
+    rankedCandidateCount: number | null;
+    minimumScreenerCount: number | null;
+    minimumDetailedCandidateCount: number | null;
+    warning: string | null;
+  } | null;
   ranAt?: string | null;
   selectedCount?: number;
   status?: string | null;
@@ -106,6 +118,27 @@ function MonitorCard({
   );
 }
 
+function coverageStatusTone(status?: string | null) {
+  if (status === "healthy") return "good";
+  if (status === "thin") return "warn";
+  if (status === "blocked") return "bad";
+  return "neutral";
+}
+
+function coverageLabel(coverage?: CronItem["marketCoverage"]) {
+  if (!coverage) return "Not saved";
+
+  if (coverage.screenerCount !== null && coverage.requestedUniverseLimit !== null) {
+    return `${coverage.screenerCount}/${coverage.requestedUniverseLimit} scanned`;
+  }
+
+  if (coverage.detailedCandidateCount !== null) {
+    return `${coverage.detailedCandidateCount} detailed`;
+  }
+
+  return "Not saved";
+}
+
 export function AdminCronMonitor() {
   const [payload, setPayload] = useState<CronStatusPayload | null>(null);
   const [message, setMessage] = useState("Loading cron monitor...");
@@ -181,6 +214,16 @@ export function AdminCronMonitor() {
           }
         />
         <MonitorCard
+          label="Market coverage"
+          title={coverageLabel(latestAgent?.marketCoverage)}
+          status={latestAgent?.marketCoverage?.status ?? "unknown"}
+          detail={
+            latestAgent?.marketCoverage
+              ? `Deep analysis: ${latestAgent.marketCoverage.detailedCandidateCount ?? "n/a"}/${latestAgent.marketCoverage.detailedCandidateTarget ?? "n/a"}. Qualified: ${latestAgent.marketCoverage.qualifiedCandidateCount ?? "n/a"}.`
+              : "Older runs did not save market coverage metadata."
+          }
+        />
+        <MonitorCard
           label="Morning email"
           title={latestAlert ? `${latestAlert.channel ?? "email"} ${latestAlert.status ?? "recorded"}` : "No alert log"}
           status={latestAlert?.status}
@@ -207,6 +250,12 @@ export function AdminCronMonitor() {
           detail={`${predictions?.pending ?? 0} pending, ${predictions?.evaluated ?? 0} evaluated for ${predictions?.latestDate ?? "no saved date"}.`}
         />
       </div>
+
+      {latestAgent?.marketCoverage?.warning ? (
+        <p className={`mt-4 rounded-2xl border px-4 py-3 text-sm font-bold leading-6 ${toneClasses(coverageStatusTone(latestAgent.marketCoverage.status))}`}>
+          {latestAgent.marketCoverage.warning}
+        </p>
+      ) : null}
 
       <div className="mt-5 rounded-2xl border border-line bg-surface p-4">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">

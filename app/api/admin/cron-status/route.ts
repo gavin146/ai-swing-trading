@@ -16,8 +16,43 @@ function asNumber(value: unknown) {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+function nullableNumber(value: unknown) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
 function rowError(error: { message?: string } | null | undefined) {
   return error?.message ?? null;
+}
+
+function parseMarketCoverage(dataQuality: unknown) {
+  if (!dataQuality || typeof dataQuality !== "object") {
+    return null;
+  }
+
+  const coverage = (dataQuality as { marketCoverage?: unknown }).marketCoverage;
+  if (!coverage || typeof coverage !== "object") {
+    return null;
+  }
+
+  const row = coverage as Record<string, unknown>;
+  const status = row.status;
+
+  return {
+    status:
+      status === "healthy" || status === "thin" || status === "blocked"
+        ? status
+        : "unknown",
+    requestedUniverseLimit: nullableNumber(row.requestedUniverseLimit),
+    screenerCount: nullableNumber(row.screenerCount),
+    detailedCandidateTarget: nullableNumber(row.detailedCandidateTarget),
+    detailedCandidateCount: nullableNumber(row.detailedCandidateCount),
+    qualifiedCandidateCount: nullableNumber(row.qualifiedCandidateCount),
+    rankedCandidateCount: nullableNumber(row.rankedCandidateCount),
+    minimumScreenerCount: nullableNumber(row.minimumScreenerCount),
+    minimumDetailedCandidateCount: nullableNumber(row.minimumDetailedCandidateCount),
+    warning: asString(row.warning),
+  };
 }
 
 function latestPredictionSummary(rows: SourceRow[]) {
@@ -66,7 +101,7 @@ export async function GET(request: NextRequest) {
   ] = await Promise.all([
     supabase
       .from("agent_runs")
-      .select("id,status,source,selected_count,universe_count,market_regime,summary,error_message,started_at,completed_at,created_at")
+      .select("id,status,source,selected_count,universe_count,market_regime,summary,data_quality,error_message,started_at,completed_at,created_at")
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle(),
@@ -114,6 +149,7 @@ export async function GET(request: NextRequest) {
           source: asString(latestAgentRun.data.source),
           selectedCount: asNumber(latestAgentRun.data.selected_count),
           universeCount: asNumber(latestAgentRun.data.universe_count),
+          marketCoverage: parseMarketCoverage(latestAgentRun.data.data_quality),
           marketRegime: asString(latestAgentRun.data.market_regime),
           summary: asString(latestAgentRun.data.summary),
           errorMessage: asString(latestAgentRun.data.error_message),

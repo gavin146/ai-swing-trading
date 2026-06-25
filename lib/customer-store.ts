@@ -1,6 +1,7 @@
 "use client";
 
 import type { RiskProfile, SubscriptionStatus } from "./database.types";
+import { normalizePreferredBrokerage, type PreferredBrokerage } from "./brokerages";
 import { createSupabaseBrowserClient } from "./supabase/browser";
 
 export type AlertChannel = "sms" | "email" | "none";
@@ -17,6 +18,7 @@ export type CustomerProfile = {
   fullName: string;
   role: CustomerRole;
   phone: string;
+  preferredBrokerage: PreferredBrokerage;
   riskProfile: RiskProfile;
   accountBudget: AccountBudget;
   investingExperience: InvestingExperience;
@@ -158,6 +160,7 @@ function withoutPassword(customer: StoredCustomer): CustomerProfile {
     fullName: customer.fullName,
     role: customer.role ?? "customer",
     phone: customer.phone,
+    preferredBrokerage: normalizePreferredBrokerage(customer.preferredBrokerage),
     riskProfile: customer.riskProfile,
     accountBudget: customer.accountBudget,
     investingExperience: customer.investingExperience,
@@ -186,6 +189,7 @@ function normalizeCustomer(customer: StoredCustomer): StoredCustomer {
     email,
     role: email === SWINGFI_ADMIN_EMAIL || customer.role === "admin" ? "admin" : "customer",
     phone: customer.phone ?? "",
+    preferredBrokerage: normalizePreferredBrokerage(customer.preferredBrokerage),
     authUserId: customer.authUserId ?? null,
     riskProfile: customer.riskProfile ?? "balanced",
     accountBudget: customer.accountBudget ?? "not_set",
@@ -369,6 +373,7 @@ function syncCustomerProfile(customer: CustomerProfile | null) {
     minimumConfidence: customer.minimumConfidence,
     morningAlertsEnabled: customer.morningAlertsEnabled,
     phone: customer.phone,
+    preferredBrokerage: customer.preferredBrokerage,
     positionSizePreference: customer.positionSizePreference,
     riskProfile: customer.riskProfile,
     role: customer.role,
@@ -494,6 +499,7 @@ export function signupCustomer(values: {
   lastName: string;
   password: string;
   phone?: string;
+  preferredBrokerage?: PreferredBrokerage;
   accountBudget?: AccountBudget;
   investingExperience?: InvestingExperience;
   positionSizePreference?: PositionSizePreference;
@@ -513,6 +519,7 @@ export function signupCustomer(values: {
     fullName: `${values.firstName.trim()} ${values.lastName.trim()}`.trim(),
     role: isAdminEmail(normalizedEmail) ? "admin" : "customer",
     phone: values.phone?.trim() ?? "",
+    preferredBrokerage: normalizePreferredBrokerage(values.preferredBrokerage),
     riskProfile: values.riskProfile ?? "balanced",
     accountBudget: values.accountBudget ?? "not_set",
     investingExperience: values.investingExperience ?? "beginner",
@@ -556,6 +563,7 @@ export function rememberAuthenticatedCustomer(values: {
   morningAlertsEnabled?: boolean;
   password?: string;
   phone?: string;
+  preferredBrokerage?: PreferredBrokerage | null;
   positionSizePreference?: PositionSizePreference;
   riskProfile?: RiskProfile;
   role?: CustomerRole;
@@ -583,6 +591,9 @@ export function rememberAuthenticatedCustomer(values: {
         ? "admin"
         : "customer",
     phone: values.phone?.trim() ?? existing?.phone ?? "",
+    preferredBrokerage: normalizePreferredBrokerage(
+      values.preferredBrokerage ?? existing?.preferredBrokerage,
+    ),
     riskProfile,
     accountBudget: values.accountBudget ?? existing?.accountBudget ?? "not_set",
     investingExperience: values.investingExperience ?? existing?.investingExperience ?? "beginner",
@@ -733,11 +744,34 @@ export async function restoreAuthenticatedCustomerSession() {
   }
 
   const { data } = await supabase.auth.getSession();
-  const user = data.session?.user;
+  const session = data.session;
+  const user = session?.user;
   if (!user?.email) {
     const current = getCurrentCustomer();
     syncCustomerProfile(current);
     return current;
+  }
+
+  if (session?.access_token) {
+    try {
+      const response = await fetch("/api/customers/session", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ accessToken: session.access_token }),
+      });
+      const payload = (await response.json().catch(() => null)) as {
+        customer?: Parameters<typeof rememberAuthenticatedCustomer>[0];
+      } | null;
+
+      if (response.ok && payload?.customer) {
+        return rememberAuthenticatedCustomer(payload.customer);
+      }
+    } catch (error) {
+      console.warn("SwingFi session profile restore failed", error);
+    }
   }
 
   return rememberAuthenticatedCustomer({
@@ -749,6 +783,10 @@ export async function restoreAuthenticatedCustomerSession() {
         ? user.user_metadata.full_name
         : user.email,
     phone: typeof user.user_metadata?.phone === "string" ? user.user_metadata.phone : undefined,
+    preferredBrokerage:
+      typeof user.user_metadata?.preferred_brokerage === "string"
+        ? normalizePreferredBrokerage(user.user_metadata.preferred_brokerage)
+        : undefined,
     riskProfile:
       user.user_metadata?.risk_profile === "conservative" ||
       user.user_metadata?.risk_profile === "balanced" ||
