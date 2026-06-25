@@ -31,9 +31,9 @@ type AdminTab =
 const adminTabGroups: Array<{
   label: string;
   tabs: Array<{
-  key: AdminTab;
-  label: string;
-  description: string;
+    key: AdminTab;
+    label: string;
+    description: string;
   }>;
 }> = [
   {
@@ -98,6 +98,8 @@ const adminTabGroups: Array<{
   },
 ];
 
+const adminTabs = adminTabGroups.flatMap((group) => group.tabs);
+
 export function AdminWorkspace() {
   const [customer, setCustomer] = useState<CustomerProfile | null>(null);
   const [loaded, setLoaded] = useState(false);
@@ -105,10 +107,12 @@ export function AdminWorkspace() {
 
   useEffect(() => {
     const refresh = async () => {
-      setCustomer(getCurrentCustomer());
-      setLoaded(true);
+      const current = getCurrentCustomer();
+      if (current) setCustomer(current);
+
       const restored = await restoreAuthenticatedCustomerSession();
-      setCustomer(restored);
+      setCustomer(restored ?? getCurrentCustomer());
+      setLoaded(true);
     };
 
     refresh().catch(() => {
@@ -229,30 +233,51 @@ export function AdminWorkspace() {
   const adminCustomer = customer;
 
   return (
-    <div className="grid min-w-0 gap-5 lg:grid-cols-[280px_minmax(0,1fr)] lg:gap-6">
-      <aside className="premium-panel min-w-0 rounded-3xl p-3 sm:p-4 lg:sticky lg:top-24 lg:self-start">
-        <div className="rounded-2xl bg-ink p-4 text-white sm:grid sm:grid-cols-[1fr_auto] sm:items-start sm:gap-4 lg:block">
+    <div className="grid min-w-0 gap-5 2xl:grid-cols-[260px_minmax(0,1fr)] 2xl:gap-6">
+      <aside className="premium-panel min-w-0 rounded-3xl p-3 sm:p-4 2xl:sticky 2xl:top-24 2xl:self-start">
+        <div className="rounded-2xl bg-ink p-4 text-white sm:grid sm:grid-cols-[1fr_auto] sm:items-center sm:gap-4 2xl:block">
           <div className="min-w-0">
-          <p className="text-xs font-black uppercase tracking-normal text-white/60">
-            SwingFi admin
-          </p>
-          <p className="mt-2 break-words text-sm font-bold">{adminCustomer.email}</p>
-          <p className="mt-2 text-xs font-semibold leading-5 text-white/62">
-            Full access to operations, alerts, customers, and opportunity management.
-          </p>
+            <p className="text-xs font-black uppercase tracking-normal text-white/60">
+              SwingFi admin
+            </p>
+            <p className="mt-1 break-words text-sm font-bold">{adminCustomer.email}</p>
+            <p className="mt-1 text-xs font-semibold leading-5 text-white/62">
+              Full access to operations, alerts, customers, and opportunity management.
+            </p>
           </div>
-          <span className="mt-3 inline-flex w-fit rounded-full bg-white/10 px-3 py-1 text-xs font-black text-white sm:mt-0 lg:mt-3">
+          <span className="mt-3 inline-flex w-fit rounded-full bg-white/10 px-3 py-1 text-xs font-black text-white sm:mt-0 2xl:mt-3">
             Admin
           </span>
         </div>
 
-        <nav className="mt-3 grid gap-4 lg:mt-4">
+        <nav className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4 2xl:hidden">
+          {adminTabs.map((tab) => {
+            const isActive = activeTab === tab.key;
+
+            return (
+              <button
+                key={tab.key}
+                type="button"
+                onClick={() => setActiveTab(tab.key)}
+                className={`min-h-11 rounded-2xl border px-3 py-2.5 text-left text-sm font-black transition ${
+                  isActive
+                    ? "border-pine bg-mint text-ink shadow-soft"
+                    : "border-line/70 bg-surface/70 text-ink/68 hover:border-pine/30 hover:bg-white"
+                }`}
+              >
+                {tab.label}
+              </button>
+            );
+          })}
+        </nav>
+
+        <nav className="mt-4 hidden gap-4 2xl:grid">
           {adminTabGroups.map((group) => (
             <div key={group.label}>
               <p className="px-2 text-[11px] font-black uppercase tracking-normal text-ink/38">
                 {group.label}
               </p>
-              <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-1">
+              <div className="mt-2 grid gap-2">
                 {group.tabs.map((tab) => {
                   const isActive = activeTab === tab.key;
 
@@ -261,14 +286,14 @@ export function AdminWorkspace() {
                       key={tab.key}
                       type="button"
                       onClick={() => setActiveTab(tab.key)}
-                      className={`min-h-12 rounded-2xl border px-3 py-3 text-left transition sm:min-h-[74px] sm:px-4 ${
+                      className={`min-h-[74px] rounded-2xl border px-4 py-3 text-left transition ${
                         isActive
                           ? "border-pine bg-mint text-ink shadow-soft"
                           : "border-line/70 bg-surface/70 text-ink/68 hover:border-pine/30 hover:bg-white"
                       }`}
                     >
                       <span className="block text-sm font-black">{tab.label}</span>
-                      <span className="mt-1 hidden text-xs font-semibold leading-5 text-ink/55 sm:block">
+                      <span className="mt-1 block text-xs font-semibold leading-5 text-ink/55">
                         {tab.description}
                       </span>
                     </button>
@@ -279,7 +304,7 @@ export function AdminWorkspace() {
           ))}
         </nav>
 
-        <div className="mt-3 rounded-2xl border border-line bg-surface p-3 sm:mt-4 sm:p-4">
+        <div className="mt-3 hidden rounded-2xl border border-line bg-surface p-3 sm:mt-4 sm:p-4 2xl:block">
           <p className="text-xs font-black uppercase tracking-normal text-ink/55">
             Access rule
           </p>
@@ -289,7 +314,9 @@ export function AdminWorkspace() {
         </div>
       </aside>
 
-      <div className="min-w-0 [&>section]:mb-0">{activePanel}</div>
+      <div className="min-w-0 overflow-hidden [&_*]:min-w-0 [&>section]:mb-0">
+        {activePanel}
+      </div>
     </div>
   );
 }

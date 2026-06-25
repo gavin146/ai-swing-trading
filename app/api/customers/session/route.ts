@@ -38,6 +38,14 @@ function fallbackRiskProfile(value: unknown): RiskProfile {
     : "balanced";
 }
 
+function shouldRefreshLoginTimestamp(value: unknown) {
+  const previous = new Date(cleanText(value));
+
+  if (Number.isNaN(previous.getTime())) return true;
+
+  return Date.now() - previous.getTime() > 30 * 60 * 1000;
+}
+
 async function resolveRole(email: string): Promise<UserRole> {
   if (email === ownerAdminEmail) return "admin";
 
@@ -236,7 +244,8 @@ export async function POST(request: NextRequest) {
 
     userRow = inserted as Record<string, unknown>;
   } else {
-    const updatePayload: Record<string, unknown> = { last_login_at: now };
+    const updatePayload: Record<string, unknown> = {};
+    if (shouldRefreshLoginTimestamp(userRow.last_login_at)) updatePayload.last_login_at = now;
     if (!userRow.auth_user_id) updatePayload.auth_user_id = authUser.id;
     if (userRow.role !== role) updatePayload.role = role;
 

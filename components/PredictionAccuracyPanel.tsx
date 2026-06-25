@@ -2,7 +2,11 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { getAdminHeaders } from "@/lib/admin-client";
-import { getCurrentCustomer, isAdminCustomer } from "@/lib/customer-store";
+import {
+  getCurrentCustomer,
+  isAdminCustomer,
+  restoreAuthenticatedCustomerSession,
+} from "@/lib/customer-store";
 import type { PredictionAccuracySummary } from "@/lib/prediction-tracking";
 
 type AccuracyState = "idle" | "loading" | "ready" | "error";
@@ -51,7 +55,7 @@ export function PredictionAccuracyPanel() {
   const [summary, setSummary] = useState<PredictionAccuracySummary | null>(null);
 
   async function loadSummary(method: "GET" | "POST" = "GET") {
-    if (!isAdminCustomer(getCurrentCustomer())) {
+    if (!adminAllowed && !isAdminCustomer(getCurrentCustomer())) {
       setStatus("error");
       setMessage("Admin access is required to view prediction accuracy.");
       return;
@@ -86,16 +90,58 @@ export function PredictionAccuracyPanel() {
   }
 
   useEffect(() => {
-    const allowed = isAdminCustomer(getCurrentCustomer());
-    setAdminAllowed(allowed);
-    setCheckedAccess(true);
+    let active = true;
 
-    if (allowed) {
-      void loadSummary();
-    } else {
+    async function checkAccess() {
+      const restored = await restoreAuthenticatedCustomerSession();
+      if (!active) return;
+
+      const allowed = isAdminCustomer(restored ?? getCurrentCustomer());
+      setAdminAllowed(allowed);
+      setCheckedAccess(true);
+
+      if (allowed) {
+        setStatus("loading");
+        setMessage("Loading prediction accuracy...");
+
+        try {
+          const response = await fetch("/api/admin/predictions", {
+            headers: getAdminHeaders(),
+            method: "GET",
+          });
+
+          if (!response.ok) {
+            const payload = (await response.json().catch(() => ({}))) as { error?: string };
+            throw new Error(payload.error ?? "Prediction accuracy failed");
+          }
+
+          if (!active) return;
+          const payload = (await response.json()) as PredictionAccuracySummary;
+          setSummary(payload);
+          setStatus("ready");
+          setMessage("Forward prediction tracking loaded");
+        } catch (error) {
+          if (!active) return;
+          setStatus("error");
+          setMessage(error instanceof Error ? error.message : "Prediction accuracy failed");
+        }
+      } else {
+        setStatus("error");
+        setMessage("Admin access is required to view prediction accuracy.");
+      }
+    }
+
+    void checkAccess().catch(() => {
+      if (!active) return;
+      setAdminAllowed(false);
+      setCheckedAccess(true);
       setStatus("error");
       setMessage("Admin access is required to view prediction accuracy.");
-    }
+    });
+
+    return () => {
+      active = false;
+    };
   }, []);
 
   const recentPredictions = useMemo(

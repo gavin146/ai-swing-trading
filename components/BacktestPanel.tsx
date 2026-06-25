@@ -3,7 +3,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { getAdminHeaders } from "@/lib/admin-client";
 import type { BacktestSummary } from "@/lib/backtesting";
-import { getCurrentCustomer, isAdminCustomer } from "@/lib/customer-store";
+import {
+  getCurrentCustomer,
+  isAdminCustomer,
+  restoreAuthenticatedCustomerSession,
+} from "@/lib/customer-store";
 
 type BacktestState = "idle" | "loading" | "ready" | "error";
 
@@ -26,7 +30,7 @@ export function BacktestPanel() {
   const [message, setMessage] = useState("Ready to verify recent picks");
 
   async function runBacktest() {
-    if (!isAdminCustomer(getCurrentCustomer())) {
+    if (!adminAllowed && !isAdminCustomer(getCurrentCustomer())) {
       setStatus("error");
       setSummary(null);
       setMessage("Admin access is required to view backtest results.");
@@ -57,17 +61,57 @@ export function BacktestPanel() {
   }
 
   useEffect(() => {
-    const customer = getCurrentCustomer();
-    const allowed = isAdminCustomer(customer);
-    setAdminAllowed(allowed);
-    setCheckedAccess(true);
+    let active = true;
 
-    if (allowed) {
-      void runBacktest();
-    } else {
+    async function checkAccess() {
+      const restored = await restoreAuthenticatedCustomerSession();
+      if (!active) return;
+
+      const allowed = isAdminCustomer(restored ?? getCurrentCustomer());
+      setAdminAllowed(allowed);
+      setCheckedAccess(true);
+
+      if (allowed) {
+        setStatus("loading");
+        setMessage("Running rolling verification against historical candles...");
+
+        try {
+          const response = await fetch("/api/backtests/rolling?windows=5&intervalDays=21&limit=6", {
+            headers: getAdminHeaders(),
+          });
+
+          if (!response.ok) {
+            const payload = (await response.json().catch(() => ({}))) as { error?: string };
+            throw new Error(payload.error ?? "Backtest failed");
+          }
+
+          if (!active) return;
+          const payload = (await response.json()) as BacktestSummary;
+          setSummary(payload);
+          setStatus("ready");
+          setMessage("Verification run complete");
+        } catch (error) {
+          if (!active) return;
+          setStatus("error");
+          setMessage(error instanceof Error ? error.message : "Verification run failed");
+        }
+      } else {
+        setStatus("error");
+        setMessage("Admin access is required to view backtest results.");
+      }
+    }
+
+    void checkAccess().catch(() => {
+      if (!active) return;
+      setAdminAllowed(false);
+      setCheckedAccess(true);
       setStatus("error");
       setMessage("Admin access is required to view backtest results.");
-    }
+    });
+
+    return () => {
+      active = false;
+    };
   }, []);
 
   const recentTrades = useMemo(() => summary?.trades.slice(0, 12) ?? [], [summary]);

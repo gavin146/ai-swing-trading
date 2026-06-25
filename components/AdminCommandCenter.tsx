@@ -95,7 +95,7 @@ function activityLabel(type: ActivityItem["type"]) {
 
 function ActivityFeed({ items }: { items: ActivityItem[] }) {
   return (
-    <section className="premium-panel rounded-3xl p-5 sm:p-6">
+    <section className="premium-panel min-w-0 rounded-3xl p-5 sm:p-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <p className="text-sm font-black uppercase tracking-normal text-pine">
@@ -125,7 +125,7 @@ function ActivityFeed({ items }: { items: ActivityItem[] }) {
               <div className={`w-fit rounded-full border px-3 py-1 text-xs font-black ${activityTone(item.status)}`}>
                 {activityLabel(item.type)}
               </div>
-              <div className="min-w-0">
+              <div className="min-w-0 overflow-hidden">
                 <p className="text-sm font-black text-ink">{item.title}</p>
                 <p className="mt-1 text-xs font-semibold leading-5 text-ink/58">
                   {item.description}
@@ -169,9 +169,9 @@ function HealthCard({
   };
 
   return (
-    <div className={`rounded-2xl border px-4 py-3 ${classes[status]}`}>
+    <div className={`min-w-0 rounded-2xl border px-4 py-3 ${classes[status]}`}>
       <p className="text-xs font-black uppercase tracking-normal opacity-70">{label}</p>
-      <p className="mt-2 text-2xl font-black">{value}</p>
+      <p className="mt-2 break-words text-2xl font-black">{value}</p>
     </div>
   );
 }
@@ -335,8 +335,8 @@ export function AdminCommandCenter({ onNavigate }: AdminCommandCenterProps) {
         </div>
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
-        <section className="premium-panel rounded-3xl p-5 sm:p-6">
+      <div className="grid min-w-0 gap-4 2xl:grid-cols-[1.1fr_0.9fr]">
+        <section className="premium-panel min-w-0 rounded-3xl p-5 sm:p-6">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <p className="text-sm font-black uppercase tracking-normal text-pine">
@@ -388,7 +388,7 @@ export function AdminCommandCenter({ onNavigate }: AdminCommandCenterProps) {
           </div>
         </section>
 
-        <section className="premium-panel rounded-3xl p-5 sm:p-6">
+        <section className="premium-panel min-w-0 rounded-3xl p-5 sm:p-6">
           <p className="text-sm font-black uppercase tracking-normal text-pine">
             Connected feedback loop
           </p>
@@ -419,7 +419,7 @@ export function AdminCommandCenter({ onNavigate }: AdminCommandCenterProps) {
         </section>
       </div>
 
-      <section className="premium-panel rounded-3xl p-5 sm:p-6">
+      <section className="premium-panel min-w-0 rounded-3xl p-5 sm:p-6">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <p className="text-sm font-black uppercase tracking-normal text-pine">
@@ -456,7 +456,7 @@ export function AdminCommandCenter({ onNavigate }: AdminCommandCenterProps) {
 
       <ActivityFeed items={activity} />
 
-      <section className="premium-panel rounded-3xl p-5 sm:p-6">
+      <section className="premium-panel min-w-0 rounded-3xl p-5 sm:p-6">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <p className="text-sm font-black uppercase tracking-normal text-pine">
@@ -475,7 +475,7 @@ export function AdminCommandCenter({ onNavigate }: AdminCommandCenterProps) {
         <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           {(missingChecks.length ? missingChecks : ["No required blockers detected"]).map(
             (item) => (
-              <div key={item} className="rounded-2xl border border-line bg-surface p-4">
+              <div key={item} className="min-w-0 rounded-2xl border border-line bg-surface p-4">
                 <p className="text-sm font-black text-ink">{item}</p>
                 <p className="mt-2 text-xs font-semibold leading-5 text-ink/55">
                   {item === "No required blockers detected"

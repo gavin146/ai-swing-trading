@@ -2,7 +2,11 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { AgentRunResult } from "@/lib/agent";
-import { getCurrentCustomer, isAdminCustomer } from "@/lib/customer-store";
+import {
+  getCurrentCustomer,
+  isAdminCustomer,
+  restoreAuthenticatedCustomerSession,
+} from "@/lib/customer-store";
 
 type RunState = "idle" | "loading" | "ready" | "error";
 type AgentSource = "fmp";
@@ -35,7 +39,7 @@ export function AgentRunnerPanel() {
   });
 
   async function runAgent(method: "GET" | "POST" = "POST", nextSource: AgentSource = source) {
-    if (!isAdminCustomer(getCurrentCustomer())) {
+    if (!adminAllowed && !isAdminCustomer(getCurrentCustomer())) {
       setStatus("error");
       setMessage("Admin access is required to run the ranking agent.");
       return;
@@ -84,17 +88,56 @@ export function AgentRunnerPanel() {
   }
 
   useEffect(() => {
-    const allowed = isAdminCustomer(getCurrentCustomer());
-    setAdminAllowed(allowed);
-    setCheckedAccess(true);
+    let active = true;
 
-    if (allowed) {
-      void runAgent("GET", "fmp");
-    } else {
+    async function checkAccess() {
+      const restored = await restoreAuthenticatedCustomerSession();
+      if (!active) return;
+
+      const allowed = isAdminCustomer(restored ?? getCurrentCustomer());
+      setAdminAllowed(allowed);
+      setCheckedAccess(true);
+
+      if (allowed) {
+        setStatus("loading");
+        setSource("fmp");
+        setMessage("Analyzing live FMP candles, fundamentals, and ranking inputs...");
+
+        try {
+          const response = await fetch("/api/agent/daily-rankings?source=fmp&limit=90");
+
+          if (!response.ok) {
+            const payload = (await response.json().catch(() => ({}))) as { error?: string };
+            throw new Error(payload.error ?? "Agent run failed");
+          }
+
+          if (!active) return;
+          const nextResult = (await response.json()) as AgentRunResult;
+          setResult(nextResult);
+          setStatus("ready");
+          setMessage("Top 90 live FMP-ranked opportunities are ready");
+        } catch (error) {
+          if (!active) return;
+          setStatus("error");
+          setMessage(error instanceof Error ? error.message : "The agent could not complete the run.");
+        }
+      } else {
+        setStatus("error");
+        setMessage("Admin access is required to run the ranking agent.");
+      }
+    }
+
+    void checkAccess().catch(() => {
+      if (!active) return;
+      setAdminAllowed(false);
+      setCheckedAccess(true);
       setStatus("error");
       setMessage("Admin access is required to run the ranking agent.");
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    });
+
+    return () => {
+      active = false;
+    };
   }, []);
 
   const topFive = useMemo(() => result?.rankings.slice(0, 5) ?? [], [result]);

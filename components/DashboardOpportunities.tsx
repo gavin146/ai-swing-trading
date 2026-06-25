@@ -575,9 +575,15 @@ export function DashboardOpportunities({
 
     async function loadOpportunities() {
       setOpportunitiesLoading(true);
+      const controller = new AbortController();
+      const timeoutId = window.setTimeout(() => controller.abort(), 15_000);
 
       try {
-        const response = await fetch("/api/opportunities", { cache: "no-store" });
+        const response = await fetch("/api/opportunities", {
+          cache: "no-store",
+          signal: controller.signal,
+        });
+        window.clearTimeout(timeoutId);
         const payload = (await response.json().catch(() => null)) as {
           reason?: string;
           rows?: OpportunityRow[];
@@ -604,6 +610,7 @@ export function DashboardOpportunities({
         setCurrentDataSource("empty");
         setCurrentFallbackReason("Rankings could not be loaded. Please try again shortly.");
       } finally {
+        window.clearTimeout(timeoutId);
         if (isActive) setOpportunitiesLoading(false);
       }
     }

@@ -122,7 +122,7 @@ export function AdminOperationsPanel() {
   }
 
   return (
-    <section className="premium-panel mb-6 rounded-3xl p-5 sm:p-6">
+    <section className="premium-panel mb-6 min-w-0 overflow-hidden rounded-3xl p-5 sm:p-6">
       <div className="signal-line mb-5 h-1.5 max-w-48 rounded-full" />
       <div className="grid gap-5 lg:grid-cols-[1fr_auto] lg:items-start">
         <div>
@@ -154,7 +154,7 @@ export function AdminOperationsPanel() {
         </div>
       </div>
 
-      <div className="mt-6 grid gap-3 lg:grid-cols-4">
+      <div className="mt-6 grid gap-3 md:grid-cols-2 2xl:grid-cols-4">
         {[
           [
             "1. Data intake",
@@ -191,9 +191,9 @@ export function AdminOperationsPanel() {
         ))}
       </div>
 
-      <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+      <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5">
         {statusLabels.map(([key, label]) => (
-          <div key={key} className="rounded-2xl bg-surface px-3 py-3">
+          <div key={key} className="min-w-0 rounded-2xl bg-surface px-3 py-3">
             <p className="text-[11px] font-bold uppercase tracking-normal text-ink/55">
               {label}
             </p>
@@ -220,7 +220,7 @@ export function AdminOperationsPanel() {
         ))}
       </div>
 
-      <p className="mt-4 rounded-2xl bg-surface px-4 py-3 text-sm font-bold text-ink/70">
+      <p className="mt-4 break-words rounded-2xl bg-surface px-4 py-3 text-sm font-bold leading-6 text-ink/70">
         {message}
       </p>
 

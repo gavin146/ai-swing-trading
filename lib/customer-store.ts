@@ -66,6 +66,7 @@ const sessionLengthDays = 14;
 const activeSubscriptionStatuses = new Set<SubscriptionStatus>(["active", "trialing"]);
 let lastCustomerSyncSignature = "";
 let inFlightCustomerSyncSignature = "";
+let inFlightSessionRestore: Promise<CustomerProfile | null> | null = null;
 
 export const SWINGFI_ADMIN_EMAIL = "gavin@onefear.co";
 
@@ -736,6 +737,18 @@ export function logoutCustomer() {
 }
 
 export async function restoreAuthenticatedCustomerSession() {
+  if (inFlightSessionRestore) {
+    return inFlightSessionRestore;
+  }
+
+  inFlightSessionRestore = restoreAuthenticatedCustomerSessionInternal().finally(() => {
+    inFlightSessionRestore = null;
+  });
+
+  return inFlightSessionRestore;
+}
+
+async function restoreAuthenticatedCustomerSessionInternal() {
   const supabase = createSupabaseBrowserClient();
   if (!supabase) {
     const current = getCurrentCustomer();

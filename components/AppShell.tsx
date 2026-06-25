@@ -38,6 +38,14 @@ function navClass(isActive: boolean) {
   }`;
 }
 
+function navIconClass(isActive: boolean) {
+  return `grid h-8 w-8 shrink-0 place-items-center rounded-lg text-xs font-black ring-1 transition ${
+    isActive
+      ? "bg-white/12 text-white ring-white/18"
+      : "bg-surface text-ink/58 ring-line/70 group-hover:bg-panel group-hover:text-ink"
+  }`;
+}
+
 function topNavClass(isActive: boolean) {
   return `shrink-0 rounded-full px-4 py-2 text-sm font-black transition ${
     isActive
@@ -56,6 +64,7 @@ function mobileNavClass(isActive: boolean) {
 
 export function AppShell({ active, children, eyebrow, subtitle, title }: AppShellProps) {
   const [customer, setCustomer] = useState<CustomerProfile | null>(null);
+  const [sessionLoaded, setSessionLoaded] = useState(false);
   const isAdmin = isAdminCustomer(customer);
   const isOperationsPage = active === "admin" || active === "agent";
   const visibleLinks = [...customerLinks, ...(isAdmin ? adminLinks : [])];
@@ -67,10 +76,19 @@ export function AppShell({ active, children, eyebrow, subtitle, title }: AppShel
   const isActiveLink = (key: string) => active === key;
 
   useEffect(() => {
-    const refresh = () => setCustomer(getCurrentCustomer());
+    const refresh = async () => {
+      const current = getCurrentCustomer();
+      if (current) setCustomer(current);
 
-    refresh();
-    restoreAuthenticatedCustomerSession().then(setCustomer).catch(refresh);
+      const restored = await restoreAuthenticatedCustomerSession();
+      setCustomer(restored ?? getCurrentCustomer());
+      setSessionLoaded(true);
+    };
+
+    refresh().catch(() => {
+      setCustomer(getCurrentCustomer());
+      setSessionLoaded(true);
+    });
     window.addEventListener("storage", refresh);
     window.addEventListener("swingfi-customer-updated", refresh);
 
@@ -153,7 +171,7 @@ export function AppShell({ active, children, eyebrow, subtitle, title }: AppShel
         <nav className="mt-8 grid gap-2">
           {(isAdmin ? customerLinks : adminLinks).map((item) => (
             <Link key={item.href} href={item.href} className={navClass(isActiveLink(item.key))}>
-              <span className="grid h-8 w-8 place-items-center rounded-lg bg-surface text-xs font-black text-inherit ring-1 ring-line/70 group-hover:bg-panel">
+              <span className={navIconClass(isActiveLink(item.key))}>
                 {item.symbol}
               </span>
               {item.label}
@@ -169,7 +187,7 @@ export function AppShell({ active, children, eyebrow, subtitle, title }: AppShel
             <nav className="mt-3 grid gap-2">
               {adminLinks.map((item) => (
                 <Link key={item.href} href={item.href} className={navClass(isActiveLink(item.key))}>
-                  <span className="grid h-8 w-8 place-items-center rounded-lg bg-surface text-xs font-black text-inherit ring-1 ring-line/70 group-hover:bg-panel">
+                  <span className={navIconClass(isActiveLink(item.key))}>
                     {item.symbol}
                   </span>
                   {item.label}
@@ -181,12 +199,14 @@ export function AppShell({ active, children, eyebrow, subtitle, title }: AppShel
 
         <div className="absolute bottom-5 left-4 right-4 rounded-2xl border border-line bg-surface p-4">
           <p className="text-xs font-black uppercase tracking-normal text-pine">
-            {isAdmin ? "Daily brief" : "Admin access"}
+            {!sessionLoaded ? "Checking access" : isAdmin ? "Daily brief" : "Admin access"}
           </p>
           <p className="mt-2 text-sm font-semibold leading-6 text-ink/62">
-            {isAdmin
-              ? "Rankings refresh before the market opens. Review entries, stops, and risk before making any decision."
-              : "Sign in with an approved admin email to manage runs, users, alerts, and model feedback."}
+            {!sessionLoaded
+              ? "SwingFi is restoring your signed-in profile before showing protected tools."
+              : isAdmin
+                ? "Rankings refresh before the market opens. Review entries, stops, and risk before making any decision."
+                : "Sign in with an approved admin email to manage runs, users, alerts, and model feedback."}
           </p>
         </div>
       </aside>
