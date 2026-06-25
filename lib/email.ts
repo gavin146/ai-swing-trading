@@ -125,13 +125,13 @@ export async function sendAdminFailureAlert(args: {
             <p style="margin:0 0 12px;color:#071418;font-size:15px;font-weight:900;">${escapeHtml(args.message)}</p>
             <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;margin-top:16px;">
               <tr>
-                <td style="padding:10px 0;border-bottom:1px solid #e6ece8;color:#697770;font-size:12px;font-weight:900;text-transform:uppercase;">Source</td>
+                <td style="padding:10px 0;border-bottom:1px solid #e6ece8;color:#3f4d47;font-size:12px;font-weight:900;text-transform:uppercase;">Source</td>
                 <td style="padding:10px 0;border-bottom:1px solid #e6ece8;color:#071418;font-size:13px;font-weight:800;text-align:right;">${escapeHtml(args.source)}</td>
               </tr>
               ${
                 args.error
                   ? `<tr>
-                      <td style="padding:10px 0;border-bottom:1px solid #e6ece8;color:#697770;font-size:12px;font-weight:900;text-transform:uppercase;">Error</td>
+                      <td style="padding:10px 0;border-bottom:1px solid #e6ece8;color:#3f4d47;font-size:12px;font-weight:900;text-transform:uppercase;">Error</td>
                       <td style="padding:10px 0;border-bottom:1px solid #e6ece8;color:#b4533f;font-size:13px;font-weight:800;text-align:right;">${escapeHtml(args.error)}</td>
                     </tr>`
                   : ""
@@ -139,7 +139,7 @@ export async function sendAdminFailureAlert(args: {
             </table>
             ${
               metadata
-                ? `<pre style="margin:18px 0 0;white-space:pre-wrap;background:#f5f7fb;border:1px solid #d8e0ea;border-radius:14px;padding:14px;color:#52615b;font-size:12px;line-height:1.5;">${escapeHtml(metadata)}</pre>`
+                ? `<pre style="margin:18px 0 0;white-space:pre-wrap;background:#f5f7fb;border:1px solid #d8e0ea;border-radius:14px;padding:14px;color:#33423d;font-size:12px;line-height:1.5;">${escapeHtml(metadata)}</pre>`
                 : ""
             }`,
           footerNote:

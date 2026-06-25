@@ -84,9 +84,9 @@ export async function sendVerificationEmail(args: {
     preheader: "Confirm your email to unlock your SwingFi dashboard.",
     title: "Confirm your SwingFi account",
     bodyHtml: `
-      <p style="margin:0;color:#52615b;">${safeName}confirm this email address to unlock your SwingFi dashboard, free trial access, saved preferences, and daily research links.</p>
+      <p style="margin:0;color:#33423d;">${safeName}confirm this email address to unlock your SwingFi dashboard, free trial access, saved preferences, and daily research links.</p>
       ${brandedButton("Confirm email", verificationUrl)}
-      <p style="margin:18px 0 0;color:#697770;font-size:12px;line-height:1.6;">This link expires in ${verificationHours()} hours. If the button does not work, copy and paste this link into your browser:<br /><a href="${safeVerificationUrl}" style="color:#0b3d3f;text-decoration:underline;word-break:break-all;">${safeVerificationUrl}</a></p>`,
+      <p style="margin:18px 0 0;color:#3f4d47;font-size:12px;line-height:1.6;">This link expires in ${verificationHours()} hours. If the button does not work, copy and paste this link into your browser:<br /><a href="${safeVerificationUrl}" style="color:#0b3d3f;text-decoration:underline;word-break:break-all;">${safeVerificationUrl}</a></p>`,
     footerNote:
       "This email verifies access to your SwingFi account. SwingFi is research software and does not place trades or provide personalized financial advice.",
   });

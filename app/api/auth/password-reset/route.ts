@@ -66,9 +66,9 @@ export async function POST(request: NextRequest) {
     preheader: "Use this secure SwingFi link to reset your password.",
     title: "Reset your password",
     bodyHtml: `
-      <p style="margin:0;color:#52615b;">Open this secure link to choose a new SwingFi password. If you did not request this, you can ignore the email.</p>
+      <p style="margin:0;color:#33423d;">Open this secure link to choose a new SwingFi password. If you did not request this, you can ignore the email.</p>
       ${brandedButton("Reset password", resetUrl)}
-      <p style="margin:18px 0 0;color:#697770;font-size:12px;line-height:1.6;">If the button does not work, copy and paste this link into your browser:<br /><a href="${safeResetUrl}" style="color:#0b3d3f;text-decoration:underline;word-break:break-all;">${safeResetUrl}</a></p>`,
+      <p style="margin:18px 0 0;color:#3f4d47;font-size:12px;line-height:1.6;">If the button does not work, copy and paste this link into your browser:<br /><a href="${safeResetUrl}" style="color:#0b3d3f;text-decoration:underline;word-break:break-all;">${safeResetUrl}</a></p>`,
     footerNote:
       "For your security, never share your SwingFi password or reset link. SwingFi will never ask you to send your password by email.",
   });
