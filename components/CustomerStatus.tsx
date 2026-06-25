@@ -2,7 +2,12 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { getCurrentCustomer, logoutCustomer, type CustomerProfile } from "@/lib/customer-store";
+import {
+  getCurrentCustomer,
+  logoutCustomer,
+  restoreAuthenticatedCustomerSession,
+  type CustomerProfile,
+} from "@/lib/customer-store";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 
 export function CustomerStatus() {
@@ -12,6 +17,7 @@ export function CustomerStatus() {
     const refresh = () => setCustomer(getCurrentCustomer());
 
     refresh();
+    restoreAuthenticatedCustomerSession().then(setCustomer).catch(refresh);
     window.addEventListener("swingfi-customer-updated", refresh);
     window.addEventListener("storage", refresh);
 
@@ -39,10 +45,10 @@ export function CustomerStatus() {
   }
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex min-w-0 items-center gap-2">
       <Link
         href="/settings"
-        className="rounded-xl bg-mint px-3 py-2 text-sm font-black text-pine hover:bg-lime hover:text-ink"
+        className="max-w-[138px] truncate rounded-xl bg-mint px-3 py-2 text-sm font-black text-pine hover:bg-lime hover:text-ink sm:max-w-[220px]"
       >
         {customer.fullName || customer.email}
       </Link>

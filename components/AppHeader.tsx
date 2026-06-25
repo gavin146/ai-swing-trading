@@ -35,7 +35,7 @@ export function AppHeader({ active }: AppHeaderProps) {
     }`;
 
   return (
-    <header className="sticky top-0 z-40 border-b border-line/80 bg-surface/75 backdrop-blur-xl">
+    <header className="relative z-30 border-b border-line/80 bg-surface/75 backdrop-blur-xl">
       <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-4 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
         <BrandMark />
 

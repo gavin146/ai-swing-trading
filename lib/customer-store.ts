@@ -1,6 +1,7 @@
 "use client";
 
-import type { RiskProfile } from "./database.types";
+import type { RiskProfile, SubscriptionStatus } from "./database.types";
+import { createSupabaseBrowserClient } from "./supabase/browser";
 
 export type AlertChannel = "sms" | "email" | "none";
 export type CustomerRole = "admin" | "customer";
@@ -27,8 +28,10 @@ export type CustomerProfile = {
   alertChannel: AlertChannel;
   alertTime: string;
   timezone: string;
+  emailVerifiedAt?: string | null;
   lastLoginAt: string | null;
   createdAt: string;
+  subscriptionStatus?: SubscriptionStatus | null;
 };
 
 type StoredCustomer = CustomerProfile & {
@@ -56,6 +59,9 @@ const legacyCustomersKey = "tradepilot-customers";
 const legacyCurrentCustomerKey = "tradepilot-current-customer-id";
 const legacyAdminEmailsKey = "tradepilot-admin-emails";
 const legacyDemoEmail = "avery@example.com";
+const trialLengthDays = 30;
+const sessionLengthDays = 14;
+const activeSubscriptionStatuses = new Set<SubscriptionStatus>(["active", "trialing"]);
 
 export const SWINGFI_ADMIN_EMAIL = "gavin@onefear.co";
 
@@ -161,8 +167,10 @@ function withoutPassword(customer: StoredCustomer): CustomerProfile {
     alertChannel: customer.alertChannel,
     alertTime: customer.alertTime,
     timezone: customer.timezone,
+    emailVerifiedAt: customer.emailVerifiedAt ?? null,
     lastLoginAt: customer.lastLoginAt ?? null,
     createdAt: customer.createdAt,
+    subscriptionStatus: customer.subscriptionStatus ?? null,
   };
 
   return profile;
@@ -192,7 +200,64 @@ function normalizeCustomer(customer: StoredCustomer): StoredCustomer {
       (typeof Intl !== "undefined"
         ? Intl.DateTimeFormat().resolvedOptions().timeZone
         : "America/Chicago"),
+    emailVerifiedAt:
+      customer.emailVerifiedAt === undefined
+        ? customer.createdAt ?? new Date().toISOString()
+        : customer.emailVerifiedAt,
     lastLoginAt: customer.lastLoginAt ?? null,
+    createdAt: customer.createdAt ?? new Date().toISOString(),
+    subscriptionStatus: customer.subscriptionStatus ?? null,
+  };
+}
+
+function addDays(date: Date, days: number) {
+  const next = new Date(date);
+  next.setDate(next.getDate() + days);
+  return next;
+}
+
+function dateFromIso(value: string | null | undefined) {
+  if (!value) return null;
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+export function getTrialEndsAt(customer: CustomerProfile | null | undefined) {
+  const createdAt = dateFromIso(customer?.createdAt);
+  return createdAt ? addDays(createdAt, trialLengthDays).toISOString() : null;
+}
+
+export function getAccessState(customer: CustomerProfile | null | undefined) {
+  if (!customer) {
+    return {
+      canViewAnalysis: false,
+      isAdmin: false,
+      isEmailVerified: false,
+      isTrialActive: false,
+      isSubscriptionActive: false,
+      trialDaysRemaining: 0,
+      trialEndsAt: null,
+    };
+  }
+
+  const isAdmin = isAdminCustomer(customer);
+  const isEmailVerified = isAdmin || Boolean(customer.emailVerifiedAt);
+  const trialEndsAt = getTrialEndsAt(customer);
+  const trialEndDate = dateFromIso(trialEndsAt);
+  const trialMsRemaining = trialEndDate ? trialEndDate.getTime() - Date.now() : 0;
+  const isTrialActive = trialMsRemaining > 0;
+  const isSubscriptionActive = customer.subscriptionStatus
+    ? activeSubscriptionStatuses.has(customer.subscriptionStatus)
+    : false;
+
+  return {
+    canViewAnalysis: isAdmin || (isEmailVerified && (isTrialActive || isSubscriptionActive)),
+    isAdmin,
+    isEmailVerified,
+    isTrialActive,
+    isSubscriptionActive,
+    trialDaysRemaining: Math.max(0, Math.ceil(trialMsRemaining / 86_400_000)),
+    trialEndsAt,
   };
 }
 
@@ -232,12 +297,30 @@ function writeCustomers(customers: StoredCustomer[]) {
   window.dispatchEvent(new Event("swingfi-customer-updated"));
 }
 
-function applySyncedRole(customerId: string, role: CustomerRole | undefined) {
-  if (!role || (role !== "admin" && role !== "customer")) return;
+function applySyncedProfile(
+  customerId: string,
+  updates: {
+    emailVerifiedAt?: string | null;
+    role?: CustomerRole;
+    subscriptionStatus?: SubscriptionStatus | null;
+  },
+) {
+  const hasRole = updates.role === "admin" || updates.role === "customer";
+  const hasEmailVerifiedAt = updates.emailVerifiedAt !== undefined;
+  const hasSubscriptionStatus = updates.subscriptionStatus !== undefined;
+
+  if (!hasRole && !hasEmailVerifiedAt && !hasSubscriptionStatus) return;
 
   const customers = readCustomers();
   const nextCustomers = customers.map((customer) =>
-    customer.id === customerId ? { ...customer, role } : customer,
+    customer.id === customerId
+      ? {
+          ...customer,
+          ...(hasRole ? { role: updates.role } : {}),
+          ...(hasEmailVerifiedAt ? { emailVerifiedAt: updates.emailVerifiedAt } : {}),
+          ...(hasSubscriptionStatus ? { subscriptionStatus: updates.subscriptionStatus } : {}),
+        }
+      : customer,
   );
 
   if (JSON.stringify(customers) !== JSON.stringify(nextCustomers)) {
@@ -257,10 +340,18 @@ function syncCustomerProfile(customer: CustomerProfile | null) {
       if (!response.ok) return;
 
       const payload = (await response.json().catch(() => null)) as {
-        customer?: { role?: CustomerRole };
+        customer?: {
+          emailVerifiedAt?: string | null;
+          role?: CustomerRole;
+          subscriptionStatus?: SubscriptionStatus | null;
+        };
       } | null;
 
-      applySyncedRole(customer.id, payload?.customer?.role);
+      applySyncedProfile(customer.id, {
+        emailVerifiedAt: payload?.customer?.emailVerifiedAt,
+        role: payload?.customer?.role,
+        subscriptionStatus: payload?.customer?.subscriptionStatus,
+      });
     })
     .catch((error) => {
       console.warn("SwingFi customer sync failed", error);
@@ -304,6 +395,13 @@ export function getCurrentCustomer(): CustomerProfile | null {
 
   if (!current) {
     window.localStorage.removeItem(currentCustomerKey);
+    return null;
+  }
+
+  const lastLoginAt = dateFromIso(current.lastLoginAt);
+  if (!lastLoginAt || addDays(lastLoginAt, sessionLengthDays).getTime() <= Date.now()) {
+    window.localStorage.removeItem(currentCustomerKey);
+    window.dispatchEvent(new Event("swingfi-customer-updated"));
     return null;
   }
 
@@ -368,6 +466,7 @@ export function signupCustomer(values: {
     alertChannel: "email",
     alertTime: "08:30",
     timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    emailVerifiedAt: new Date().toISOString(),
     lastLoginAt: new Date().toISOString(),
     createdAt: new Date().toISOString(),
     password: values.password,
@@ -384,6 +483,7 @@ export function signupCustomer(values: {
 export function rememberAuthenticatedCustomer(values: {
   accountBudget?: AccountBudget;
   authUserId?: string | null;
+  id?: string;
   email: string;
   fullName: string;
   investingExperience?: InvestingExperience;
@@ -392,6 +492,9 @@ export function rememberAuthenticatedCustomer(values: {
   positionSizePreference?: PositionSizePreference;
   riskProfile?: RiskProfile;
   setupPreference?: SetupPreference;
+  createdAt?: string | null;
+  emailVerifiedAt?: string | null;
+  subscriptionStatus?: SubscriptionStatus | null;
 }) {
   const customers = readCustomers();
   const normalizedEmail = normalizeEmail(values.email);
@@ -401,7 +504,7 @@ export function rememberAuthenticatedCustomer(values: {
   );
   const riskProfile = values.riskProfile ?? existing?.riskProfile ?? "balanced";
   const nextCustomer: StoredCustomer = normalizeCustomer({
-    id: existing?.id ?? crypto.randomUUID(),
+    id: existing?.id ?? values.id ?? crypto.randomUUID(),
     authUserId: values.authUserId ?? existing?.authUserId ?? null,
     email: normalizedEmail,
     fullName: values.fullName.trim() || existing?.fullName || normalizedEmail,
@@ -428,8 +531,13 @@ export function rememberAuthenticatedCustomer(values: {
         ? Intl.DateTimeFormat().resolvedOptions().timeZone
         : "America/Chicago"),
     lastLoginAt: new Date().toISOString(),
-    createdAt: existing?.createdAt ?? new Date().toISOString(),
+    createdAt: existing?.createdAt ?? values.createdAt ?? new Date().toISOString(),
+    emailVerifiedAt:
+      values.emailVerifiedAt !== undefined
+        ? values.emailVerifiedAt
+        : existing?.emailVerifiedAt ?? null,
     password: values.password ?? existing?.password ?? "",
+    subscriptionStatus: values.subscriptionStatus ?? existing?.subscriptionStatus ?? null,
   });
   const nextCustomers =
     existingIndex >= 0
@@ -542,12 +650,46 @@ export function logoutCustomer() {
   window.dispatchEvent(new Event("swingfi-customer-updated"));
 }
 
+export async function restoreAuthenticatedCustomerSession() {
+  const supabase = createSupabaseBrowserClient();
+  if (!supabase) {
+    const current = getCurrentCustomer();
+    syncCustomerProfile(current);
+    return current;
+  }
+
+  const { data } = await supabase.auth.getSession();
+  const user = data.session?.user;
+  if (!user?.email) {
+    const current = getCurrentCustomer();
+    syncCustomerProfile(current);
+    return current;
+  }
+
+  return rememberAuthenticatedCustomer({
+    authUserId: user.id,
+    createdAt: user.created_at,
+    email: user.email,
+    fullName:
+      typeof user.user_metadata?.full_name === "string"
+        ? user.user_metadata.full_name
+        : user.email,
+    phone: typeof user.user_metadata?.phone === "string" ? user.user_metadata.phone : undefined,
+    riskProfile:
+      user.user_metadata?.risk_profile === "conservative" ||
+      user.user_metadata?.risk_profile === "balanced" ||
+      user.user_metadata?.risk_profile === "aggressive"
+        ? user.user_metadata.risk_profile
+        : undefined,
+  });
+}
+
 export function isAdminCustomer(customer: CustomerProfile | null | undefined) {
   return isAdminEmail(customer?.email);
 }
 
 export function hasFullProductAccess(customer: CustomerProfile | null | undefined) {
-  return isAdminCustomer(customer);
+  return getAccessState(customer).canViewAnalysis;
 }
 
 export function getCustomerDailyPickLimit(customer: CustomerProfile) {

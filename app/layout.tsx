@@ -39,7 +39,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" data-scroll-behavior="smooth">
       <body>
         <AppMotionShell>{children}</AppMotionShell>
         <footer className="border-t border-line bg-surface px-4 py-6 text-sm text-ink/60">

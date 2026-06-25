@@ -3,7 +3,9 @@
 import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
 import {
+  getAccessState,
   getCurrentCustomer,
+  restoreAuthenticatedCustomerSession,
   updateCurrentCustomer,
   type AccountBudget,
   type AlertChannel,
@@ -22,7 +24,10 @@ export function SettingsForm() {
 
   useEffect(() => {
     setCustomer(getCurrentCustomer());
-    setLoaded(true);
+    restoreAuthenticatedCustomerSession()
+      .then(setCustomer)
+      .catch(() => setCustomer(getCurrentCustomer()))
+      .finally(() => setLoaded(true));
   }, []);
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -47,8 +52,8 @@ export function SettingsForm() {
         minimumConfidence: Number(formData.get("minimumConfidence") ?? 70),
         maxRiskScore: Number(formData.get("maxRiskScore") ?? 65),
         morningAlertsEnabled: formData.get("morningAlertsEnabled") === "on",
-        alertChannel: String(formData.get("alertChannel") ?? "sms") as AlertChannel,
-        alertTime: String(formData.get("alertTime") ?? "07:30"),
+        alertChannel: String(formData.get("alertChannel") ?? "email") as AlertChannel,
+        alertTime: String(formData.get("alertTime") ?? "08:30"),
         timezone: String(formData.get("timezone") ?? "America/Chicago"),
       });
 
@@ -74,8 +79,8 @@ export function SettingsForm() {
         <p className="text-sm font-bold uppercase tracking-normal text-pine">Account required</p>
         <h2 className="mt-3 text-2xl font-black text-ink">Create a profile to save settings</h2>
         <p className="mt-2 max-w-2xl text-sm leading-6 text-ink/60">
-          SwingFi is open while we finish the product, but profile preferences need a
-          local account so alerts, saved picks, and filters stay attached to you.
+          Create a SwingFi account to start a 30-day trial, save your trading
+          preferences, and keep alerts, saved picks, and filters attached to your profile.
         </p>
         <div className="mt-5 flex flex-col gap-3 sm:flex-row">
           <Link
@@ -95,8 +100,39 @@ export function SettingsForm() {
     );
   }
 
+  const access = getAccessState(customer);
+
   return (
     <form onSubmit={handleSubmit} className="grid gap-5">
+      <section className="rounded-3xl border border-line/80 bg-white p-6 shadow-[0_20px_70px_rgba(7,20,24,0.07)]">
+        <p className="text-sm font-bold uppercase tracking-normal text-pine">
+          Access
+        </p>
+        <h2 className="mt-3 text-2xl font-black text-ink">
+          {access.isAdmin
+            ? "Admin account with full access"
+            : !access.isEmailVerified
+              ? "Email confirmation required"
+            : access.canViewAnalysis
+              ? `${access.trialDaysRemaining} trial days remaining`
+              : "Trial ended"}
+        </h2>
+        <p className="mt-2 max-w-2xl text-sm leading-6 text-ink/60">
+          {!access.isEmailVerified
+            ? "Confirm your email address to unlock stock rankings, opportunity details, saved picks, and morning research links."
+            : access.canViewAnalysis
+            ? "Your account can access stock rankings, opportunity details, saved picks, and morning email links."
+            : "Stock analysis is locked until a subscription is active. Your profile and settings are still saved."}
+        </p>
+        {!access.isEmailVerified ? (
+          <Link
+            href={`/verify-email?sent=1&email=${encodeURIComponent(customer.email)}`}
+            className="mt-5 inline-flex rounded-2xl bg-ink px-4 py-3 text-sm font-black text-white transition hover:bg-pine"
+          >
+            Confirm or resend email
+          </Link>
+        ) : null}
+      </section>
       <section className="rounded-3xl border border-line/80 bg-white p-6 shadow-[0_20px_70px_rgba(7,20,24,0.07)]">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <h2 className="text-xl font-bold text-ink">Profile</h2>
@@ -154,6 +190,11 @@ export function SettingsForm() {
 
       <section className="rounded-3xl border border-line/80 bg-white p-6 shadow-[0_20px_70px_rgba(7,20,24,0.07)]">
         <h2 className="text-xl font-bold text-ink">Opportunity filters</h2>
+        <p className="mt-2 max-w-3xl text-sm font-semibold leading-6 text-ink/60">
+          These answers personalize which ranked opportunities reach your dashboard.
+          They do not change the market score; they help SwingFi show ideas that better
+          match your confidence needs, risk comfort, account range, and trading style.
+        </p>
         <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <label className="grid gap-2 text-sm font-bold text-ink">
             Risk tolerance
@@ -227,6 +268,9 @@ export function SettingsForm() {
               defaultValue={customer.minimumConfidence}
               className="rounded-xl border border-line bg-surface px-4 py-3 font-medium outline-none transition focus:border-pine focus:bg-panel"
             />
+            <span className="text-xs font-semibold leading-5 text-ink/50">
+              Higher means fewer ideas, but stronger data agreement.
+            </span>
           </label>
           <label className="grid gap-2 text-sm font-bold text-ink">
             Max risk score
@@ -238,6 +282,9 @@ export function SettingsForm() {
               defaultValue={customer.maxRiskScore}
               className="rounded-xl border border-line bg-surface px-4 py-3 font-medium outline-none transition focus:border-pine focus:bg-panel"
             />
+            <span className="text-xs font-semibold leading-5 text-ink/50">
+              Lower means calmer setups; higher allows more volatile opportunities.
+            </span>
           </label>
         </div>
       </section>

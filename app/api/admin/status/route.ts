@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getEmailDeliveryStatus } from "@/lib/email";
 import { hasSupabaseAdminConfig, hasSupabasePublicConfig } from "@/lib/supabase/server";
-import { isStripeCheckoutConfigured } from "@/lib/stripe/config";
+import { isStripeCheckoutConfigured, isStripeCheckoutEnabled } from "@/lib/stripe/config";
 
 export const dynamic = "force-dynamic";
 
@@ -18,7 +18,7 @@ export async function GET() {
     emailReason: email.reason,
     openAiReady: Boolean(process.env.OPENAI_API_KEY),
     stripeReady: isStripeCheckoutConfigured(),
-    stripeCheckoutEnabled: process.env.STRIPE_CHECKOUT_ENABLED === "true",
+    stripeCheckoutEnabled: isStripeCheckoutEnabled(),
     twilioReady: Boolean(
       process.env.TWILIO_ACCOUNT_SID &&
         process.env.TWILIO_AUTH_TOKEN &&

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import type { AlertChannel, RiskProfile, UserRole } from "@/lib/database.types";
+import type { AlertChannel, RiskProfile, SubscriptionStatus, UserRole } from "@/lib/database.types";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -12,6 +12,7 @@ const investingExperiences = new Set(["beginner", "intermediate", "advanced"]);
 const positionSizePreferences = new Set(["small", "moderate", "aggressive"]);
 const riskProfiles = new Set<RiskProfile>(["conservative", "balanced", "aggressive"]);
 const setupPreferences = new Set(["steady", "balanced", "momentum"]);
+const activeSubscriptionStatuses = new Set<SubscriptionStatus>(["active", "trialing"]);
 
 function normalizeEmail(value: unknown) {
   return String(value ?? "").trim().toLowerCase();
@@ -82,6 +83,7 @@ export async function POST(request: NextRequest) {
     ? String(body?.setupPreference)
     : "balanced";
   const createdAt = body?.createdAt ? new Date(String(body.createdAt)) : null;
+  const emailVerifiedAt = body?.emailVerifiedAt ? new Date(String(body.emailVerifiedAt)) : null;
   const lastLoginAt = body?.lastLoginAt ? new Date(String(body.lastLoginAt)) : null;
   const authUserId = cleanText(body?.authUserId);
   const payload = {
@@ -91,6 +93,9 @@ export async function POST(request: NextRequest) {
     created_at: createdAt && !Number.isNaN(createdAt.getTime()) ? createdAt.toISOString() : undefined,
     email,
     auth_user_id: authUserId || undefined,
+    ...(emailVerifiedAt && !Number.isNaN(emailVerifiedAt.getTime())
+      ? { email_verified_at: emailVerifiedAt.toISOString() }
+      : {}),
     full_name: cleanText(body?.fullName),
     last_login_at:
       lastLoginAt && !Number.isNaN(lastLoginAt.getTime()) ? lastLoginAt.toISOString() : null,
@@ -109,18 +114,29 @@ export async function POST(request: NextRequest) {
   const { data, error } = await supabase
     .from("users")
     .upsert(payload, { onConflict: "email" })
-    .select("id,email,role")
+    .select("id,email,role,email_verified_at")
     .single();
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 503 });
   }
 
+  const { data: subscription } = await supabase
+    .from("subscriptions")
+    .select("status,current_period_end,trial_end,updated_at")
+    .eq("user_id", data.id)
+    .in("status", Array.from(activeSubscriptionStatuses))
+    .order("updated_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
   return NextResponse.json({
     customer: {
       email: data.email,
+      emailVerifiedAt: data.email_verified_at,
       id: data.id,
       role: data.role,
+      subscriptionStatus: subscription?.status ?? null,
     },
     synced: true,
   });

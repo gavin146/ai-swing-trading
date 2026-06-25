@@ -3,15 +3,15 @@ import type { NextRequest } from "next/server";
 export function isAdminApiRequest(request: NextRequest) {
   const adminSecret = process.env.ADMIN_API_SECRET;
 
-  if (adminSecret) {
-    return request.headers.get("authorization") === `Bearer ${adminSecret}`;
-  }
-
   if (process.env.NODE_ENV !== "production") {
     return (
       request.headers.get("x-swingfi-admin") === "true" ||
       request.headers.get("x-tradepilot-admin") === "true"
     );
+  }
+
+  if (adminSecret) {
+    return request.headers.get("authorization") === `Bearer ${adminSecret}`;
   }
 
   return false;

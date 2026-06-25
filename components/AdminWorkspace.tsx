@@ -12,6 +12,7 @@ import { BacktestPanel } from "@/components/BacktestPanel";
 import {
   getCurrentCustomer,
   isAdminCustomer,
+  restoreAuthenticatedCustomerSession,
   SWINGFI_ADMIN_EMAIL,
   type CustomerProfile,
 } from "@/lib/customer-store";
@@ -96,12 +97,17 @@ export function AdminWorkspace() {
   const [activeTab, setActiveTab] = useState<AdminTab>("overview");
 
   useEffect(() => {
-    const refresh = () => {
+    const refresh = async () => {
       setCustomer(getCurrentCustomer());
       setLoaded(true);
+      const restored = await restoreAuthenticatedCustomerSession();
+      setCustomer(restored);
     };
 
-    refresh();
+    refresh().catch(() => {
+      setCustomer(getCurrentCustomer());
+      setLoaded(true);
+    });
     window.addEventListener("storage", refresh);
     window.addEventListener("swingfi-customer-updated", refresh);
 
@@ -202,10 +208,10 @@ export function AdminWorkspace() {
                       key={tab.key}
                       type="button"
                       onClick={() => setActiveTab(tab.key)}
-                      className={`min-h-[74px] rounded-2xl border px-3 py-3 text-left transition sm:px-4 ${
+                      className={`min-h-12 rounded-2xl border px-3 py-3 text-left transition sm:min-h-[74px] sm:px-4 ${
                         isActive
                           ? "border-pine bg-mint text-ink shadow-soft"
-                          : "border-transparent bg-transparent text-ink/68 hover:border-line hover:bg-surface"
+                          : "border-line/70 bg-surface/70 text-ink/68 hover:border-pine/30 hover:bg-white"
                       }`}
                     >
                       <span className="block text-sm font-black">{tab.label}</span>

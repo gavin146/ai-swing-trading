@@ -4,7 +4,12 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { BrandMark } from "@/components/BrandMark";
 import { CustomerStatus } from "@/components/CustomerStatus";
-import { getCurrentCustomer, isAdminCustomer, type CustomerProfile } from "@/lib/customer-store";
+import {
+  getCurrentCustomer,
+  isAdminCustomer,
+  restoreAuthenticatedCustomerSession,
+  type CustomerProfile,
+} from "@/lib/customer-store";
 
 type AppShellProps = {
   active?: "admin" | "agent" | "dashboard" | "history" | "settings";
@@ -41,6 +46,14 @@ function topNavClass(isActive: boolean) {
   }`;
 }
 
+function mobileNavClass(isActive: boolean) {
+  return `rounded-xl px-3 py-2 text-center text-[13px] font-black transition ${
+    isActive
+      ? "bg-ink text-white shadow-[0_10px_24px_rgba(7,20,24,0.16)]"
+      : "bg-surface text-ink/64 hover:bg-white hover:text-ink"
+  }`;
+}
+
 export function AppShell({ active, children, eyebrow, subtitle, title }: AppShellProps) {
   const [customer, setCustomer] = useState<CustomerProfile | null>(null);
   const isAdmin = isAdminCustomer(customer);
@@ -52,6 +65,7 @@ export function AppShell({ active, children, eyebrow, subtitle, title }: AppShel
     const refresh = () => setCustomer(getCurrentCustomer());
 
     refresh();
+    restoreAuthenticatedCustomerSession().then(setCustomer).catch(refresh);
     window.addEventListener("storage", refresh);
     window.addEventListener("swingfi-customer-updated", refresh);
 
@@ -63,8 +77,8 @@ export function AppShell({ active, children, eyebrow, subtitle, title }: AppShel
 
   if (!isOperationsPage) {
     return (
-      <main className="min-h-screen bg-[linear-gradient(180deg,#f7fafb_0%,#eef4f6_46%,#f7fafb_100%)]">
-        <header className="sticky top-0 z-40 border-b border-line/70 bg-surface/88 backdrop-blur-2xl">
+      <main className="min-h-screen overflow-x-hidden bg-[linear-gradient(180deg,#f7fafb_0%,#eef4f6_46%,#f7fafb_100%)]">
+        <header className="relative z-30 border-b border-line/70 bg-surface/88 backdrop-blur-2xl">
           <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-4 sm:px-6 lg:px-8">
             <div className="flex items-center justify-between gap-4">
               <div className="min-w-0">
@@ -87,15 +101,13 @@ export function AppShell({ active, children, eyebrow, subtitle, title }: AppShel
               <CustomerStatus />
             </div>
 
-            <nav className="max-w-full overflow-x-auto rounded-2xl border border-line/70 bg-white/74 p-1 text-sm font-bold shadow-[0_10px_28px_rgba(7,20,24,0.05)] md:hidden">
-              <div className="flex min-w-max gap-2">
+            <nav className="rounded-2xl border border-line/70 bg-white/74 p-1.5 shadow-[0_10px_28px_rgba(7,20,24,0.05)] md:hidden">
+              <div className="grid grid-cols-3 gap-1.5">
                 {visibleLinks.map((item) => (
                   <Link
                     key={item.href}
                     href={item.href}
-                    className={`shrink-0 rounded-xl px-3 py-2 ${
-                      isActiveLink(item.key) ? "bg-ink text-white" : "text-ink/64"
-                    }`}
+                    className={mobileNavClass(isActiveLink(item.key))}
                   >
                     {item.label}
                   </Link>
@@ -130,7 +142,7 @@ export function AppShell({ active, children, eyebrow, subtitle, title }: AppShel
   }
 
   return (
-    <main className="min-h-screen bg-[linear-gradient(180deg,#f7fafb_0%,#eef4f6_46%,#f7fafb_100%)]">
+    <main className="min-h-screen overflow-x-hidden bg-[linear-gradient(180deg,#f7fafb_0%,#eef4f6_46%,#f7fafb_100%)]">
       <aside className="fixed inset-y-0 left-0 z-40 hidden w-72 border-r border-line/75 bg-white/82 px-4 py-5 shadow-[18px_0_54px_rgba(7,20,24,0.06)] backdrop-blur-2xl lg:block">
         <BrandMark />
         <nav className="mt-8 grid gap-2">
@@ -174,7 +186,7 @@ export function AppShell({ active, children, eyebrow, subtitle, title }: AppShel
       </aside>
 
       <div className="lg:pl-72">
-        <header className="sticky top-0 z-30 border-b border-line/70 bg-surface/82 backdrop-blur-2xl">
+        <header className="relative z-30 border-b border-line/70 bg-surface/82 backdrop-blur-2xl">
           <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-4 sm:px-6 lg:px-8">
             <div className="flex items-center justify-between gap-4 lg:hidden">
               <BrandMark compact />
@@ -191,15 +203,13 @@ export function AppShell({ active, children, eyebrow, subtitle, title }: AppShel
               </div>
               <CustomerStatus />
             </div>
-            <nav className="max-w-full overflow-x-auto rounded-2xl border border-line/70 bg-white/74 p-1 text-sm font-bold shadow-[0_10px_28px_rgba(7,20,24,0.05)] lg:hidden">
-              <div className="flex min-w-max gap-2">
+            <nav className="rounded-2xl border border-line/70 bg-white/74 p-1.5 shadow-[0_10px_28px_rgba(7,20,24,0.05)] lg:hidden">
+              <div className="grid grid-cols-3 gap-1.5">
                 {visibleLinks.map((item) => (
                   <Link
                     key={item.href}
                     href={item.href}
-                    className={`shrink-0 rounded-xl px-3 py-2 ${
-                      isActiveLink(item.key) ? "bg-ink text-white" : "text-ink/64"
-                    }`}
+                    className={mobileNavClass(isActiveLink(item.key))}
                   >
                     {item.label}
                   </Link>

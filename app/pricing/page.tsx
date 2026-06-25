@@ -1,10 +1,17 @@
 import Link from "next/link";
 import { BillingCheckoutButton } from "@/components/BillingCheckoutButton";
 import { BrandMark } from "@/components/BrandMark";
-import { billingPlans, isStripeCheckoutConfigured } from "@/lib/stripe/config";
+import {
+  billingPlans,
+  getStripeTrialDays,
+  isStripeCheckoutConfigured,
+  isStripeCheckoutEnabled,
+} from "@/lib/stripe/config";
 
 export default function PricingPage() {
   const checkoutConfigured = isStripeCheckoutConfigured();
+  const checkoutEnabled = isStripeCheckoutEnabled();
+  const trialDays = getStripeTrialDays();
 
   return (
     <main className="min-h-screen">
@@ -25,43 +32,47 @@ export default function PricingPage() {
       <section className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
         <div className="max-w-3xl">
           <p className="text-sm font-bold uppercase tracking-normal text-pine">
-            Open beta
+            30-day free trial
           </p>
           <h1 className="mt-3 text-5xl font-bold leading-tight text-ink">
-            Start free while SwingFi is in beta
+            Try SwingFi free for one month
           </h1>
           <p className="mt-5 text-base leading-8 text-ink/68">
-            The product is open while we validate the daily rankings, email workflow,
-            and customer experience. Stripe is coded for later, but paid access is not
-            required right now.
+            New accounts unlock stock rankings, opportunity details, saved picks, and
+            morning email links for {trialDays} days. After the trial, analysis requires
+            an active subscription. Admin accounts always keep full access.
           </p>
           <div className="mt-6 flex flex-col gap-3 sm:flex-row">
             <Link
               href="/signup"
               className="rounded-lg bg-ink px-4 py-3 text-center text-sm font-black text-white shadow-[0_14px_34px_rgba(7,20,24,0.16)] hover:bg-pine"
             >
-              Join free beta
+              Start free trial
             </Link>
             <Link
-              href="/dashboard"
+              href="/login"
               className="rounded-lg border border-line bg-surface px-4 py-3 text-center text-sm font-bold text-ink hover:border-pine"
             >
-              View dashboard
+              Log in
             </Link>
           </div>
         </div>
 
         <div className="mt-8 rounded-xl border border-line bg-panel p-4 shadow-soft">
           <p className="text-sm font-bold text-ink">
-            Future billing status:{" "}
-            <span className={checkoutConfigured ? "text-pine" : "text-coral"}>
-              {checkoutConfigured ? "keys and at least one price configured" : "not ready to charge"}
+            Billing status:{" "}
+            <span className={checkoutEnabled ? "text-pine" : "text-coral"}>
+              {checkoutEnabled
+                ? "checkout is enabled"
+                : checkoutConfigured
+                  ? "configured but disabled"
+                  : "not ready to charge"}
             </span>
           </p>
           <p className="mt-2 text-sm leading-6 text-ink/60">
-            Keep checkout disabled until pricing is decided. To test it later, set
-            `STRIPE_SECRET_KEY`, `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`, one or more
-            `STRIPE_*_PRICE_ID` values, and `STRIPE_CHECKOUT_ENABLED=true`.
+            Checkout starts a {trialDays}-day Stripe subscription trial. To activate it,
+            set Stripe keys, price IDs, webhook secret, and `STRIPE_CHECKOUT_ENABLED=true`
+            in Vercel and local development.
           </p>
         </div>
 
@@ -97,7 +108,7 @@ export default function PricingPage() {
                 <div className="mt-auto pt-6">
                   <BillingCheckoutButton
                     planKey={plan.key}
-                    label={checkoutConfigured ? "Start checkout" : "Checkout not enabled"}
+                    label={checkoutEnabled ? `Start ${trialDays}-day trial` : "Checkout not enabled"}
                     highlighted={plan.highlighted}
                   />
                 </div>

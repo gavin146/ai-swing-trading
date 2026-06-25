@@ -80,25 +80,26 @@ export default async function LandingPage() {
         <div className="mx-auto grid min-h-[78vh] max-w-7xl items-center gap-10 px-4 py-10 sm:px-6 lg:grid-cols-[0.9fr_1.1fr] lg:px-8">
           <div>
             <p className="text-sm font-bold uppercase tracking-normal text-pine">
-              Beginner-friendly swing trading research
+              30 days free · Beginner-friendly swing trading research
             </p>
             <h1 className="mt-4 max-w-3xl text-5xl font-bold leading-[1.02] text-ink sm:text-6xl">
-              Understand today&apos;s stock rankings before you trade
+              AI-ranked swing trade research, explained before you trade
             </h1>
             <p className="mt-6 max-w-2xl text-lg leading-8 text-ink/70">
-              SwingFi turns the morning market scan into a simple ranked list of swing
-              trade ideas. Each pick explains why it ranked, what price area to review,
-              where the target and stop loss are, how risky it looks, and how long the
-              trade may take to play out.
+              SwingFi scans the market each morning and turns the noise into a ranked
+              list of trade ideas with the plan already visible: why it ranked,
+              what price range to review, where the target and stop loss sit, how risky
+              it looks, and how long the swing trade may take.
             </p>
             <div className="mt-6 rounded-3xl border border-line/80 bg-white/80 p-4 shadow-[0_14px_40px_rgba(7,20,24,0.055)]">
               <p className="text-xs font-black uppercase tracking-normal text-pine">
                 The beginner rule
               </p>
               <p className="mt-2 text-sm font-semibold leading-7 text-ink/68">
-                A ranking is a research starting point. Review the entry range, target,
-                stop loss, confidence, and risk before deciding whether to watch, skip,
-                or research the stock further.
+                A ranking is a research starting point, not a buy button. Start with the
+                highest-quality ideas, then check confidence, risk, entry range, target,
+                stop loss, and estimated holding window before deciding what deserves
+                more research.
               </p>
             </div>
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
@@ -106,13 +107,13 @@ export default async function LandingPage() {
                 href="/signup"
                 className="rounded-lg bg-ink px-5 py-3 text-center text-sm font-black text-white shadow-[0_18px_42px_rgba(7,20,24,0.2)] hover:bg-pine"
               >
-                Create beginner profile
+                Start 30-day free trial
               </Link>
               <Link
-                href="/dashboard"
+                href="#how-it-works"
                 className="rounded-lg border border-line bg-panel px-5 py-3 text-center text-sm font-bold text-ink hover:border-pine hover:shadow-soft"
               >
-                View sample dashboard
+                See how it works
               </Link>
             </div>
             <div className="mt-8 grid gap-3 sm:grid-cols-3">
@@ -221,7 +222,7 @@ export default async function LandingPage() {
         </div>
       </section>
 
-      <section className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
+      <section id="how-it-works" className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
         <div className="mb-6 max-w-3xl">
           <p className="text-sm font-bold uppercase tracking-normal text-pine">
             How to use SwingFi

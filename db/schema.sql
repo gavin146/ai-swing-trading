@@ -29,9 +29,20 @@ create table users (
   alert_channel alert_channel not null default 'email',
   alert_time time not null default '08:30',
   timezone text not null default 'America/Chicago',
+  email_verified_at timestamptz,
   email_unsubscribed_at timestamptz,
   terms_accepted_at timestamptz,
   last_login_at timestamptz,
+  created_at timestamptz not null default now()
+);
+
+create table auth_email_verification_tokens (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references users(id) on delete cascade,
+  token_hash text not null unique,
+  email text not null,
+  expires_at timestamptz not null,
+  consumed_at timestamptz,
   created_at timestamptz not null default now()
 );
 
@@ -292,6 +303,9 @@ create index opportunities_score_idx on opportunities(score desc);
 create index opportunities_asset_type_idx on opportunities(asset_type);
 create index users_role_idx on users(role);
 create index users_alerts_idx on users(morning_alerts_enabled, alert_channel, email_unsubscribed_at);
+create index auth_email_verification_tokens_user_idx on auth_email_verification_tokens(user_id);
+create index auth_email_verification_tokens_active_idx on auth_email_verification_tokens(expires_at)
+  where consumed_at is null;
 create index agent_runs_status_idx on agent_runs(status);
 create index agent_runs_started_at_idx on agent_runs(started_at desc);
 create index opportunity_rankings_agent_run_id_idx on opportunity_rankings(agent_run_id);
@@ -320,6 +334,7 @@ create index trade_history_user_id_idx on trade_history(user_id);
 create index trade_history_symbol_idx on trade_history(symbol);
 
 alter table users enable row level security;
+alter table auth_email_verification_tokens enable row level security;
 alter table admin_access_grants enable row level security;
 alter table opportunities enable row level security;
 alter table agent_runs enable row level security;

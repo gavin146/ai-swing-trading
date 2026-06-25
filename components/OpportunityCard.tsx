@@ -107,7 +107,7 @@ export function OpportunityCard({
         {compact ? (
           <div className="mt-4 grid grid-cols-3 gap-2">
             <MiniScore label="Score" score={opportunity.opportunityScore} tone="text-pine" />
-            <MiniScore label="Trust" score={opportunity.confidenceScore} />
+            <MiniScore label="Confidence" score={opportunity.confidenceScore} />
             <MiniScore label="Risk" score={opportunity.riskScore} tone="text-coral" />
           </div>
         ) : (

@@ -47,9 +47,20 @@ export type UserRow = {
   alert_channel: AlertChannel;
   alert_time: string;
   timezone: string;
+  email_verified_at: string | null;
   email_unsubscribed_at: string | null;
   terms_accepted_at: string | null;
   last_login_at: string | null;
+  created_at: string;
+};
+
+export type AuthEmailVerificationTokenRow = {
+  id: string;
+  user_id: string;
+  token_hash: string;
+  email: string;
+  expires_at: string;
+  consumed_at: string | null;
   created_at: string;
 };
 
@@ -303,6 +314,15 @@ export type UserInsert = Omit<UserRow, "id" | "created_at"> & {
   created_at?: string;
 };
 
+export type AuthEmailVerificationTokenInsert = Omit<
+  AuthEmailVerificationTokenRow,
+  "id" | "created_at" | "consumed_at"
+> & {
+  id?: string;
+  consumed_at?: string | null;
+  created_at?: string;
+};
+
 export type AdminAccessGrantInsert = Omit<AdminAccessGrantRow, "id" | "created_at"> & {
   id?: string;
   created_at?: string;
@@ -398,6 +418,7 @@ export type TradeHistoryInsert = Omit<TradeHistoryRow, "id" | "created_at"> & {
 };
 
 export type UserUpdate = Partial<UserInsert>;
+export type AuthEmailVerificationTokenUpdate = Partial<AuthEmailVerificationTokenInsert>;
 export type AdminAccessGrantUpdate = Partial<AdminAccessGrantInsert>;
 export type OpportunityUpdate = Partial<OpportunityInsert>;
 export type AgentRunUpdate = Partial<AgentRunInsert>;
@@ -423,6 +444,11 @@ export type Database = {
         Row: UserRow;
         Insert: UserInsert;
         Update: UserUpdate;
+      };
+      auth_email_verification_tokens: {
+        Row: AuthEmailVerificationTokenRow;
+        Insert: AuthEmailVerificationTokenInsert;
+        Update: AuthEmailVerificationTokenUpdate;
       };
       admin_access_grants: {
         Row: AdminAccessGrantRow;

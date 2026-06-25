@@ -1,81 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
-import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { getStripeClient } from "@/lib/stripe/server";
 import { recordAppEvent } from "@/lib/persistence";
-import type { SubscriptionStatus } from "@/lib/database.types";
+import { syncCheckoutSession, syncStripeSubscription } from "@/lib/stripe/subscription-sync";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
-
-const subscriptionStatuses = new Set<SubscriptionStatus>([
-  "trialing",
-  "active",
-  "past_due",
-  "canceled",
-  "unpaid",
-  "incomplete",
-  "incomplete_expired",
-  "paused",
-]);
-
-function unixToIso(value: number | null | undefined) {
-  return value ? new Date(value * 1000).toISOString() : null;
-}
-
-function getCustomerId(value: string | Stripe.Customer | Stripe.DeletedCustomer | null) {
-  if (!value) return "";
-  return typeof value === "string" ? value : value.id;
-}
-
-function getSubscriptionStatus(value: string) {
-  return subscriptionStatuses.has(value as SubscriptionStatus)
-    ? (value as SubscriptionStatus)
-    : "incomplete";
-}
-
-async function upsertSubscription(subscription: Stripe.Subscription) {
-  const supabase = createSupabaseAdminClient();
-
-  if (!supabase) {
-    await recordAppEvent({
-      level: "warning",
-      source: "stripe-webhook",
-      message: "Stripe webhook received but Supabase is not configured.",
-      metadata: { subscriptionId: subscription.id },
-    });
-    return;
-  }
-
-  const firstItem = subscription.items.data[0];
-  const customerId = getCustomerId(subscription.customer);
-  const planKey = subscription.metadata.planKey || firstItem?.price.lookup_key || "unknown";
-  const appCustomerId = subscription.metadata.appCustomerId || null;
-  const periodStart = "current_period_start" in subscription
-    ? (subscription as Stripe.Subscription & { current_period_start?: number }).current_period_start
-    : undefined;
-  const periodEnd = "current_period_end" in subscription
-    ? (subscription as Stripe.Subscription & { current_period_end?: number }).current_period_end
-    : undefined;
-
-  await supabase.from("subscriptions").upsert(
-    {
-      user_id: appCustomerId || null,
-      stripe_customer_id: customerId,
-      stripe_subscription_id: subscription.id,
-      stripe_price_id: firstItem?.price.id ?? "unknown",
-      plan_key: planKey,
-      status: getSubscriptionStatus(subscription.status),
-      current_period_start: unixToIso(periodStart),
-      current_period_end: unixToIso(periodEnd),
-      cancel_at_period_end: subscription.cancel_at_period_end,
-      canceled_at: unixToIso(subscription.canceled_at),
-      trial_end: unixToIso(subscription.trial_end),
-      updated_at: new Date().toISOString(),
-    },
-    { onConflict: "stripe_subscription_id" },
-  );
-}
 
 export async function POST(request: NextRequest) {
   const stripe = getStripeClient();
@@ -111,10 +41,12 @@ export async function POST(request: NextRequest) {
     event.type === "customer.subscription.updated" ||
     event.type === "customer.subscription.deleted"
   ) {
-    await upsertSubscription(event.data.object);
+    await syncStripeSubscription(event.data.object);
   }
 
   if (event.type === "checkout.session.completed") {
+    await syncCheckoutSession(event.data.object.id);
+
     await recordAppEvent({
       level: "info",
       source: "stripe-webhook",

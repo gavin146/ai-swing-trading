@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getBillingPlan, getPlanPriceId } from "@/lib/stripe/config";
+import { getBillingPlan, getPlanPriceId, getStripeTrialDays } from "@/lib/stripe/config";
 import { getAppUrl, getStripeClient } from "@/lib/stripe/server";
 
 export const dynamic = "force-dynamic";
@@ -53,24 +53,30 @@ export async function POST(request: NextRequest) {
 
   const email = body.email?.trim().toLowerCase();
   const appUrl = getAppUrl();
+  const trialDays = getStripeTrialDays();
   const session = await stripe.checkout.sessions.create({
     mode: "subscription",
     line_items: [{ price: priceId, quantity: 1 }],
     customer_email: email || undefined,
+    client_reference_id: body.customerId || undefined,
     allow_promotion_codes: true,
     billing_address_collection: "auto",
+    payment_method_collection: "always",
     success_url: `${appUrl}/billing/success?session_id={CHECKOUT_SESSION_ID}`,
     cancel_url: `${appUrl}/pricing?checkout=cancelled`,
     metadata: {
       planKey: plan.key,
       appCustomerId: body.customerId ?? "",
       email: email ?? "",
+      trialDays: String(trialDays),
     },
     subscription_data: {
+      trial_period_days: trialDays || undefined,
       metadata: {
         planKey: plan.key,
         appCustomerId: body.customerId ?? "",
         email: email ?? "",
+        trialDays: String(trialDays),
       },
     },
   });

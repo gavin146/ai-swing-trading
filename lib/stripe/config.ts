@@ -67,10 +67,22 @@ export function getPlanPriceId(plan: BillingPlan) {
   return process.env[plan.stripePriceEnv] ?? "";
 }
 
+export function getStripeTrialDays() {
+  const parsed = Number(process.env.STRIPE_TRIAL_DAYS ?? 30);
+
+  if (!Number.isFinite(parsed)) return 30;
+
+  return Math.max(0, Math.min(365, Math.round(parsed)));
+}
+
 export function isStripeCheckoutConfigured() {
   return Boolean(
     process.env.STRIPE_SECRET_KEY &&
       process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY &&
       billingPlans.some((plan) => getPlanPriceId(plan)),
   );
+}
+
+export function isStripeCheckoutEnabled() {
+  return isStripeCheckoutConfigured() && process.env.STRIPE_CHECKOUT_ENABLED === "true";
 }

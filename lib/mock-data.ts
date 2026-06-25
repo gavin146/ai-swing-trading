@@ -29,6 +29,7 @@ export const mockUsers: UserRow[] = [
     alert_channel: "email",
     alert_time: "08:30",
     timezone: "America/Chicago",
+    email_verified_at: createdAt,
     email_unsubscribed_at: null,
     terms_accepted_at: createdAt,
     last_login_at: createdAt,

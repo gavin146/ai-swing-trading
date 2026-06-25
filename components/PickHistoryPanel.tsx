@@ -2,7 +2,12 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { getCurrentCustomer, type CustomerProfile } from "@/lib/customer-store";
+import {
+  getAccessState,
+  getCurrentCustomer,
+  restoreAuthenticatedCustomerSession,
+  type CustomerProfile,
+} from "@/lib/customer-store";
 
 type PickHistoryItem = {
   id: string;
@@ -54,11 +59,17 @@ export function PickHistoryPanel() {
   const [status, setStatus] = useState("Loading saved picks...");
 
   useEffect(() => {
-    const current = getCurrentCustomer();
+    async function load() {
+      const current = (await restoreAuthenticatedCustomerSession().catch(() => null)) ?? getCurrentCustomer();
     setCustomer(current);
 
     if (!current) {
       setStatus("Create an account or log in to see your saved daily picks.");
+      return;
+    }
+
+    if (!getAccessState(current).canViewAnalysis) {
+      setStatus("Your free trial has ended. Subscribe to unlock saved stock analysis history.");
       return;
     }
 
@@ -85,6 +96,9 @@ export function PickHistoryPanel() {
         setPicks([]);
         setStatus(error instanceof Error ? error.message : "Could not load saved picks.");
       });
+    }
+
+    load();
   }, []);
 
   const grouped = useMemo(() => {
@@ -138,7 +152,74 @@ export function PickHistoryPanel() {
                 {group.items.length} saved picks
               </span>
             </div>
-            <div className="mt-4 w-full overflow-x-auto">
+            <div className="grid gap-3 p-4 md:hidden">
+              {group.items.map((item) => {
+                const opportunity = opportunityFor(item);
+
+                if (!opportunity) return null;
+
+                return (
+                  <Link
+                    key={item.id}
+                    href={`/opportunities/${opportunity.symbol}`}
+                    className="rounded-2xl border border-line bg-white p-4 shadow-[0_10px_28px_rgba(7,20,24,0.045)] transition hover:border-pine/35"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-xs font-black uppercase tracking-normal text-ink/42">
+                          Rank #{item.rank}
+                        </p>
+                        <p className="mt-1 text-2xl font-black text-ink">
+                          {opportunity.symbol}
+                        </p>
+                      </div>
+                      <div className="rounded-2xl bg-mint px-3 py-2 text-right">
+                        <p className="text-xs font-black uppercase tracking-normal text-pine/65">
+                          Score
+                        </p>
+                        <p className="text-xl font-black text-pine">{opportunity.score}</p>
+                      </div>
+                    </div>
+                    <div className="mt-4 grid grid-cols-2 gap-2 text-sm">
+                      <div className="rounded-xl bg-surface p-3">
+                        <p className="text-xs font-black uppercase tracking-normal text-ink/42">
+                          Confidence
+                        </p>
+                        <p className="mt-1 font-black text-ink">{opportunity.confidence}/100</p>
+                      </div>
+                      <div className="rounded-xl bg-surface p-3">
+                        <p className="text-xs font-black uppercase tracking-normal text-ink/42">
+                          Risk
+                        </p>
+                        <p className="mt-1 font-black text-coral">{opportunity.risk_score}/100</p>
+                      </div>
+                      <div className="rounded-xl bg-surface p-3">
+                        <p className="text-xs font-black uppercase tracking-normal text-ink/42">
+                          Target
+                        </p>
+                        <p className="mt-1 font-black text-pine">
+                          {currency(opportunity.target_price)}
+                        </p>
+                      </div>
+                      <div className="rounded-xl bg-surface p-3">
+                        <p className="text-xs font-black uppercase tracking-normal text-ink/42">
+                          Stop
+                        </p>
+                        <p className="mt-1 font-black text-coral">
+                          {currency(opportunity.stop_loss)}
+                        </p>
+                      </div>
+                    </div>
+                    <p className="mt-3 text-xs font-bold text-ink/48">
+                      Entry {currency(opportunity.entry_low)} - {currency(opportunity.entry_high)}
+                      {" · "}
+                      {opportunity.holding_period_days} day plan
+                    </p>
+                  </Link>
+                );
+              })}
+            </div>
+            <div className="mt-4 hidden w-full overflow-x-auto md:block">
               <table className="w-full min-w-[900px] border-collapse text-left text-sm">
                 <thead>
                   <tr className="border-b border-line text-xs uppercase tracking-normal text-ink/55">

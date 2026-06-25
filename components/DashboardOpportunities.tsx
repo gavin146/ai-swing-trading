@@ -1,15 +1,19 @@
 "use client";
 
+import Link from "next/link";
 import { type Dispatch, type SetStateAction, useEffect, useMemo, useState } from "react";
 import { OpportunityCard } from "@/components/OpportunityCard";
 import { ScoreGuide } from "@/components/ScoreGuide";
 import { SummaryTile } from "@/components/SummaryTile";
 import {
+  getAccessState,
   getCurrentCustomer,
   getCustomerDailyPickLimit,
+  restoreAuthenticatedCustomerSession,
   type CustomerProfile,
 } from "@/lib/customer-store";
-import type { Opportunity } from "@/lib/opportunities";
+import { opportunityFromRow, type Opportunity } from "@/lib/opportunities";
+import type { OpportunityRow } from "@/lib/database.types";
 import type { OpportunityDataSource } from "@/lib/repositories/opportunities";
 
 type DashboardOpportunitiesProps = {
@@ -21,6 +25,90 @@ type DashboardOpportunitiesProps = {
 type DashboardView = "top" | "watchlist" | "higher-risk";
 
 const dashboardActionStorageKey = "swingfi-dashboard-actions";
+
+function AccessGate({
+  customer,
+}: {
+  customer: CustomerProfile | null;
+}) {
+  const access = getAccessState(customer);
+  const needsEmailVerification = Boolean(customer && !access.isEmailVerified);
+  const title = needsEmailVerification
+    ? "Confirm your email to unlock analysis"
+    : customer
+      ? "Your free trial has ended"
+      : "Start your free month";
+  const body = needsEmailVerification
+    ? "SwingFi sent a branded confirmation email when you created your account. Confirm your email to unlock today’s ranked opportunities, trade plans, and morning research links."
+    : customer
+      ? "SwingFi stock analysis is available during an active trial or subscription. Your saved profile is still here, but live rankings are locked until billing is active."
+      : "Create an account to start a 30-day free trial and unlock today’s ranked opportunities, trade plans, score explanations, and morning email links.";
+  const primaryHref = needsEmailVerification
+    ? `/verify-email?sent=1&email=${encodeURIComponent(customer?.email ?? "")}`
+    : customer
+      ? "/pricing"
+      : "/signup";
+  const primaryLabel = needsEmailVerification
+    ? "Confirm email"
+    : customer
+      ? "View subscription options"
+      : "Start free month";
+
+  return (
+    <section className="motion-card overflow-hidden rounded-3xl border border-line/80 bg-white shadow-[0_24px_80px_rgba(7,20,24,0.08)]">
+      <div className="grid gap-0 lg:grid-cols-[1fr_360px]">
+        <div className="p-6 sm:p-8">
+          <div className="signal-line mb-6 h-1.5 max-w-56 rounded-full" />
+          <p className="text-xs font-black uppercase tracking-normal text-pine">
+            Analysis access
+          </p>
+          <h2 className="mt-3 max-w-2xl text-3xl font-black tracking-normal text-ink sm:text-4xl">
+            {title}
+          </h2>
+          <p className="mt-4 max-w-2xl text-sm font-semibold leading-7 text-ink/62">
+            {body}
+          </p>
+          <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+            <Link
+              href={primaryHref}
+              className="rounded-2xl bg-ink px-5 py-3 text-center text-sm font-black text-white shadow-[0_18px_42px_rgba(7,20,24,0.18)] hover:bg-pine"
+            >
+              {primaryLabel}
+            </Link>
+            <Link
+              href={customer ? "/settings" : "/login"}
+              className="rounded-2xl border border-line bg-surface px-5 py-3 text-center text-sm font-bold text-ink hover:border-pine"
+            >
+              {customer ? "Review account" : "Log in"}
+            </Link>
+          </div>
+        </div>
+        <div className="border-t border-line bg-[linear-gradient(145deg,#071418,#0b3d3f)] p-6 text-white lg:border-l lg:border-t-0">
+          <p className="text-xs font-black uppercase tracking-normal text-lime">
+            Included in trial
+          </p>
+          <div className="mt-5 grid gap-3">
+            {[
+              "Daily ranked swing-trade opportunities",
+              "Entry, target, stop loss, and estimated time frame",
+              "Plain-English score and risk explanations",
+              "Morning email links to today’s analysis",
+            ].map((item) => (
+              <div key={item} className="rounded-2xl border border-white/14 bg-white/8 p-3 text-sm font-bold text-white/76">
+                {item}
+              </div>
+            ))}
+          </div>
+          {customer ? (
+            <p className="mt-5 text-xs font-semibold leading-5 text-white/48">
+              Trial status: {access.trialEndsAt ? `ended ${new Date(access.trialEndsAt).toLocaleDateString()}` : "not available"}
+            </p>
+          ) : null}
+        </div>
+      </div>
+    </section>
+  );
+}
 
 function listStrength(score: number) {
   if (score >= 80) {
@@ -113,7 +201,10 @@ export function DashboardOpportunities({
   fallbackReason,
   initialOpportunities,
 }: DashboardOpportunitiesProps) {
-  const [opportunities] = useState(initialOpportunities);
+  const [opportunities, setOpportunities] = useState(initialOpportunities);
+  const [currentDataSource, setCurrentDataSource] = useState<OpportunityDataSource>(dataSource);
+  const [currentFallbackReason, setCurrentFallbackReason] = useState(fallbackReason);
+  const [opportunitiesLoading, setOpportunitiesLoading] = useState(false);
   const [activeView, setActiveView] = useState<DashboardView>("top");
   const [customer, setCustomer] = useState<CustomerProfile | null>(null);
   const [ready, setReady] = useState(false);
@@ -140,12 +231,16 @@ export function DashboardOpportunities({
   }, []);
 
   useEffect(() => {
-    const refresh = () => {
-      setCustomer(getCurrentCustomer());
+    const refresh = async () => {
+      const restored = await restoreAuthenticatedCustomerSession();
+      setCustomer(restored);
       setReady(true);
     };
 
-    refresh();
+    refresh().catch(() => {
+      setCustomer(getCurrentCustomer());
+      setReady(true);
+    });
     window.addEventListener("storage", refresh);
     window.addEventListener("swingfi-opportunities-updated", refresh);
     window.addEventListener("swingfi-customer-updated", refresh);
@@ -156,6 +251,52 @@ export function DashboardOpportunities({
       window.removeEventListener("swingfi-customer-updated", refresh);
     };
   }, [dataSource]);
+
+  useEffect(() => {
+    const access = getAccessState(customer);
+    if (!ready || !access.canViewAnalysis) return;
+
+    let isActive = true;
+
+    async function loadOpportunities() {
+      setOpportunitiesLoading(true);
+
+      try {
+        const response = await fetch("/api/opportunities", { cache: "no-store" });
+        const payload = (await response.json().catch(() => null)) as {
+          reason?: string;
+          rows?: OpportunityRow[];
+          source?: OpportunityDataSource;
+        } | null;
+
+        if (!isActive) return;
+
+        if (!response.ok || !payload?.rows) {
+          setOpportunities([]);
+          setCurrentDataSource("empty");
+          setCurrentFallbackReason(payload?.reason ?? "Rankings could not be loaded.");
+          return;
+        }
+
+        setOpportunities(payload.rows.map(opportunityFromRow));
+        setCurrentDataSource(payload.source ?? "supabase");
+        setCurrentFallbackReason(payload.reason);
+      } catch {
+        if (!isActive) return;
+        setOpportunities([]);
+        setCurrentDataSource("empty");
+        setCurrentFallbackReason("Rankings could not be loaded. Please try again shortly.");
+      } finally {
+        if (isActive) setOpportunitiesLoading(false);
+      }
+    }
+
+    loadOpportunities();
+
+    return () => {
+      isActive = false;
+    };
+  }, [customer, ready]);
 
   useEffect(() => {
     if (!ready) return;
@@ -175,6 +316,7 @@ export function DashboardOpportunities({
       return {
         closestFitCount: 0,
         dailyPicks: opportunities,
+        dailyDirectMatchCount: opportunities.length,
         directMatchCount: opportunities.length,
         limit: opportunities.length,
       };
@@ -206,6 +348,9 @@ export function DashboardOpportunities({
     return {
       closestFitCount: Math.max(0, dailyPicks.length - Math.min(dailyPicks.length, directMatchCount)),
       dailyPicks,
+      dailyDirectMatchCount: dailyPicks.filter((opportunity) =>
+        scored.some((item) => item.opportunity.symbol === opportunity.symbol && item.directMatch),
+      ).length,
       directMatchCount,
       limit,
     };
@@ -350,6 +495,44 @@ export function DashboardOpportunities({
       watchlistCount,
     };
   }, [dailyPicks]);
+  const access = getAccessState(customer);
+
+  if (!ready) {
+    return (
+      <section className="motion-card rounded-3xl border border-line/80 bg-white p-6 shadow-[0_24px_80px_rgba(7,20,24,0.08)] sm:p-8">
+        <div className="skeleton h-4 w-40 rounded-full" />
+        <div className="skeleton mt-5 h-10 max-w-xl rounded-2xl" />
+        <div className="skeleton mt-4 h-24 rounded-3xl" />
+      </section>
+    );
+  }
+
+  if (!access.canViewAnalysis) {
+    return <AccessGate customer={customer} />;
+  }
+
+  if (opportunitiesLoading && opportunities.length === 0) {
+    return (
+      <section className="motion-card rounded-3xl border border-line/80 bg-white p-6 shadow-[0_24px_80px_rgba(7,20,24,0.08)] sm:p-8">
+        <div className="signal-line mb-6 h-1.5 max-w-56 rounded-full" />
+        <p className="text-xs font-black uppercase tracking-normal text-pine">
+          Loading today&apos;s analysis
+        </p>
+        <h2 className="mt-3 max-w-2xl text-3xl font-black tracking-normal text-ink sm:text-4xl">
+          Preparing your personalized ranked list
+        </h2>
+        <p className="mt-3 max-w-2xl text-sm font-semibold leading-7 text-ink/60">
+          SwingFi is matching the saved agent rankings against your risk, confidence,
+          and account preferences.
+        </p>
+        <div className="mt-6 grid gap-3 sm:grid-cols-3">
+          <div className="skeleton h-24 rounded-2xl" />
+          <div className="skeleton h-24 rounded-2xl" />
+          <div className="skeleton h-24 rounded-2xl" />
+        </div>
+      </section>
+    );
+  }
 
   return (
     <>
@@ -362,7 +545,7 @@ export function DashboardOpportunities({
                 Pre-market list
               </span>
               <span className="rounded-full bg-mint px-3 py-1 text-xs font-black uppercase tracking-normal text-pine">
-                {dataSource === "supabase" ? "Live data" : "Preview"}
+                {currentDataSource === "supabase" ? "Live data" : "Preview"}
               </span>
             </div>
             <h2 className="mt-5 max-w-3xl text-3xl font-black tracking-normal text-ink sm:text-4xl">
@@ -370,11 +553,11 @@ export function DashboardOpportunities({
             </h2>
             <p className="mt-4 max-w-3xl text-sm font-medium leading-7 text-ink/62">
               {customer
-                ? `Showing ${dailyPicks.length} personalized picks from ${opportunities.length} agent-ranked opportunities. ${personalized.directMatchCount} directly match your confidence and risk settings${
+                ? `Showing ${dailyPicks.length} personalized picks from ${opportunities.length} agent-ranked opportunities. ${personalized.dailyDirectMatchCount} of these picks match your confidence and risk settings${
                     personalized.closestFitCount > 0
-                      ? "; the rest are the closest high-quality fits so the list stays useful."
+                      ? `; ${personalized.closestFitCount} are the closest high-quality fits so the list stays useful.`
                       : "."
-                  }`
+                  } ${personalized.directMatchCount > personalized.dailyDirectMatchCount ? `${personalized.directMatchCount} total opportunities in today's full list match your filters.` : ""}`
                 : `Showing ${dailyPicks.length} agent-ranked opportunities. Create a profile to personalize the list by risk, budget, and confidence preference.`}
             </p>
             <div className="mt-6 grid grid-cols-3 gap-2 sm:gap-3">
@@ -428,19 +611,23 @@ export function DashboardOpportunities({
             </div>
           </div>
         </div>
-        {dataSource === "empty" ? (
-          <p className="border-t border-line bg-coral/12 px-6 py-4 text-sm font-bold text-ink/70">
-            No live picks are available yet{fallbackReason ? `: ${fallbackReason}` : "."}
+        {opportunitiesLoading ? (
+          <p className="border-t border-line bg-sky px-6 py-4 text-sm font-bold text-ink/70">
+            Loading today&apos;s ranked opportunities...
           </p>
-        ) : dataSource === "agent-preview" ? (
+        ) : currentDataSource === "empty" ? (
+          <p className="border-t border-line bg-coral/12 px-6 py-4 text-sm font-bold text-ink/70">
+            No live picks are available yet{currentFallbackReason ? `: ${currentFallbackReason}` : "."}
+          </p>
+        ) : currentDataSource === "agent-preview" ? (
           <p className="border-t border-line bg-sky px-6 py-4 text-sm font-bold text-ink/70">
             Live agent preview is showing because saved Supabase picks are not active yet.
-            {fallbackReason ? ` ${fallbackReason}` : ""}
+            {currentFallbackReason ? ` ${currentFallbackReason}` : ""}
           </p>
         ) : null}
       </div>
 
-      <div className="sticky top-[126px] z-20 mt-5 rounded-3xl border border-line/80 bg-surface/88 p-3 shadow-[0_18px_54px_rgba(7,20,24,0.08)] backdrop-blur-2xl md:top-[86px]">
+      <div className="mt-5 rounded-3xl border border-line/80 bg-surface/88 p-3 shadow-[0_18px_54px_rgba(7,20,24,0.08)] backdrop-blur-2xl">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <p className="text-xs font-black uppercase tracking-normal text-pine">

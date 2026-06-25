@@ -1,10 +1,18 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { MetricPill } from "@/components/MetricPill";
 import { ScoreMeter } from "@/components/ScoreMeter";
 import { TradeStatGrid } from "@/components/TradeStatGrid";
-import type { Opportunity } from "@/lib/opportunities";
+import {
+  getAccessState,
+  getCurrentCustomer,
+  restoreAuthenticatedCustomerSession,
+  type CustomerProfile,
+} from "@/lib/customer-store";
+import type { OpportunityRow } from "@/lib/database.types";
+import { opportunityFromRow, type Opportunity } from "@/lib/opportunities";
 import type { OpportunityDataSource } from "@/lib/repositories/opportunities";
 
 type OpportunityDetailViewProps = {
@@ -32,8 +40,169 @@ export function OpportunityDetailView({
   initialOpportunity,
   symbol,
 }: OpportunityDetailViewProps) {
-  const opportunity = initialOpportunity;
-  const message = statusMessage(dataSource, fallbackReason);
+  const [customer, setCustomer] = useState<CustomerProfile | null>(null);
+  const [ready, setReady] = useState(false);
+  const [opportunity, setOpportunity] = useState<Opportunity | undefined>(initialOpportunity);
+  const [currentDataSource, setCurrentDataSource] = useState<OpportunityDataSource>(dataSource);
+  const [currentFallbackReason, setCurrentFallbackReason] = useState(fallbackReason);
+  const [loadingOpportunity, setLoadingOpportunity] = useState(false);
+  const message = statusMessage(currentDataSource, currentFallbackReason);
+
+  useEffect(() => {
+    let active = true;
+
+    restoreAuthenticatedCustomerSession()
+      .then((restored) => {
+        if (!active) return;
+        setCustomer(restored);
+        setReady(true);
+      })
+      .catch(() => {
+        if (!active) return;
+        setCustomer(getCurrentCustomer());
+        setReady(true);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const access = getAccessState(customer);
+
+  useEffect(() => {
+    if (!ready || !access.canViewAnalysis) return;
+
+    let active = true;
+
+    async function loadOpportunity() {
+      setLoadingOpportunity(true);
+
+      try {
+        const response = await fetch(`/api/opportunities/${encodeURIComponent(symbol)}`, {
+          cache: "no-store",
+        });
+        const payload = (await response.json().catch(() => null)) as {
+          reason?: string;
+          rows?: OpportunityRow[];
+          source?: OpportunityDataSource;
+        } | null;
+
+        if (!active) return;
+
+        if (!response.ok || !payload?.rows?.[0]) {
+          setOpportunity(undefined);
+          setCurrentDataSource("empty");
+          setCurrentFallbackReason(payload?.reason ?? "Analysis could not be loaded.");
+          return;
+        }
+
+        setOpportunity(opportunityFromRow(payload.rows[0]));
+        setCurrentDataSource(payload.source ?? "supabase");
+        setCurrentFallbackReason(payload.reason);
+      } catch {
+        if (!active) return;
+        setOpportunity(undefined);
+        setCurrentDataSource("empty");
+        setCurrentFallbackReason("Analysis could not be loaded. Please try again shortly.");
+      } finally {
+        if (active) setLoadingOpportunity(false);
+      }
+    }
+
+    loadOpportunity();
+
+    return () => {
+      active = false;
+    };
+  }, [access.canViewAnalysis, ready, symbol]);
+
+  if (!ready) {
+    return (
+      <section className="rounded-3xl border border-line/80 bg-white p-6 shadow-[0_24px_80px_rgba(7,20,24,0.08)] sm:p-8">
+        <div className="skeleton h-4 w-36 rounded-full" />
+        <div className="skeleton mt-5 h-12 max-w-md rounded-2xl" />
+        <div className="skeleton mt-5 h-40 rounded-3xl" />
+      </section>
+    );
+  }
+
+  if (ready && !access.canViewAnalysis) {
+    const needsEmailVerification = Boolean(customer && !access.isEmailVerified);
+    return (
+      <section className="overflow-hidden rounded-3xl border border-line/80 bg-white shadow-[0_24px_80px_rgba(7,20,24,0.08)]">
+        <div className="grid lg:grid-cols-[1fr_340px]">
+          <div className="p-6 sm:p-8">
+            <Link
+              href="/dashboard"
+              className="inline-flex rounded-xl border border-line bg-surface px-3 py-2 text-sm font-bold text-ink hover:border-pine hover:shadow-soft"
+            >
+              Back to dashboard
+            </Link>
+            <p className="mt-6 text-xs font-black uppercase tracking-normal text-pine">
+              Analysis access
+            </p>
+            <h1 className="mt-3 text-3xl font-black text-ink">
+              {needsEmailVerification
+                ? "Confirm your email to unlock this stock analysis"
+                : customer
+                  ? "Subscribe to unlock this stock analysis"
+                  : "Start your free month to unlock analysis"}
+            </h1>
+            <p className="mt-3 max-w-2xl leading-7 text-ink/65">
+              {needsEmailVerification
+                ? "Open the branded SwingFi confirmation email, then return here to review the full trade plan."
+                : "SwingFi opportunity details are available with an active 30-day free trial, active subscription, or admin access."}
+            </p>
+            <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+              <Link
+                href={
+                  needsEmailVerification
+                    ? `/verify-email?sent=1&email=${encodeURIComponent(customer?.email ?? "")}`
+                    : customer
+                      ? "/pricing"
+                      : "/signup"
+                }
+                className="rounded-2xl bg-ink px-5 py-3 text-center text-sm font-black text-white hover:bg-pine"
+              >
+                {needsEmailVerification
+                  ? "Confirm email"
+                  : customer
+                    ? "View subscription options"
+                    : "Start free month"}
+              </Link>
+              <Link
+                href={customer ? "/settings" : "/login"}
+                className="rounded-2xl border border-line bg-surface px-5 py-3 text-center text-sm font-bold text-ink hover:border-pine"
+              >
+                {customer ? "Account settings" : "Log in"}
+              </Link>
+            </div>
+          </div>
+          <div className="border-t border-line bg-[linear-gradient(145deg,#071418,#0b3d3f)] p-6 text-white lg:border-l lg:border-t-0">
+            <p className="text-xs font-black uppercase tracking-normal text-lime">
+              Locked preview
+            </p>
+            <p className="mt-4 text-5xl font-black">{symbol.toUpperCase()}</p>
+            <p className="mt-3 text-sm font-semibold leading-7 text-white/62">
+              Unlock the full trade plan, explanation, risk score, target, stop loss,
+              and swing-trade time frame.
+            </p>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  if (loadingOpportunity) {
+    return (
+      <section className="rounded-3xl border border-line/80 bg-white p-6 shadow-[0_24px_80px_rgba(7,20,24,0.08)] sm:p-8">
+        <div className="skeleton h-4 w-36 rounded-full" />
+        <div className="skeleton mt-5 h-12 max-w-md rounded-2xl" />
+        <div className="skeleton mt-5 h-40 rounded-3xl" />
+      </section>
+    );
+  }
 
   if (!opportunity) {
     return (
@@ -47,7 +216,7 @@ export function OpportunityDetailView({
         <h1 className="mt-6 text-3xl font-black text-ink">Opportunity not found</h1>
         <p className="mt-3 leading-7 text-ink/65">
           No saved opportunity is available for {symbol.toUpperCase()}.
-          {fallbackReason ? ` ${fallbackReason}` : ""}
+          {currentFallbackReason ? ` ${currentFallbackReason}` : ""}
         </p>
       </section>
     );
