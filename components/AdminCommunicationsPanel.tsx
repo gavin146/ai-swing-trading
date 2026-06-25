@@ -196,6 +196,41 @@ export function AdminCommunicationsPanel() {
     }
   }
 
+  async function sendMorningEmailTest() {
+    setSending(true);
+    setStatus("Sending saved morning email test...");
+
+    try {
+      const response = await fetch("/api/admin/communications/test", {
+        method: "POST",
+        headers: getAdminHeaders({ "Content-Type": "application/json" }),
+        body: JSON.stringify({
+          channel: "email",
+          email: testEmail,
+          mode: "morning_email",
+        }),
+      });
+      const payload = (await response.json().catch(() => ({}))) as {
+        delivery?: { mode?: string; status?: string };
+        error?: string;
+        opportunityCount?: number;
+        subject?: string;
+      };
+
+      if (!response.ok) {
+        throw new Error(payload.error ?? "Morning email test failed");
+      }
+
+      setStatus(
+        `Saved morning email test ${payload.delivery?.status ?? "queued"} to ${testEmail} with ${payload.opportunityCount ?? 0} picks.`,
+      );
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Morning email test failed");
+    } finally {
+      setSending(false);
+    }
+  }
+
   return (
     <section className="premium-panel mb-6 rounded-3xl p-5 sm:p-6">
       <div className="signal-line mb-5 h-1.5 max-w-48 rounded-full" />
@@ -353,6 +388,17 @@ export function AdminCommunicationsPanel() {
           >
             {sending ? "Sending..." : `Send test ${channel}`}
           </button>
+
+          {channel === "email" ? (
+            <button
+              type="button"
+              disabled={sending || !confirmed || !testEmail}
+              onClick={() => void sendMorningEmailTest()}
+              className="rounded-2xl border border-pine/30 bg-mint px-4 py-3 text-sm font-black text-pine shadow-soft hover:border-pine hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              Send saved morning email test
+            </button>
+          ) : null}
 
           <p className="rounded-2xl bg-surface px-3 py-2 text-sm font-bold text-ink/70">
             {status}

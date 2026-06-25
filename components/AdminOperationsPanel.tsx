@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { AdminCronMonitor } from "@/components/AdminCronMonitor";
 import { PasswordField } from "@/components/PasswordField";
 import {
   getAdminHeaders,
@@ -274,6 +275,8 @@ export function AdminOperationsPanel() {
           </button>
         </div>
       </div>
+
+      <AdminCronMonitor />
     </section>
   );
 }
