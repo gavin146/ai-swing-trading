@@ -22,6 +22,10 @@ export type TechnicalSnapshot = {
   rsi14: number;
   atrPercent: number;
   relativeStrength90d: number;
+  relativeStrengthVsMarket?: number;
+  relativeStrengthVsSector?: number;
+  trendQuality?: number;
+  breakoutProximity?: number;
   support: number;
   resistance: number;
   volumeTrend: number;
@@ -42,6 +46,10 @@ export type NewsSnapshot = {
   catalystScore: number;
   headlineCount: number;
   riskFlagCount: number;
+  catalystTags?: string[];
+  eventRiskScore?: number;
+  filingRiskScore?: number;
+  daysToEarnings?: number | null;
   summary: string;
 };
 

@@ -35,6 +35,16 @@ function notConfigured(): PersistenceResult {
   };
 }
 
+function isMissingPredictionTableError(error: { message?: string } | null | undefined) {
+  const message = error?.message?.toLowerCase() ?? "";
+
+  return message.includes("prediction_outcomes") && (
+    message.includes("schema cache") ||
+    message.includes("does not exist") ||
+    message.includes("could not find")
+  );
+}
+
 function asJson(value: unknown): Json {
   return JSON.parse(JSON.stringify(value)) as Json;
 }
@@ -114,6 +124,99 @@ function personalizedPickScore(opportunity: OpportunityRow, user: PickUserPrefer
   }
 
   return opportunity.score * 1.15 + opportunity.confidence * 0.3 - opportunity.risk_score * 0.22 - penalty;
+}
+
+function opportunityRewardRisk(opportunity: OpportunityRow) {
+  const reward = opportunity.target_price - opportunity.entry_low;
+  const risk = opportunity.entry_low - opportunity.stop_loss;
+
+  if (reward <= 0 || risk <= 0) return 0;
+
+  return Math.round((reward / risk) * 100) / 100;
+}
+
+async function persistPredictionLedger(result: AgentRunResult) {
+  const supabase = createSupabaseAdminClient();
+
+  if (!supabase) return notConfigured();
+
+  const predictionDate = result.asOf.slice(0, 10);
+  const rows = result.rankings.map((ranking) => {
+    const opportunity = ranking.opportunity;
+
+    return {
+      agent_run_id: result.runId,
+      opportunity_id: opportunity.id,
+      symbol: opportunity.symbol,
+      rank: ranking.rank,
+      prediction_date: predictionDate,
+      score: opportunity.score,
+      confidence: opportunity.confidence,
+      risk_score: opportunity.risk_score,
+      entry_low: opportunity.entry_low,
+      entry_high: opportunity.entry_high,
+      target_price: opportunity.target_price,
+      stop_loss: opportunity.stop_loss,
+      expected_gain: opportunity.expected_gain,
+      expected_loss: opportunity.expected_loss,
+      reward_risk_ratio: opportunityRewardRisk(opportunity),
+      holding_period_days: opportunity.holding_period_days,
+      status: "pending",
+      entry_date: null,
+      entry_price: null,
+      exit_date: null,
+      exit_price: null,
+      return_pct: 0,
+      max_gain_pct: 0,
+      max_drawdown_pct: 0,
+      spy_return_pct: null,
+      qqq_return_pct: null,
+      benchmark_return_pct: null,
+      excess_return_pct: null,
+      evaluated_at: null,
+    };
+  });
+
+  if (rows.length === 0) {
+    return { persisted: true, reason: "No predictions generated for this run." };
+  }
+
+  const { error: deleteError } = await supabase
+    .from("prediction_outcomes")
+    .delete()
+    .eq("agent_run_id", result.runId);
+
+  if (isMissingPredictionTableError(deleteError)) {
+    return {
+      persisted: true,
+      reason:
+        "Prediction tracking table is not applied in Supabase yet, so forward accuracy will start after db/schema.sql is applied.",
+    } satisfies PersistenceResult;
+  }
+
+  if (deleteError) {
+    return {
+      persisted: false,
+      error: deleteError.message,
+    } satisfies PersistenceResult;
+  }
+
+  const { error } = await supabase
+    .from("prediction_outcomes")
+    .insert(rows);
+
+  if (isMissingPredictionTableError(error)) {
+    return {
+      persisted: true,
+      reason:
+        "Prediction tracking table is not applied in Supabase yet, so forward accuracy will start after db/schema.sql is applied.",
+    } satisfies PersistenceResult;
+  }
+
+  return {
+    persisted: !error,
+    error: error?.message,
+  } satisfies PersistenceResult;
 }
 
 async function persistPersonalizedDailyPicks(result: AgentRunResult) {
@@ -306,6 +409,11 @@ export async function persistAgentRun(result: AgentRunResult) {
   const dailyPicks = await persistPersonalizedDailyPicks(result);
   if (!dailyPicks.persisted) {
     return { persisted: false, error: dailyPicks.error } satisfies PersistenceResult;
+  }
+
+  const predictionLedger = await persistPredictionLedger(result);
+  if (!predictionLedger.persisted) {
+    return { persisted: false, error: predictionLedger.error } satisfies PersistenceResult;
   }
 
   return { persisted: true } satisfies PersistenceResult;

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { buildMorningAlertMessage, buildMorningEmailAlert } from "@/lib/alerts";
-import { runFmpDailyRankingAgent } from "@/lib/agent";
+import { hydrateRuntimeCalibrationFromSupabase, runFmpDailyRankingAgent } from "@/lib/agent";
 import { sendAdminFailureAlert, sendEmail } from "@/lib/email";
 import {
   getMorningAlertRecipients,
@@ -34,6 +34,18 @@ async function runMorningAlerts(request: NextRequest) {
   const customerName = process.env.ALERT_TEST_CUSTOMER_NAME ?? "";
 
   if (!process.env.FMP_API_KEY && !process.env.FINANCIAL_DATA_API_KEY) {
+    await recordAppEvent({
+      level: "error",
+      source: "morning-alerts-cron",
+      message: "Morning alerts blocked because FMP market data is not configured.",
+      metadata: {},
+    });
+    await sendAdminFailureAlert({
+      source: "morning-alerts-cron",
+      message: "Morning alerts blocked because FMP market data is not configured.",
+      error: "FMP_API_KEY is required for live morning alerts.",
+    });
+
     return NextResponse.json(
       { error: "FMP_API_KEY is required for live morning alerts." },
       { status: 503 },
@@ -41,9 +53,44 @@ async function runMorningAlerts(request: NextRequest) {
   }
 
   try {
-    const result = await runFmpDailyRankingAgent({ limit: 90 });
+    const persistedCalibration = await hydrateRuntimeCalibrationFromSupabase();
+    const result = await runFmpDailyRankingAgent({ limit: 30 });
     const persistence = await persistAgentRun(result);
     const deliveries = [];
+
+    if (result.selectedCount === 0) {
+      await recordAppEvent({
+        level: "error",
+        source: "morning-alerts-cron",
+        message: "Morning alert run produced zero customer picks.",
+        metadata: { runId: result.runId, universeCount: result.universeCount },
+      });
+      await sendAdminFailureAlert({
+        source: "morning-alerts-cron",
+        message: "Morning alert run produced zero customer picks.",
+        metadata: { runId: result.runId, universeCount: result.universeCount },
+      });
+    } else if (result.selectedCount < 30) {
+      await recordAppEvent({
+        level: "warning",
+        source: "morning-alerts-cron",
+        message: "Morning alert run produced fewer than 30 live picks.",
+        metadata: {
+          runId: result.runId,
+          selectedCount: result.selectedCount,
+          universeCount: result.universeCount,
+        },
+      });
+      await sendAdminFailureAlert({
+        source: "morning-alerts-cron",
+        message: "Morning alert run produced fewer than 30 live picks.",
+        metadata: {
+          runId: result.runId,
+          selectedCount: result.selectedCount,
+          universeCount: result.universeCount,
+        },
+      });
+    }
 
     if (recipients.length > 0) {
       for (const recipient of recipients) {
@@ -103,10 +150,33 @@ async function runMorningAlerts(request: NextRequest) {
         sent: 0,
         mode: "preview",
         email: emailAlert,
-        persistence,
-        recipients: recipientResult,
+      persistence,
+      persistedCalibration,
+      recipients: recipientResult,
         note:
           "No alert recipients were found. Add users with email alerts enabled in Supabase, or set ALERT_CUSTOMER_EMAILS while Supabase is not configured.",
+      });
+    }
+
+    const failedDeliveries = deliveries.filter((item) => item.delivery.status === "failed");
+
+    if (failedDeliveries.length > 0) {
+      await recordAppEvent({
+        level: "error",
+        source: "morning-alerts-cron",
+        message: "One or more morning alert deliveries failed.",
+        metadata: {
+          failedCount: failedDeliveries.length,
+          totalDeliveries: deliveries.length,
+        },
+      });
+      await sendAdminFailureAlert({
+        source: "morning-alerts-cron",
+        message: "One or more morning alert deliveries failed.",
+        metadata: {
+          failedCount: failedDeliveries.length,
+          totalDeliveries: deliveries.length,
+        },
       });
     }
 
@@ -129,6 +199,7 @@ async function runMorningAlerts(request: NextRequest) {
       sent: deliveries.filter((item) => item.delivery.status !== "failed").length,
       deliveries,
       persistence,
+      persistedCalibration,
       recipientSource: recipientResult.source,
     });
   } catch (error) {

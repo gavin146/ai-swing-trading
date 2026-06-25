@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { runFmpDailyRankingAgent } from "@/lib/agent";
+import { hydrateRuntimeCalibrationFromSupabase, runFmpDailyRankingAgent } from "@/lib/agent";
+import { sendAdminFailureAlert } from "@/lib/email";
 import { generateOpenAiText, hasOpenAiApiKey } from "@/lib/openai";
+import { recordAppEvent } from "@/lib/persistence";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -20,6 +22,7 @@ async function runConfiguredAgent() {
     throw new Error("FMP_API_KEY is required for live AI explanations.");
   }
 
+  await hydrateRuntimeCalibrationFromSupabase();
   return runFmpDailyRankingAgent({ limit: 30 });
 }
 export async function GET() {
@@ -37,8 +40,22 @@ export async function POST(request: NextRequest) {
   try {
     result = await runConfiguredAgent();
   } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : "Live ranking failed.";
+    await recordAppEvent({
+      level: "error",
+      source: "openai-explanation",
+      message: "Live ranking failed before AI explanation generation.",
+      metadata: { error: errorMessage, symbol },
+    });
+    await sendAdminFailureAlert({
+      source: "openai-explanation",
+      message: "Live ranking failed before AI explanation generation.",
+      error: errorMessage,
+      metadata: { symbol },
+    });
+
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Live ranking failed." },
+      { error: errorMessage },
       { status: 503 },
     );
   }
@@ -55,13 +72,13 @@ export async function POST(request: NextRequest) {
       {
         role: "system",
         content:
-          "You explain swing-trading research for beginner investors. Be concise, factual, cautious, and never promise returns. Do not provide personalized financial advice.",
+          "You explain swing-trading research for beginner investors. Be concise, factual, cautious, and never promise returns. Do not provide personalized financial advice. Prefer plain English over trading jargon.",
       },
       {
         role: "user",
         content: JSON.stringify({
           instruction:
-            "Explain why this stock ranked where it did. Include strengths, risks, and what the investor should monitor. Keep it under 180 words.",
+            "Explain why this stock ranked where it did. Include market-relative strength, sector-relative strength, catalyst quality, earnings/event risk, SEC filing risk when present, reward/risk, and what the investor should monitor. Keep it under 180 words.",
           symbol: ranking.candidate.symbol,
           companyName: ranking.candidate.companyName,
           rank: ranking.rank,
@@ -86,6 +103,28 @@ export async function POST(request: NextRequest) {
       },
     ],
   });
+
+  if (response.error) {
+    await recordAppEvent({
+      level: "error",
+      source: "openai-explanation",
+      message: "OpenAI explanation generation failed.",
+      metadata: {
+        error: response.error,
+        mode: response.mode,
+        symbol: ranking.candidate.symbol,
+      },
+    });
+    await sendAdminFailureAlert({
+      source: "openai-explanation",
+      message: "OpenAI explanation generation failed.",
+      error: response.error,
+      metadata: {
+        mode: response.mode,
+        symbol: ranking.candidate.symbol,
+      },
+    });
+  }
 
   return NextResponse.json({
     symbol: ranking.candidate.symbol,

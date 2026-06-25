@@ -329,7 +329,7 @@ export function AgentRunnerPanel() {
           <p className="mt-4 max-w-4xl leading-7 text-ink/65">{result.summary}</p>
 
           <div className="mt-6 w-full max-w-full overflow-x-auto">
-            <table className="w-full min-w-[1120px] border-collapse text-left text-sm">
+            <table className="w-full min-w-[1320px] border-collapse text-left text-sm">
               <thead>
                 <tr className="border-b border-line text-xs uppercase tracking-normal text-ink/55">
                   <th className="py-3 pr-4">Rank</th>
@@ -338,8 +338,10 @@ export function AgentRunnerPanel() {
                   <th className="py-3 pr-4">Confidence</th>
                   <th className="py-3 pr-4">Risk</th>
                   <th className="py-3 pr-4">Technical</th>
+                  <th className="py-3 pr-4">Rel str</th>
                   <th className="py-3 pr-4">Financial</th>
                   <th className="py-3 pr-4">News</th>
+                  <th className="py-3 pr-4">Catalyst</th>
                   <th className="py-3 pr-4">Macro</th>
                   <th className="py-3 pr-4">Calibration</th>
                   <th className="py-3 pr-4">Target</th>
@@ -364,8 +366,26 @@ export function AgentRunnerPanel() {
                     <td className="py-4 pr-4">{item.scores.confidence}</td>
                     <td className="py-4 pr-4">{item.scores.risk}</td>
                     <td className="py-4 pr-4">{item.scores.technical}</td>
+                    <td className="py-4 pr-4">
+                      <p className="font-semibold text-ink">
+                        Mkt {item.candidate.technical.relativeStrengthVsMarket ?? 50}
+                      </p>
+                      <p className="mt-1 text-xs font-semibold text-ink/50">
+                        Sec {item.candidate.technical.relativeStrengthVsSector ?? 50}
+                      </p>
+                    </td>
                     <td className="py-4 pr-4">{item.scores.financial}</td>
                     <td className="py-4 pr-4">{item.scores.news}</td>
+                    <td className="py-4 pr-4">
+                      <p className="max-w-[170px] text-xs font-semibold leading-5 text-ink/60">
+                        {item.candidate.news.catalystTags?.slice(0, 2).join(", ") || "No standout tag"}
+                      </p>
+                      {(item.candidate.news.eventRiskScore ?? 0) > 0 ? (
+                        <p className="mt-1 text-xs font-bold text-coral">
+                          Event risk {item.candidate.news.eventRiskScore}
+                        </p>
+                      ) : null}
+                    </td>
                     <td className="py-4 pr-4">{item.scores.macro}</td>
                     <td className="py-4 pr-4">
                       {item.calibration.length > 0 ? (

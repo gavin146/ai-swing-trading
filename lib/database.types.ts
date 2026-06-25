@@ -27,6 +27,14 @@ export type SubscriptionStatus =
   | "paused";
 export type TradeStatus = "planned" | "open" | "closed" | "cancelled";
 export type UserRole = "customer" | "admin";
+export type PredictionStatus =
+  | "pending"
+  | "entered"
+  | "target_hit"
+  | "stop_hit"
+  | "expired"
+  | "no_entry"
+  | "no_data";
 
 export type UserRow = {
   id: string;
@@ -217,6 +225,41 @@ export type DailyPickRow = {
   created_at: string;
 };
 
+export type PredictionOutcomeRow = {
+  id: string;
+  agent_run_id: string;
+  opportunity_id: string;
+  symbol: string;
+  rank: number;
+  prediction_date: string;
+  score: number;
+  confidence: number;
+  risk_score: number;
+  entry_low: number;
+  entry_high: number;
+  target_price: number;
+  stop_loss: number;
+  expected_gain: number;
+  expected_loss: number;
+  reward_risk_ratio: number;
+  holding_period_days: number;
+  status: PredictionStatus;
+  entry_date: string | null;
+  entry_price: number | null;
+  exit_date: string | null;
+  exit_price: number | null;
+  return_pct: number;
+  max_gain_pct: number;
+  max_drawdown_pct: number;
+  spy_return_pct: number | null;
+  qqq_return_pct: number | null;
+  benchmark_return_pct: number | null;
+  excess_return_pct: number | null;
+  evaluated_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 export type AlertLogRow = {
   id: string;
   user_id: string | null;
@@ -373,6 +416,15 @@ export type DailyPickInsert = Omit<DailyPickRow, "id" | "created_at"> & {
   created_at?: string;
 };
 
+export type PredictionOutcomeInsert = Omit<
+  PredictionOutcomeRow,
+  "id" | "created_at" | "updated_at"
+> & {
+  id?: string;
+  created_at?: string;
+  updated_at?: string;
+};
+
 export type AlertLogInsert = Omit<AlertLogRow, "id" | "created_at"> & {
   id?: string;
   created_at?: string;
@@ -429,6 +481,7 @@ export type SubscriptionUpdate = Partial<SubscriptionInsert>;
 export type AppEventLogUpdate = Partial<AppEventLogInsert>;
 export type OpportunityRankingUpdate = Partial<OpportunityRankingInsert>;
 export type DailyPickUpdate = Partial<DailyPickInsert>;
+export type PredictionOutcomeUpdate = Partial<PredictionOutcomeInsert>;
 export type AlertLogUpdate = Partial<AlertLogInsert>;
 export type EmailLinkEventUpdate = Partial<EmailLinkEventInsert>;
 export type AlertOpenEventUpdate = Partial<AlertOpenEventInsert>;
@@ -474,6 +527,11 @@ export type Database = {
         Row: DailyPickRow;
         Insert: DailyPickInsert;
         Update: DailyPickUpdate;
+      };
+      prediction_outcomes: {
+        Row: PredictionOutcomeRow;
+        Insert: PredictionOutcomeInsert;
+        Update: PredictionOutcomeUpdate;
       };
       alert_logs: {
         Row: AlertLogRow;

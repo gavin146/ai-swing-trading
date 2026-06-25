@@ -59,7 +59,11 @@ export function AppMotionShell({ children }: AppMotionShellProps) {
     <>
       <div
         aria-hidden="true"
-        className={`fixed left-0 top-0 z-[80] h-1 bg-[linear-gradient(90deg,#b7f34b,#68d8ff,#0b3d3f)] transition-all duration-500 ease-out ${
+        className={`navigation-veil ${isNavigating ? "navigation-veil-active" : ""}`}
+      />
+      <div
+        aria-hidden="true"
+        className={`fixed left-0 top-0 z-[90] h-1 bg-[linear-gradient(90deg,#b7f34b,#68d8ff,#0b3d3f)] shadow-[0_0_22px_rgba(183,243,75,0.42)] transition-all duration-500 ease-out ${
           isNavigating ? "w-full opacity-100" : "w-0 opacity-0"
         }`}
       />

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { runFmpDailyRankingAgent } from "@/lib/agent";
+import { hydrateRuntimeCalibrationFromSupabase, runFmpDailyRankingAgent } from "@/lib/agent";
 import { getAdminUnauthorizedResponse, isAdminApiRequest } from "@/lib/auth/admin";
 import { sendAdminFailureAlert } from "@/lib/email";
 import { persistAgentRun, recordAppEvent, summarizeCalibration } from "@/lib/persistence";
@@ -31,6 +31,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
+    const persistedCalibration = await hydrateRuntimeCalibrationFromSupabase();
     const result = await runFmpDailyRankingAgent({ limit: parseLimit(body.limit) });
     const persistence = await persistAgentRun(result);
     const calibration = summarizeCalibration(result.rankings);
@@ -55,6 +56,7 @@ export async function POST(request: NextRequest) {
       calibration,
       persisted: persistence.persisted,
       persistence,
+      persistedCalibration,
     });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);

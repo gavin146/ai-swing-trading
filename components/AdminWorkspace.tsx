@@ -9,6 +9,7 @@ import { AdminCustomerPanel } from "@/components/AdminCustomerPanel";
 import { AdminOperationsPanel } from "@/components/AdminOperationsPanel";
 import { AdminOpportunityPanel } from "@/components/AdminOpportunityPanel";
 import { BacktestPanel } from "@/components/BacktestPanel";
+import { PredictionAccuracyPanel } from "@/components/PredictionAccuracyPanel";
 import {
   getCurrentCustomer,
   isAdminCustomer,
@@ -21,6 +22,7 @@ type AdminTab =
   | "overview"
   | "operations"
   | "backtesting"
+  | "accuracy"
   | "access"
   | "communications"
   | "customers"
@@ -56,6 +58,11 @@ const adminTabGroups: Array<{
         key: "backtesting",
         label: "Backtesting",
         description: "Outcome tracking and self-learning calibration.",
+      },
+      {
+        key: "accuracy",
+        label: "Prediction accuracy",
+        description: "Forward proof that live picks are beating benchmarks.",
       },
       {
         key: "opportunities",
@@ -120,6 +127,7 @@ export function AdminWorkspace() {
   const activePanel = useMemo(() => {
     if (activeTab === "overview") return <AdminCommandCenter onNavigate={setActiveTab} />;
     if (activeTab === "backtesting") return <BacktestPanel />;
+    if (activeTab === "accuracy") return <PredictionAccuracyPanel />;
     if (activeTab === "access") return <AdminAccessPanel />;
     if (activeTab === "communications") return <AdminCommunicationsPanel />;
     if (activeTab === "customers") return <AdminCustomerPanel />;
@@ -129,45 +137,90 @@ export function AdminWorkspace() {
 
   if (!loaded) {
     return (
-      <section className="premium-panel rounded-3xl p-6">
-        <p className="text-sm font-bold text-ink">Checking admin access...</p>
+      <section className="premium-panel overflow-hidden rounded-3xl">
+        <div className="grid gap-0 lg:grid-cols-[1fr_320px]">
+          <div className="p-6">
+            <div className="signal-line mb-5 h-1.5 max-w-48 rounded-full" />
+            <p className="text-sm font-black uppercase tracking-normal text-pine">
+              Secure admin check
+            </p>
+            <h2 className="mt-3 text-3xl font-black tracking-normal text-ink">
+              Verifying your operations access
+            </h2>
+            <p className="mt-3 max-w-2xl text-sm font-semibold leading-6 text-ink/60">
+              SwingFi is confirming that this session belongs to an approved admin
+              before loading customer, alert, and ranking controls.
+            </p>
+          </div>
+          <div className="border-t border-line bg-surface p-6 lg:border-l lg:border-t-0">
+            <div className="skeleton h-4 w-36 rounded-full" />
+            <div className="skeleton mt-5 h-12 rounded-2xl" />
+            <div className="skeleton mt-4 h-24 rounded-3xl" />
+          </div>
+        </div>
       </section>
     );
   }
 
   if (!customer || !isAdminCustomer(customer)) {
     return (
-      <section className="premium-panel rounded-3xl p-6">
-        <div className="signal-line mb-5 h-1.5 max-w-48 rounded-full" />
-        <p className="text-sm font-bold uppercase tracking-normal text-pine">
-          Admin account required
-        </p>
-        <h1 className="mt-3 max-w-3xl text-3xl font-black text-ink">
-          Admin tools require an approved admin email
-        </h1>
-        <p className="mt-3 max-w-2xl text-sm leading-6 text-ink/65">
-          The owner account is {SWINGFI_ADMIN_EMAIL}. Existing admins can approve
-          more emails from the admin workspace, then those people can create their own
-          admin accounts with passwords.
-        </p>
-        {customer ? (
-          <p className="mt-4 rounded-md bg-surface px-3 py-2 text-sm font-bold text-ink/65">
-            Current account: {customer.email}
-          </p>
-        ) : null}
-        <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-          <Link
-            href="/signup"
-            className="rounded-2xl bg-ink px-4 py-3 text-center text-sm font-black text-white shadow-[0_14px_34px_rgba(7,20,24,0.16)] hover:bg-pine"
-          >
-            Create admin account
-          </Link>
-          <Link
-            href="/login"
-            className="rounded-2xl border border-line bg-surface px-4 py-3 text-center text-sm font-bold text-ink hover:border-pine"
-          >
-            Log in
-          </Link>
+      <section className="premium-panel overflow-hidden rounded-3xl">
+        <div className="grid gap-0 lg:grid-cols-[1fr_360px]">
+          <div className="p-6 sm:p-8">
+            <div className="signal-line mb-5 h-1.5 max-w-48 rounded-full" />
+            <p className="text-sm font-black uppercase tracking-normal text-pine">
+              Admin account required
+            </p>
+            <h1 className="mt-3 max-w-3xl text-3xl font-black tracking-normal text-ink">
+              Sign in with an approved admin email
+            </h1>
+            <p className="mt-3 max-w-2xl text-sm font-semibold leading-7 text-ink/65">
+              Admin access is limited to approved emails. The owner account is{" "}
+              {SWINGFI_ADMIN_EMAIL}. Existing admins can approve additional team
+              members, then each person creates their own password-protected account.
+            </p>
+            {customer ? (
+              <p className="mt-4 rounded-2xl border border-line bg-surface px-4 py-3 text-sm font-bold text-ink/65">
+                Current account: {customer.email}
+              </p>
+            ) : null}
+            <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+              <Link
+                href="/login"
+                className="rounded-2xl bg-ink px-4 py-3 text-center text-sm font-black text-white shadow-[0_14px_34px_rgba(7,20,24,0.16)] hover:bg-pine"
+              >
+                Log in as admin
+              </Link>
+              <Link
+                href="/signup"
+                className="rounded-2xl border border-line bg-surface px-4 py-3 text-center text-sm font-bold text-ink hover:border-pine"
+              >
+                Create approved account
+              </Link>
+            </div>
+          </div>
+          <div className="border-t border-line bg-[linear-gradient(145deg,#071418,#0b3d3f)] p-6 text-white lg:border-l lg:border-t-0">
+            <p className="text-xs font-black uppercase tracking-normal text-lime">
+              Protected tools
+            </p>
+            <div className="mt-5 grid gap-3">
+              {[
+                "Daily agent runs",
+                "Customer profiles and activity",
+                "Email and SMS alert studio",
+                "Backtesting and calibration",
+                "Prediction accuracy verification",
+                "Admin role approvals",
+              ].map((item) => (
+                <div
+                  key={item}
+                  className="rounded-2xl border border-white/14 bg-white/8 p-3 text-sm font-bold text-white/76"
+                >
+                  {item}
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       </section>
     );

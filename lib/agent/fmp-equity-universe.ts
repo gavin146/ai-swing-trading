@@ -89,6 +89,32 @@ type CombinedMacroContext = FredMacroContext & {
   treasury: TreasuryMacroContext;
 };
 
+type BenchmarkReturnSnapshot = {
+  return21d: number;
+  return63d: number;
+  return126d: number;
+};
+
+type BenchmarkContext = {
+  market: BenchmarkReturnSnapshot | null;
+  sectors: Partial<Record<Sector, BenchmarkReturnSnapshot>>;
+  notes: string[];
+};
+
+const sectorEtfs: Record<Sector, string> = {
+  "Communication Services": "XLC",
+  "Consumer Discretionary": "XLY",
+  "Consumer Staples": "XLP",
+  Energy: "XLE",
+  Financials: "XLF",
+  "Health Care": "XLV",
+  Industrials: "XLI",
+  "Information Technology": "XLK",
+  Materials: "XLB",
+  "Real Estate": "XLRE",
+  Utilities: "XLU",
+};
+
 function clamp(value: number, min = 0, max = 100) {
   return Math.max(min, Math.min(max, value));
 }
@@ -120,6 +146,10 @@ function average(values: number[]) {
   return values.reduce((total, value) => total + value, 0) / values.length;
 }
 
+function latestValue<T>(values: T[]) {
+  return values[values.length - 1];
+}
+
 function envNumber(name: string, fallback: number, min: number, max: number) {
   const parsed = Number(process.env[name]);
 
@@ -138,7 +168,7 @@ function percentChange(current: number, previous: number) {
   return ((current - previous) / Math.abs(previous)) * 100;
 }
 
-function containsAny(value: string, keywords: string[]) {
+function containsAny(value: string, keywords: readonly string[]) {
   const lower = value.toLowerCase();
   return keywords.some((keyword) => lower.includes(keyword));
 }
@@ -262,6 +292,75 @@ function sortCandles(candles: FmpHistoricalCandle[]) {
     .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 }
 
+function closeReturn(closes: number[], periodsBack: number) {
+  const current = latestValue(closes);
+  const previous = closes[Math.max(0, closes.length - 1 - periodsBack)];
+  return percentChange(current, previous);
+}
+
+function benchmarkReturns(candles: FmpHistoricalCandle[]): BenchmarkReturnSnapshot | null {
+  const sorted = sortCandles(candles);
+
+  if (sorted.length < 130) {
+    return null;
+  }
+
+  const closes = sorted.map((candle) => candle.close ?? 0);
+
+  return {
+    return21d: round(closeReturn(closes, 21), 1),
+    return63d: round(closeReturn(closes, 63), 1),
+    return126d: round(closeReturn(closes, 126), 1),
+  };
+}
+
+async function getBenchmarkContext(asOf: Date) {
+  const from = daysAgo(asOf, 220);
+  const to = asOf.toISOString().slice(0, 10);
+  const marketSymbols = ["SPY", "QQQ"];
+  const sectorEntries = Object.entries(sectorEtfs) as Array<[Sector, string]>;
+  const [marketResults, sectorResults] = await Promise.all([
+    Promise.all(marketSymbols.map((symbol) => optionalArray(getFmpHistoricalCandles(symbol, from, to)))),
+    Promise.all(
+      sectorEntries.map(async ([sector, symbol]) => ({
+        sector,
+        snapshot: benchmarkReturns(await optionalArray(getFmpHistoricalCandles(symbol, from, to))),
+      })),
+    ),
+  ]);
+  const marketSnapshots = marketResults
+    .map((candles) => benchmarkReturns(candles))
+    .filter((snapshot) => snapshot !== null);
+  const market =
+    marketSnapshots.length > 0
+      ? {
+          return21d: round(average(marketSnapshots.map((item) => item.return21d)), 1),
+          return63d: round(average(marketSnapshots.map((item) => item.return63d)), 1),
+          return126d: round(average(marketSnapshots.map((item) => item.return126d)), 1),
+        }
+      : null;
+  const sectors: Partial<Record<Sector, BenchmarkReturnSnapshot>> = {};
+
+  sectorResults.forEach(({ sector, snapshot }) => {
+    if (snapshot) {
+      sectors[sector] = snapshot;
+    }
+  });
+
+  return {
+    market,
+    sectors,
+    notes: [
+      market
+        ? "SPY/QQQ benchmark candles are connected for market-relative strength."
+        : "SPY/QQQ benchmark candles were unavailable; market-relative strength used neutral fallback.",
+      Object.keys(sectors).length > 0
+        ? `${Object.keys(sectors).length} sector ETF benchmarks are connected for sector-relative strength.`
+        : "Sector ETF benchmark candles were unavailable; sector-relative strength used neutral fallback.",
+    ],
+  } satisfies BenchmarkContext;
+}
+
 function calculateRsi(closes: number[], lookback = 14) {
   if (closes.length <= lookback) return 50;
 
@@ -296,7 +395,11 @@ function calculateAtrPercent(candles: FmpHistoricalCandle[], price: number, look
   return (average(trueRanges) / price) * 100;
 }
 
-function buildTechnicalSnapshot(candles: FmpHistoricalCandle[]) {
+function buildTechnicalSnapshot(
+  candles: FmpHistoricalCandle[],
+  sector: Sector,
+  benchmarks: BenchmarkContext,
+) {
   const sorted = sortCandles(candles);
 
   if (sorted.length < 210) {
@@ -308,11 +411,37 @@ function buildTechnicalSnapshot(candles: FmpHistoricalCandle[]) {
   const latest = sorted[sorted.length - 1];
   const price = latest.close ?? 0;
   const close90DaysAgo = closes[Math.max(0, closes.length - 91)];
+  const return21d = closeReturn(closes, 21);
+  const return63d = closeReturn(closes, 63);
+  const return126d = closeReturn(closes, 126);
+  const marketReturn = benchmarks.market
+    ? benchmarks.market.return21d * 0.45 +
+      benchmarks.market.return63d * 0.35 +
+      benchmarks.market.return126d * 0.2
+    : return21d * 0.35 + return63d * 0.4 + return126d * 0.25;
+  const sectorBenchmark = benchmarks.sectors[sector];
+  const sectorReturn = sectorBenchmark
+    ? sectorBenchmark.return21d * 0.45 +
+      sectorBenchmark.return63d * 0.35 +
+      sectorBenchmark.return126d * 0.2
+    : marketReturn;
   const relativeStrength90d = clamp(50 + percentChange(price, close90DaysAgo) * 1.8, 25, 100);
   const recent20 = sorted.slice(-20);
   const recent40 = sorted.slice(-40);
   const volume20 = average(volumes.slice(-20));
   const volume50Previous = average(volumes.slice(-70, -20));
+  const trendQuality = clamp(
+    45 +
+      (price > average(closes.slice(-20)) ? 10 : -8) +
+      (average(closes.slice(-20)) > average(closes.slice(-50)) ? 12 : -8) +
+      (average(closes.slice(-50)) > average(closes.slice(-200)) ? 12 : -10) +
+      Math.min(16, Math.max(-12, return63d * 0.65)) +
+      Math.min(10, Math.max(-10, percentChange(volume20, volume50Previous) * 0.2)),
+    0,
+    100,
+  );
+  const resistance = Math.max(...recent40.map((candle) => candle.high ?? price));
+  const breakoutProximity = clamp(100 - Math.abs(((resistance - price) / price) * 100) * 12, 0, 100);
 
   return {
     price: round(price, 2),
@@ -322,8 +451,12 @@ function buildTechnicalSnapshot(candles: FmpHistoricalCandle[]) {
     rsi14: round(calculateRsi(closes), 1),
     atrPercent: round(calculateAtrPercent(sorted, price), 1),
     relativeStrength90d: Math.round(relativeStrength90d),
+    relativeStrengthVsMarket: Math.round(clamp(50 + (return21d * 0.45 + return63d * 0.35 + return126d * 0.2 - marketReturn) * 2.4, 0, 100)),
+    relativeStrengthVsSector: Math.round(clamp(50 + (return21d * 0.45 + return63d * 0.35 + return126d * 0.2 - sectorReturn) * 2.6, 0, 100)),
+    trendQuality: Math.round(trendQuality),
+    breakoutProximity: Math.round(breakoutProximity),
     support: round(Math.min(...recent20.map((candle) => candle.low ?? price)), 2),
-    resistance: round(Math.max(...recent40.map((candle) => candle.high ?? price)), 2),
+    resistance: round(resistance, 2),
     volumeTrend: round(percentChange(volume20, volume50Previous), 1),
   };
 }
@@ -414,6 +547,12 @@ function buildNewsAndCatalystSnapshot(args: {
     "expands",
     "contract",
     "guidance",
+    "guidance raise",
+    "buyback",
+    "repurchase",
+    "accelerates",
+    "profit",
+    "margin",
   ];
   const negativeKeywords = [
     "miss",
@@ -432,12 +571,39 @@ function buildNewsAndCatalystSnapshot(args: {
     "warning",
     "bankruptcy",
     "subpoena",
+    "offering",
+    "dilution",
+    "secondary",
+    "layoff",
+    "slashed",
+    "fraud",
+    "short seller",
   ];
-  const riskyForms = new Set(["8-K", "S-1", "S-3", "424B5", "NT 10-K", "NT 10-Q"]);
+  const catalystGroups = [
+    ["earnings strength", ["beat", "beats", "eps", "revenue", "profit", "margin"]],
+    ["guidance improvement", ["raise", "raises", "raised", "guidance", "outlook"]],
+    ["analyst support", ["upgrade", "upgraded", "price target", "initiated"]],
+    ["business momentum", ["contract", "partnership", "launch", "expands", "approval", "approved"]],
+    ["capital return", ["buyback", "repurchase", "dividend"]],
+  ] as const;
+  const filingSeverity: Record<string, number> = {
+    "8-K": 1,
+    "S-1": 4,
+    "S-3": 4,
+    "424B5": 4,
+    "424B2": 3,
+    "NT 10-K": 3,
+    "NT 10-Q": 3,
+    "10-K": 1,
+    "10-Q": 1,
+  };
   const recentNews = args.news.filter((item) => {
     if (!item.publishedDate) return false;
     return Math.abs(daysBetween(new Date(item.publishedDate), args.asOf)) <= 14;
   });
+  const newsText = recentNews
+    .map((item) => `${item.title ?? ""} ${item.text ?? ""}`)
+    .join(" ");
   const positiveCount = recentNews.filter((item) =>
     containsAny(`${item.title ?? ""} ${item.text ?? ""}`, positiveKeywords),
   ).length;
@@ -468,19 +634,38 @@ function buildNewsAndCatalystSnapshot(args: {
     if (!filing.filingDate) return false;
     return daysBetween(new Date(filing.filingDate), args.asOf) <= 30;
   });
-  const riskFilingCount = recentFilings.filter((filing) =>
-    riskyForms.has(filing.formType ?? ""),
-  ).length;
-  const earningsRisk = daysToEarnings !== null && daysToEarnings <= 7 ? 2 : daysToEarnings !== null && daysToEarnings <= 14 ? 1 : 0;
-  const riskFlagCount = Math.max(0, negativeCount + riskFilingCount + earningsRisk);
+  const filingRiskScore = clamp(
+    recentFilings.reduce((total, filing) => total + (filingSeverity[filing.formType ?? ""] ?? 0), 0) * 11,
+    0,
+    100,
+  );
+  const riskFilingCount = recentFilings.filter((filing) => (filingSeverity[filing.formType ?? ""] ?? 0) >= 3).length;
+  const earningsRisk =
+    daysToEarnings !== null && daysToEarnings <= 3
+      ? 34
+      : daysToEarnings !== null && daysToEarnings <= 7
+        ? 24
+        : daysToEarnings !== null && daysToEarnings <= 14
+          ? 12
+          : 0;
+  const eventRiskScore = clamp(earningsRisk + negativeCount * 9 + riskFilingCount * 14, 0, 100);
+  const catalystTags = catalystGroups
+    .filter(([, keywords]) => containsAny(newsText, keywords))
+    .map(([label]) => label);
+  const riskFlagCount = Math.max(
+    0,
+    negativeCount + riskFilingCount + (eventRiskScore >= 24 ? 1 : 0),
+  );
   const sentimentScore = clamp(55 + positiveCount * 8 - negativeCount * 11 + Math.min(recentNews.length, 8) * 1.5);
   const catalystScore = clamp(
     48 +
       positiveCount * 9 +
+      catalystTags.length * 4 +
       Math.max(0, epsSurprise) * 0.35 +
       (daysToEarnings !== null && daysToEarnings <= 21 ? 5 : 0) -
       negativeCount * 8 -
-      riskFilingCount * 5,
+      riskFilingCount * 8 -
+      Math.max(0, eventRiskScore - 30) * 0.16,
   );
   const summaryParts = [
     `${args.symbol} has ${recentNews.length} recent FMP news item${recentNews.length === 1 ? "" : "s"}`,
@@ -498,12 +683,24 @@ function buildNewsAndCatalystSnapshot(args: {
     );
   }
 
+  if (catalystTags.length > 0) {
+    summaryParts.push(`catalyst types: ${catalystTags.slice(0, 3).join(", ")}`);
+  }
+
+  if (eventRiskScore >= 40 || filingRiskScore >= 35) {
+    summaryParts.push("event or filing risk is elevated");
+  }
+
   return {
     snapshot: {
       sentimentScore: Math.round(sentimentScore),
       catalystScore: Math.round(catalystScore),
       headlineCount: recentNews.length,
       riskFlagCount,
+      catalystTags,
+      eventRiskScore: Math.round(eventRiskScore),
+      filingRiskScore: Math.round(filingRiskScore),
+      daysToEarnings,
       summary: `${summaryParts.join(", ")}.`,
     },
     hasLiveNewsData: args.news.length > 0,
@@ -596,6 +793,7 @@ async function buildFmpCandidate(
   symbol: string,
   asOf: Date,
   macro: CombinedMacroContext,
+  benchmarks: BenchmarkContext,
   fallback: EquityCandidate,
 ) {
   const from = daysAgo(asOf, 430);
@@ -617,13 +815,13 @@ async function buildFmpCandidate(
   const directSecFilings =
     secFilings.length > 0 ? [] : await optionalArray(getSecSubmissionsByCik(profile?.cik));
   const allSecFilings = secFilings.length > 0 ? secFilings : directSecFilings;
-  const technical = buildTechnicalSnapshot(candles);
+  const sector = mapSector(profile?.sector ?? fallback.sector);
+  const technical = buildTechnicalSnapshot(candles, sector, benchmarks);
 
   if (!technical) {
     return null;
   }
 
-  const sector = mapSector(profile?.sector ?? fallback.sector);
   const averageVolume = profile?.volAvg ?? profile?.avgVolume ?? fallback.averageVolume ?? candles.at(-1)?.volume ?? 0;
   const marketCapBillions = Math.max(0, (profile?.marketCap ?? fallback.marketCapBillions * 1_000_000_000) / 1_000_000_000);
   const financialResult = buildFinancialSnapshot({
@@ -707,12 +905,27 @@ function rankScreenerRows(rows: FmpCompanyScreenerRow[]) {
       );
     })
     .sort((a, b) => {
-      const aScore =
-        Math.log10(Math.max(Number(a.marketCap ?? 0), 1)) * 0.62 +
-        Math.log10(Math.max(Number(a.volume ?? 0), 1)) * 0.38;
-      const bScore =
-        Math.log10(Math.max(Number(b.marketCap ?? 0), 1)) * 0.62 +
-        Math.log10(Math.max(Number(b.volume ?? 0), 1)) * 0.38;
+      const swingCandidateScore = (row: FmpCompanyScreenerRow) => {
+        const marketCap = Number(row.marketCap ?? 0);
+        const volume = Number(row.volume ?? 0);
+        const price = Number(row.price ?? 0);
+        const beta = Number(row.beta ?? 1);
+        const liquidity = Math.log10(Math.max(volume, 1)) * 7;
+        const capBillions = marketCap / 1_000_000_000;
+        const capSweetSpot =
+          capBillions >= 3 && capBillions <= 250
+            ? 16
+            : capBillions > 250
+              ? Math.max(5, 16 - Math.log10(capBillions / 250) * 9)
+              : Math.max(0, capBillions * 3);
+        const betaSweetSpot =
+          beta >= 0.8 && beta <= 2.2 ? 14 : beta > 2.8 ? 4 : beta > 0 ? 8 : 6;
+        const priceQuality = price >= 8 && price <= 500 ? 10 : price > 500 ? 5 : 2;
+
+        return liquidity + capSweetSpot + betaSweetSpot + priceQuality;
+      };
+      const aScore = swingCandidateScore(a);
+      const bScore = swingCandidateScore(b);
 
       return bScore - aScore;
     })
@@ -730,6 +943,32 @@ function rankScreenerRows(rows: FmpCompanyScreenerRow[]) {
     });
 }
 
+function hasSwingQuality(candidate: EquityCandidate) {
+  const price = candidate.technical.price;
+  const upsideRoom =
+    price > 0 ? ((candidate.technical.resistance - price) / price) * 100 : 0;
+
+  return (
+    candidate.averageVolume >= 500_000 &&
+    candidate.marketCapBillions >= 1 &&
+    price >= 5 &&
+    upsideRoom >= 3.5 &&
+    (candidate.technical.relativeStrengthVsMarket ?? 50) >= 32 &&
+    (candidate.technical.relativeStrengthVsSector ?? 50) >= 30 &&
+    (candidate.technical.trendQuality ?? 50) >= 34 &&
+    candidate.technical.volumeTrend >= -35 &&
+    candidate.technical.support > 0 &&
+    candidate.technical.resistance > candidate.technical.support
+  );
+}
+
+function dataQualityLabel(liveCount: number, total: number) {
+  if (total === 0) return "mock";
+  if (liveCount === total) return "live";
+  if (liveCount > 0) return "partial";
+  return "mock";
+}
+
 async function getBroadFmpScreenerRows(limit: number) {
   try {
     const rows = await getFmpCompanyScreener(limit);
@@ -742,6 +981,7 @@ async function getBroadFmpScreenerRows(limit: number) {
 export async function getFmpEquityUniverse(
   asOf: Date,
   macro: CombinedMacroContext,
+  benchmarks: BenchmarkContext,
   symbols: string[],
   screenerRows: FmpCompanyScreenerRow[] = [],
   allowFallbackForMissing = true,
@@ -778,7 +1018,7 @@ export async function getFmpEquityUniverse(
     }
 
     try {
-      const candidate = await buildFmpCandidate(symbol, asOf, macro, fallback);
+      const candidate = await buildFmpCandidate(symbol, asOf, macro, benchmarks, fallback);
 
       if (candidate) {
         return {
@@ -835,14 +1075,17 @@ export async function runFmpDailyRankingAgent({
   asOf = new Date(),
   limit = 30,
   symbols,
-  universeLimit = envNumber("FMP_UNIVERSE_LIMIT", 500, 40, 500),
-  detailedLimit = envNumber("FMP_DETAILED_LIMIT", 200, 30, 200),
+  universeLimit = envNumber("FMP_UNIVERSE_LIMIT", 800, 40, 1000),
+  detailedLimit = envNumber("FMP_DETAILED_LIMIT", 300, 30, 350),
 }: RunFmpOptions = {}): Promise<AgentRunResult> {
   const macro = await getFredMacroContext();
   const bls = await getBlsMacroContext();
   const treasury = await getTreasuryMacroContext();
   const combinedMacro = combineMacroContexts(macro, bls, treasury);
-  const screenerRows = symbols ? [] : await getBroadFmpScreenerRows(universeLimit);
+  const [benchmarks, screenerRows] = await Promise.all([
+    getBenchmarkContext(asOf),
+    symbols ? Promise.resolve([] as FmpCompanyScreenerRow[]) : getBroadFmpScreenerRows(universeLimit),
+  ]);
   const universeSymbols =
     symbols?.map((symbol) => symbol.toUpperCase()) ??
     (screenerRows.length > 0
@@ -853,11 +1096,18 @@ export async function runFmpDailyRankingAgent({
   const universeResult = await getFmpEquityUniverse(
     asOf,
     combinedMacro,
+    benchmarks,
     universeSymbols,
     screenerRows,
-    true,
+    false,
   );
-  const universe = universeResult.candidates;
+  const qualityUniverse = universeResult.candidates.filter(hasSwingQuality);
+  const universe =
+    qualityUniverse.length >= limit ? qualityUniverse : universeResult.candidates;
+  const qualityFilteredCount =
+    qualityUniverse.length >= limit ? universeResult.candidates.length - universe.length : 0;
+  const qualitySupplementCount =
+    qualityUniverse.length < limit ? universe.length - qualityUniverse.length : 0;
   const skippedCount = universeSymbols.length - universe.length;
   const livePriceCount = universeResult.livePriceCount;
   const liveFinancialCount = universeResult.liveFinancialCount;
@@ -871,34 +1121,35 @@ export async function runFmpDailyRankingAgent({
     source: "fmp",
     dataQuality: {
       priceData:
-        livePriceCount === universe.length ? "live" : livePriceCount > 0 ? "partial" : "mock",
-      financialData:
-        liveFinancialCount === universe.length
-          ? "live"
-          : liveFinancialCount > 0
-            ? "partial"
-            : "mock",
+        dataQualityLabel(Math.min(livePriceCount, universe.length), universe.length),
+      financialData: dataQualityLabel(Math.min(liveFinancialCount, universe.length), universe.length),
       macroData: combinedMacro.isLive ? "live" : "partial",
-      newsData:
-        liveNewsCount === universe.length ? "live" : liveNewsCount > 0 ? "partial" : "mock",
-      eventData:
-        liveEventCount === universe.length ? "live" : liveEventCount > 0 ? "partial" : "mock",
-      secData: liveSecCount === universe.length ? "live" : liveSecCount > 0 ? "partial" : "mock",
+      newsData: dataQualityLabel(Math.min(liveNewsCount, universe.length), universe.length),
+      eventData: dataQualityLabel(Math.min(liveEventCount, universe.length), universe.length),
+      secData: dataQualityLabel(Math.min(liveSecCount, universe.length), universe.length),
       notes: [
+        "Data quality gate checks market data, news/catalyst data, SEC/corporate event data, macro data, enough liquidity, volume trend, relative strength, and clean technical structure before a symbol is trusted.",
         "Live FMP daily candles are used for technical scoring. FMP profiles, statements, ratios, and key metrics are used for financial scoring when available.",
+        "SPY/QQQ and sector ETF candles are used to judge whether each stock is outperforming the broader market and its sector.",
         symbols
           ? `This run used ${universeSymbols.length} explicitly requested symbols.`
           : screenerRows.length > 0
             ? `FMP broad screener reviewed ${screenerRows.length} liquid US candidates and deeply analyzed ${universeSymbols.length} symbols before selecting the top ${limit}.`
             : `FMP screener was unavailable, so the agent fell back to the ${starterSymbols.length}-symbol starter universe.`,
-        `${livePriceCount} of ${universe.length} ranked symbols used live FMP price candles in this run.`,
-        `${liveFinancialCount} of ${universe.length} ranked symbols used live FMP fundamental data in this run.`,
-        `${liveNewsCount} of ${universe.length} ranked symbols used live FMP stock news for catalyst scoring.`,
-        `${liveEventCount} of ${universe.length} ranked symbols used live FMP earnings/corporate event data.`,
-        `${liveSecCount} of ${universe.length} ranked symbols used live SEC filing checks from FMP or direct SEC EDGAR fallback.`,
+        `${livePriceCount} of ${universeResult.candidates.length} detailed candidates used live FMP price candles in this run.`,
+        `${liveFinancialCount} of ${universeResult.candidates.length} detailed candidates used live FMP fundamental data in this run.`,
+        `${liveNewsCount} of ${universeResult.candidates.length} detailed candidates used live FMP stock news for catalyst scoring.`,
+        `${liveEventCount} of ${universeResult.candidates.length} detailed candidates used live FMP earnings/corporate event data.`,
+        `${liveSecCount} of ${universeResult.candidates.length} detailed candidates used live SEC filing checks from FMP or direct SEC EDGAR fallback.`,
+        qualityFilteredCount > 0
+          ? `${qualityFilteredCount} live candidates were removed by the swing-quality gate for weak liquidity, upside room, relative strength, volume trend, or technical structure.`
+          : qualitySupplementCount > 0
+            ? `${qualityUniverse.length} live candidates passed every swing-quality gate; ${qualitySupplementCount} additional live-data candidates were kept to preserve a useful top-${limit} research list.`
+            : "All live candidates passed the swing-quality gate.",
         combinedMacro.isLive
           ? "Live government macro data is connected through FRED and/or BLS."
           : "Government macro data fell back to a neutral placeholder for this run.",
+        ...benchmarks.notes,
         ...combinedMacro.notes,
         skippedCount > 0
           ? `${skippedCount} symbols were skipped because no screener or starter fallback was available.`

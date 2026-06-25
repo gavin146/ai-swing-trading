@@ -2,11 +2,15 @@
   "crons": [
     {
       "path": "/api/cron/daily-rankings",
-      "schedule": "15 12 * * 1-5"
+      "schedule": "0 13 * * 1-5"
     },
     {
       "path": "/api/cron/morning-alerts",
-      "schedule": "30 12 * * 1-5"
+      "schedule": "20 13 * * 1-5"
+    },
+    {
+      "path": "/api/cron/prediction-evaluation",
+      "schedule": "15 22 * * 1-5"
     }
   ]
 }

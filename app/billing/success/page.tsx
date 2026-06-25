@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { BrandMark } from "@/components/BrandMark";
+import { ToastNotice } from "@/components/ToastNotice";
 import { syncCheckoutSession } from "@/lib/stripe/subscription-sync";
 
 type BillingSuccessPageProps = {
@@ -16,6 +17,12 @@ export default async function BillingSuccessPage({ searchParams }: BillingSucces
         persisted: false,
       }))
     : null;
+  const pendingDetail =
+    syncResult && "error" in syncResult && syncResult.error
+      ? syncResult.error
+      : syncResult && "reason" in syncResult
+        ? syncResult.reason
+        : "";
 
   return (
     <main className="min-h-screen bg-surface px-4 py-10">
@@ -30,15 +37,15 @@ export default async function BillingSuccessPage({ searchParams }: BillingSucces
           being synced so your SwingFi dashboard can unlock paid analysis.
         </p>
         {syncResult ? (
-          <p
-            className={`mt-4 rounded-md px-3 py-2 text-xs font-semibold ${
-              syncResult.persisted ? "bg-mint text-pine" : "bg-coral/20 text-ink/70"
-            }`}
+          <ToastNotice
+            className="mt-4"
+            tone={syncResult.persisted ? "success" : "warning"}
+            title={syncResult.persisted ? "Subscription synced" : "Sync pending"}
           >
             {syncResult.persisted
               ? "Subscription synced successfully."
-              : `Subscription sync is pending${syncResult.error ? `: ${syncResult.error}` : "."}`}
-          </p>
+              : `Subscription sync is pending${pendingDetail ? `: ${pendingDetail}` : "."}`}
+          </ToastNotice>
         ) : null}
         {params.session_id ? (
           <p className="mt-4 break-all rounded-md bg-surface px-3 py-2 text-xs font-semibold text-ink/60">

@@ -23,10 +23,10 @@ export async function POST(request: NextRequest) {
   if (process.env.STRIPE_CHECKOUT_ENABLED !== "true") {
     return NextResponse.json(
       {
-        error: "Stripe Checkout is wired but intentionally disabled.",
+        error: "Checkout is temporarily unavailable.",
         setupNeeded: true,
         nextStep:
-          "Set STRIPE_CHECKOUT_ENABLED=true after you create Stripe test Price IDs and are ready to test checkout.",
+          "Free-trial checkout is not available right now. Please create an account and check back shortly.",
       },
       { status: 409 },
     );
@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
 
   if (!stripe) {
     return NextResponse.json(
-      { error: "STRIPE_SECRET_KEY is not configured.", setupNeeded: true },
+      { error: "Checkout is temporarily unavailable.", setupNeeded: true },
       { status: 503 },
     );
   }
@@ -44,7 +44,7 @@ export async function POST(request: NextRequest) {
   if (!priceId) {
     return NextResponse.json(
       {
-        error: `${plan.stripePriceEnv} is not configured for ${plan.name}.`,
+        error: "Checkout is temporarily unavailable for this plan.",
         setupNeeded: true,
       },
       { status: 503 },

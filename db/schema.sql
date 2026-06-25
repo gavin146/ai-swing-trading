@@ -203,6 +203,43 @@ create table daily_picks (
   unique (user_id, pick_date, rank)
 );
 
+create table prediction_outcomes (
+  id uuid primary key default gen_random_uuid(),
+  agent_run_id uuid not null references agent_runs(id) on delete cascade,
+  opportunity_id uuid not null references opportunities(id) on delete cascade,
+  symbol text not null,
+  rank integer not null check (rank > 0),
+  prediction_date date not null,
+  score integer not null check (score between 0 and 100),
+  confidence integer not null check (confidence between 0 and 100),
+  risk_score integer not null check (risk_score between 0 and 100),
+  entry_low numeric(14, 2) not null,
+  entry_high numeric(14, 2) not null,
+  target_price numeric(14, 2) not null,
+  stop_loss numeric(14, 2) not null,
+  expected_gain numeric(7, 2) not null,
+  expected_loss numeric(7, 2) not null,
+  reward_risk_ratio numeric(7, 2) not null default 0,
+  holding_period_days integer not null check (holding_period_days > 0),
+  status text not null default 'pending'
+    check (status in ('pending', 'entered', 'target_hit', 'stop_hit', 'expired', 'no_entry', 'no_data')),
+  entry_date date,
+  entry_price numeric(14, 2),
+  exit_date date,
+  exit_price numeric(14, 2),
+  return_pct numeric(7, 2) not null default 0,
+  max_gain_pct numeric(7, 2) not null default 0,
+  max_drawdown_pct numeric(7, 2) not null default 0,
+  spy_return_pct numeric(7, 2),
+  qqq_return_pct numeric(7, 2),
+  benchmark_return_pct numeric(7, 2),
+  excess_return_pct numeric(7, 2),
+  evaluated_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (agent_run_id, opportunity_id)
+);
+
 create table alert_logs (
   id uuid primary key default gen_random_uuid(),
   user_id uuid references users(id) on delete set null,
@@ -319,6 +356,10 @@ create index subscriptions_user_id_idx on subscriptions(user_id);
 create index subscriptions_customer_id_idx on subscriptions(stripe_customer_id);
 create index subscriptions_status_idx on subscriptions(status);
 create index daily_picks_user_date_idx on daily_picks(user_id, pick_date desc);
+create index prediction_outcomes_date_idx on prediction_outcomes(prediction_date desc);
+create index prediction_outcomes_status_idx on prediction_outcomes(status);
+create index prediction_outcomes_symbol_idx on prediction_outcomes(symbol);
+create index prediction_outcomes_run_idx on prediction_outcomes(agent_run_id);
 create index alert_logs_user_id_idx on alert_logs(user_id);
 create index alert_logs_status_idx on alert_logs(status);
 create index email_link_events_user_clicked_idx on email_link_events(user_id, clicked_at desc);
@@ -344,6 +385,7 @@ alter table backtest_trades enable row level security;
 alter table ranking_calibration_rules enable row level security;
 alter table subscriptions enable row level security;
 alter table daily_picks enable row level security;
+alter table prediction_outcomes enable row level security;
 alter table alert_logs enable row level security;
 alter table email_link_events enable row level security;
 alter table alert_open_events enable row level security;
@@ -428,6 +470,10 @@ for select using (user_id = current_app_user_id() or current_app_user_is_admin()
 drop policy if exists daily_picks_own_or_admin_read on daily_picks;
 create policy daily_picks_own_or_admin_read on daily_picks
 for select using (user_id = current_app_user_id() or current_app_user_is_admin());
+
+drop policy if exists prediction_outcomes_admin_read on prediction_outcomes;
+create policy prediction_outcomes_admin_read on prediction_outcomes
+for select using (current_app_user_is_admin());
 
 drop policy if exists alert_logs_own_or_admin_read on alert_logs;
 create policy alert_logs_own_or_admin_read on alert_logs

@@ -59,6 +59,11 @@ export function AppShell({ active, children, eyebrow, subtitle, title }: AppShel
   const isAdmin = isAdminCustomer(customer);
   const isOperationsPage = active === "admin" || active === "agent";
   const visibleLinks = [...customerLinks, ...(isAdmin ? adminLinks : [])];
+  const shellLinks = isOperationsPage
+    ? isAdmin
+      ? visibleLinks
+      : adminLinks
+    : visibleLinks;
   const isActiveLink = (key: string) => active === key;
 
   useEffect(() => {
@@ -91,7 +96,7 @@ export function AppShell({ active, children, eyebrow, subtitle, title }: AppShel
               </div>
 
               <nav className="hidden items-center gap-1 rounded-full border border-line/75 bg-white/74 p-1 shadow-[0_10px_28px_rgba(7,20,24,0.055)] md:flex">
-                {visibleLinks.map((item) => (
+                {shellLinks.map((item) => (
                   <Link key={item.href} href={item.href} className={topNavClass(isActiveLink(item.key))}>
                     {item.label}
                   </Link>
@@ -103,7 +108,7 @@ export function AppShell({ active, children, eyebrow, subtitle, title }: AppShel
 
             <nav className="rounded-2xl border border-line/70 bg-white/74 p-1.5 shadow-[0_10px_28px_rgba(7,20,24,0.05)] md:hidden">
               <div className="grid grid-cols-3 gap-1.5">
-                {visibleLinks.map((item) => (
+                {shellLinks.map((item) => (
                   <Link
                     key={item.href}
                     href={item.href}
@@ -146,7 +151,7 @@ export function AppShell({ active, children, eyebrow, subtitle, title }: AppShel
       <aside className="fixed inset-y-0 left-0 z-40 hidden w-72 border-r border-line/75 bg-white/82 px-4 py-5 shadow-[18px_0_54px_rgba(7,20,24,0.06)] backdrop-blur-2xl lg:block">
         <BrandMark />
         <nav className="mt-8 grid gap-2">
-          {customerLinks.map((item) => (
+          {(isAdmin ? customerLinks : adminLinks).map((item) => (
             <Link key={item.href} href={item.href} className={navClass(isActiveLink(item.key))}>
               <span className="grid h-8 w-8 place-items-center rounded-lg bg-surface text-xs font-black text-inherit ring-1 ring-line/70 group-hover:bg-panel">
                 {item.symbol}
@@ -176,11 +181,12 @@ export function AppShell({ active, children, eyebrow, subtitle, title }: AppShel
 
         <div className="absolute bottom-5 left-4 right-4 rounded-2xl border border-line bg-surface p-4">
           <p className="text-xs font-black uppercase tracking-normal text-pine">
-            Daily brief
+            {isAdmin ? "Daily brief" : "Admin access"}
           </p>
           <p className="mt-2 text-sm font-semibold leading-6 text-ink/62">
-            Rankings refresh before the market opens. Review entries, stops, and risk
-            before making any decision.
+            {isAdmin
+              ? "Rankings refresh before the market opens. Review entries, stops, and risk before making any decision."
+              : "Sign in with an approved admin email to manage runs, users, alerts, and model feedback."}
           </p>
         </div>
       </aside>
@@ -205,7 +211,7 @@ export function AppShell({ active, children, eyebrow, subtitle, title }: AppShel
             </div>
             <nav className="rounded-2xl border border-line/70 bg-white/74 p-1.5 shadow-[0_10px_28px_rgba(7,20,24,0.05)] lg:hidden">
               <div className="grid grid-cols-3 gap-1.5">
-                {visibleLinks.map((item) => (
+                {shellLinks.map((item) => (
                   <Link
                     key={item.href}
                     href={item.href}

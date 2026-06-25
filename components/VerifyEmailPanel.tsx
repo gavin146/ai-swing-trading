@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { ToastNotice } from "@/components/ToastNotice";
 
 type VerifyEmailPanelProps = {
   email?: string;
@@ -100,14 +101,14 @@ export function VerifyEmailPanel({ email = "", initialMode }: VerifyEmailPanelPr
           />
         </label>
         {message ? (
-          <p className="rounded-2xl bg-mint px-4 py-3 text-sm font-bold text-pine">
+          <ToastNotice tone="success" title="Email sent">
             {message}
-          </p>
+          </ToastNotice>
         ) : null}
         {error ? (
-          <p className="rounded-2xl bg-coral/20 px-4 py-3 text-sm font-bold text-ink">
+          <ToastNotice tone="error" title="Could not send email">
             {error}
-          </p>
+          </ToastNotice>
         ) : null}
         <button
           type="button"

@@ -97,10 +97,23 @@ function scoreTechnical(candidate: EquityCandidate) {
     (technical.sma20 > technical.sma50 ? 16 : 5) +
     (technical.sma50 > technical.sma200 ? 16 : 6);
   const rsiScore = technical.rsi14 >= 48 && technical.rsi14 <= 66 ? 16 : 8;
-  const relativeStrength = toScore(technical.relativeStrength90d, 35, 95) * 0.25;
-  const volume = toScore(technical.volumeTrend, -10, 30) * 0.15;
+  const relativeStrength = toScore(technical.relativeStrength90d, 35, 95) * 0.18;
+  const marketRelative = (technical.relativeStrengthVsMarket ?? 50) * 0.11;
+  const sectorRelative = (technical.relativeStrengthVsSector ?? 50) * 0.09;
+  const trendQuality = (technical.trendQuality ?? 50) * 0.08;
+  const breakoutProximity = (technical.breakoutProximity ?? 50) * 0.04;
+  const volume = toScore(technical.volumeTrend, -10, 30) * 0.12;
 
-  return clamp(movingAverageStack + rsiScore + relativeStrength + volume);
+  return clamp(
+    movingAverageStack +
+      rsiScore +
+      relativeStrength +
+      marketRelative +
+      sectorRelative +
+      trendQuality +
+      breakoutProximity +
+      volume,
+  );
 }
 
 function scoreFinancials(candidate: EquityCandidate) {
@@ -124,7 +137,9 @@ function scoreNews(candidate: EquityCandidate) {
     news.sentimentScore * 0.42 +
       news.catalystScore * 0.38 +
       toScore(news.headlineCount, 1, 24) * 0.1 -
-      news.riskFlagCount * 7,
+      news.riskFlagCount * 6 -
+      (news.eventRiskScore ?? 0) * 0.08 -
+      (news.filingRiskScore ?? 0) * 0.07,
   );
 }
 
@@ -152,10 +167,20 @@ function scoreRisk(candidate: EquityCandidate) {
   const supportDistanceRisk =
     toScore(((technical.price - technical.support) / technical.price) * 100, 2, 10) * 0.24;
   const balanceSheetRisk = toScore(financials.debtToEquity, 0, 3) * 0.14;
-  const newsRisk = clamp(news.riskFlagCount * 14) * 0.14;
+  const newsRisk = clamp(news.riskFlagCount * 14) * 0.1;
+  const eventRisk = (news.eventRiskScore ?? 0) * 0.12;
+  const filingRisk = (news.filingRiskScore ?? 0) * 0.09;
   const rsiRisk = technical.rsi14 > 68 ? 12 : technical.rsi14 < 44 ? 8 : 3;
 
-  return clamp(volatilityRisk + supportDistanceRisk + balanceSheetRisk + newsRisk + rsiRisk);
+  return clamp(
+    volatilityRisk +
+      supportDistanceRisk +
+      balanceSheetRisk +
+      newsRisk +
+      eventRisk +
+      filingRisk +
+      rsiRisk,
+  );
 }
 
 function scoreConfidence(scores: Omit<ScoreBreakdown, "confidence" | "composite">) {
@@ -191,11 +216,19 @@ function getMarketRegime(candidates: EquityCandidate[]) {
 
 function buildReasons(candidate: EquityCandidate, scores: ScoreBreakdown) {
   const reasons = [
-    `Technical setup scores ${scores.technical}/100 with price near ${round(candidate.technical.price, 2)} and 90-day relative strength at ${candidate.technical.relativeStrength90d}.`,
+    `Technical setup scores ${scores.technical}/100 with price near ${round(candidate.technical.price, 2)}, 90-day relative strength at ${candidate.technical.relativeStrength90d}, market-relative strength at ${candidate.technical.relativeStrengthVsMarket ?? 50}, and sector-relative strength at ${candidate.technical.relativeStrengthVsSector ?? 50}.`,
     `Financial quality scores ${scores.financial}/100, supported by ${candidate.financials.revenueGrowth}% revenue growth and ${candidate.financials.earningsGrowth}% earnings growth.`,
-    `News and catalyst tone scores ${scores.news}/100 with ${candidate.news.headlineCount} tracked headlines and ${candidate.news.riskFlagCount} risk flags.`,
-    `Macro backdrop scores ${scores.macro}/100 for ${candidate.sector}, using market breadth, rates pressure, and government-data placeholders.`,
+    `News and catalyst tone scores ${scores.news}/100 with ${candidate.news.headlineCount} tracked headlines, ${candidate.news.riskFlagCount} risk flags, and ${candidate.news.catalystTags?.length ? `catalysts including ${candidate.news.catalystTags.slice(0, 2).join(" and ")}` : "no standout catalyst tag"}.`,
+    `Macro backdrop scores ${scores.macro}/100 for ${candidate.sector}, using market breadth, rates pressure, FRED, BLS, and Treasury context where available.`,
   ];
+
+  if ((candidate.news.eventRiskScore ?? 0) >= 35) {
+    reasons.push("Upcoming event or headline risk is elevated, so the setup needs tighter entry discipline.");
+  }
+
+  if ((candidate.news.filingRiskScore ?? 0) >= 35) {
+    reasons.push("Recent SEC filing activity raises risk and reduces catalyst quality until the filing impact is clearer.");
+  }
 
   if (scores.risk >= 60) {
     reasons.push("Risk is elevated, so the model requires cleaner entry discipline and smaller sizing.");
@@ -238,8 +271,10 @@ function buildOpportunity(
   const expectedGain = ((targetPrice - entryLow) / entryLow) * 100;
   const expectedLoss = ((entryLow - stopLoss) / entryLow) * 100;
   const holdingPeriodDays = Math.round(clamp(8 + (scores.risk / 100) * 18, 8, 28));
+  const rewardRisk = expectedLoss > 0 ? expectedGain / expectedLoss : expectedGain;
   const explanation = [
-    `${candidate.symbol} ranks highly because trend, fundamentals, news tone, and macro context are aligned better than most names in the ${source === "fmp" ? "live FMP-screened universe" : "mock universe"}.`,
+    `${candidate.symbol} ranks highly because trend, market-relative strength, fundamentals, catalyst tone, and macro context are aligned better than most names in the ${source === "fmp" ? "live FMP-screened universe" : "mock universe"}.`,
+    `The modeled plan shows about ${round(expectedGain, 1)}% potential upside versus ${round(expectedLoss, 1)}% planned downside, or roughly ${round(rewardRisk, 1)}R reward/risk.`,
     ...buildReasons(candidate, scores).slice(0, 3),
     calibration.appliedRules.length > 0
       ? `Backtest calibration lowered this setup by ${calibration.totalScorePenalty} score points because similar risk patterns have been less reliable historically.`
@@ -278,13 +313,25 @@ function scoreCandidate(candidate: EquityCandidate): ScoreBreakdown {
     risk: Math.round(scoreRisk(candidate)),
   };
   const confidence = scoreConfidence(partial);
+  const supportDistance = ((candidate.technical.price - candidate.technical.support) / candidate.technical.price) * 100;
+  const rewardDistance = ((candidate.technical.resistance - candidate.technical.price) / candidate.technical.price) * 100;
+  const rewardRiskScore = clamp(
+    42 +
+      (rewardDistance / Math.max(supportDistance, 1)) * 16 +
+      (candidate.technical.relativeStrengthVsMarket ?? 50) * 0.12 +
+      (candidate.technical.relativeStrengthVsSector ?? 50) * 0.1 -
+      partial.risk * 0.24,
+    0,
+    100,
+  );
   const composite = Math.round(
     clamp(
-      partial.technical * 0.36 +
-        partial.financial * 0.23 +
+      partial.technical * 0.34 +
+        partial.financial * 0.21 +
         partial.news * 0.16 +
-        partial.macro * 0.13 +
-        partial.liquidity * 0.07 +
+        partial.macro * 0.12 +
+        partial.liquidity * 0.06 +
+        rewardRiskScore * 0.06 +
         (100 - partial.risk) * 0.05,
     ),
   );

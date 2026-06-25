@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { runFmpDailyRankingAgent } from "@/lib/agent";
+import { hydrateRuntimeCalibrationFromSupabase, runFmpDailyRankingAgent } from "@/lib/agent";
 import { sendAdminFailureAlert } from "@/lib/email";
 import { persistAgentRun, recordAppEvent, summarizeCalibration } from "@/lib/persistence";
 
@@ -23,6 +23,19 @@ async function runCron(request: NextRequest) {
   const source = "fmp";
 
   if (!process.env.FMP_API_KEY && !process.env.FINANCIAL_DATA_API_KEY) {
+    await recordAppEvent({
+      level: "error",
+      source: "daily-rankings-cron",
+      message: "Daily ranking cron blocked because FMP market data is not configured.",
+      metadata: { source },
+    });
+    await sendAdminFailureAlert({
+      source: "daily-rankings-cron",
+      message: "Daily ranking cron blocked because FMP market data is not configured.",
+      error: "FMP_API_KEY is required for live daily rankings.",
+      metadata: { source },
+    });
+
     return NextResponse.json(
       { error: "FMP_API_KEY is required for live daily rankings.", source },
       { status: 503 },
@@ -30,9 +43,44 @@ async function runCron(request: NextRequest) {
   }
 
   try {
-    const result = await runFmpDailyRankingAgent({ limit: 90 });
+    const persistedCalibration = await hydrateRuntimeCalibrationFromSupabase();
+    const result = await runFmpDailyRankingAgent({ limit: 30 });
     const persistence = await persistAgentRun(result);
     const calibration = summarizeCalibration(result.rankings);
+
+    if (result.selectedCount === 0) {
+      await recordAppEvent({
+        level: "error",
+        source: "daily-rankings-cron",
+        message: "Daily ranking run produced zero customer picks.",
+        metadata: { runId: result.runId, universeCount: result.universeCount },
+      });
+      await sendAdminFailureAlert({
+        source: "daily-rankings-cron",
+        message: "Daily ranking run produced zero customer picks.",
+        metadata: { runId: result.runId, universeCount: result.universeCount },
+      });
+    } else if (result.selectedCount < 30) {
+      await recordAppEvent({
+        level: "warning",
+        source: "daily-rankings-cron",
+        message: "Daily ranking run produced fewer than 30 live picks.",
+        metadata: {
+          runId: result.runId,
+          selectedCount: result.selectedCount,
+          universeCount: result.universeCount,
+        },
+      });
+      await sendAdminFailureAlert({
+        source: "daily-rankings-cron",
+        message: "Daily ranking run produced fewer than 30 live picks.",
+        metadata: {
+          runId: result.runId,
+          selectedCount: result.selectedCount,
+          universeCount: result.universeCount,
+        },
+      });
+    }
 
     if (!persistence.persisted) {
       await recordAppEvent({
@@ -54,6 +102,7 @@ async function runCron(request: NextRequest) {
       persisted: persistence.persisted,
       persistence,
       calibration,
+      persistedCalibration,
       note: persistence.persisted
         ? "Daily rankings were saved to Supabase."
         : "Daily rankings completed but were not saved because Supabase persistence is not configured or failed.",

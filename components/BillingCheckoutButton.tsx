@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { ToastNotice, type ToastTone } from "@/components/ToastNotice";
 import type { BillingPlanKey } from "@/lib/stripe/config";
 import { getCurrentCustomer } from "@/lib/customer-store";
 
@@ -15,17 +16,17 @@ export function BillingCheckoutButton({
   label,
   highlighted = false,
 }: BillingCheckoutButtonProps) {
-  const [message, setMessage] = useState("");
+  const [notice, setNotice] = useState<{ message: string; tone: ToastTone } | null>(null);
   const [loading, setLoading] = useState(false);
 
   async function startCheckout() {
     setLoading(true);
-    setMessage("");
+    setNotice(null);
 
     try {
       const customer = getCurrentCustomer();
       if (!customer) {
-        setMessage("Create an account or log in before testing checkout.");
+        setNotice({ message: "Create an account or log in before starting your free trial.", tone: "info" });
         return;
       }
 
@@ -45,13 +46,19 @@ export function BillingCheckoutButton({
       };
 
       if (!response.ok || !payload.url) {
-        setMessage(payload.nextStep ?? payload.error ?? "Checkout is not ready yet.");
+        setNotice({
+          message: payload.nextStep ?? payload.error ?? "Checkout is not ready yet.",
+          tone: payload.error ? "error" : "info",
+        });
         return;
       }
 
       window.location.href = payload.url;
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Checkout failed.");
+      setNotice({
+        message: error instanceof Error ? error.message : "Checkout failed.",
+        tone: "error",
+      });
     } finally {
       setLoading(false);
     }
@@ -71,10 +78,10 @@ export function BillingCheckoutButton({
       >
         {loading ? "Checking..." : label}
       </button>
-      {message ? (
-        <p className="mt-3 rounded-md bg-surface px-3 py-2 text-xs font-semibold leading-5 text-ink/65">
-          {message}
-        </p>
+      {notice ? (
+        <ToastNotice className="mt-3" tone={notice.tone}>
+          {notice.message}
+        </ToastNotice>
       ) : null}
     </div>
   );

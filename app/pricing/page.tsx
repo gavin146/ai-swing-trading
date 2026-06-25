@@ -8,16 +8,44 @@ import {
   isStripeCheckoutEnabled,
 } from "@/lib/stripe/config";
 
+const trustSignals = [
+  "Daily ranking workflow",
+  "Plain-English trade plans",
+  "Entry, target, and stop loss",
+  "Backtest-aware calibration",
+];
+
+const faqs = [
+  [
+    "Is SwingFi financial advice?",
+    "No. SwingFi is research software. It helps you review opportunities more consistently, but you decide what to research, watch, or avoid.",
+  ],
+  [
+    "When do I get picks?",
+    "The morning workflow is designed around pre-market review so users can compare setups before chasing intraday movement.",
+  ],
+  [
+    "Can beginners use it?",
+    "Yes. Every card explains score, confidence, risk, entry, target, stop loss, and estimated trade window in plain English.",
+  ],
+];
+
 export default function PricingPage() {
   const checkoutConfigured = isStripeCheckoutConfigured();
   const checkoutEnabled = isStripeCheckoutEnabled();
   const trialDays = getStripeTrialDays();
+  const checkoutReady = checkoutConfigured && checkoutEnabled;
 
   return (
     <main className="min-h-screen">
       <section className="border-b border-line bg-panel/80 px-4 py-5 sm:px-6 lg:px-8">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-4">
-          <BrandMark />
+          <div className="sm:hidden">
+            <BrandMark compact />
+          </div>
+          <div className="hidden sm:block">
+            <BrandMark />
+          </div>
           <div className="flex gap-2 text-sm font-bold">
             <Link href="/login" className="rounded-lg border border-line bg-surface px-4 py-2">
               Log in
@@ -29,12 +57,12 @@ export default function PricingPage() {
         </div>
       </section>
 
-      <section className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
+      <section className="mx-auto max-w-7xl px-4 py-10 sm:px-6 sm:py-12 lg:px-8">
         <div className="max-w-3xl">
           <p className="text-sm font-bold uppercase tracking-normal text-pine">
             30-day free trial
           </p>
-          <h1 className="mt-3 text-5xl font-bold leading-tight text-ink">
+          <h1 className="mt-3 text-4xl font-black leading-tight text-ink sm:text-5xl">
             Try SwingFi free for one month
           </h1>
           <p className="mt-5 text-base leading-8 text-ink/68">
@@ -58,21 +86,36 @@ export default function PricingPage() {
           </div>
         </div>
 
-        <div className="mt-8 rounded-xl border border-line bg-panel p-4 shadow-soft">
-          <p className="text-sm font-bold text-ink">
-            Billing status:{" "}
-            <span className={checkoutEnabled ? "text-pine" : "text-coral"}>
-              {checkoutEnabled
-                ? "checkout is enabled"
-                : checkoutConfigured
-                  ? "configured but disabled"
-                  : "not ready to charge"}
-            </span>
+        <div className="mt-8 grid gap-3 rounded-3xl border border-line bg-panel p-4 shadow-soft sm:grid-cols-[1fr_auto] sm:items-center sm:p-5">
+          <div>
+            <p className="text-sm font-black text-ink">
+              {checkoutReady ? "Free trial checkout is ready" : "Free trial access is available"}
+            </p>
+            <p className="mt-2 text-sm leading-6 text-ink/60">
+              Start with the plan that fits your research needs. You can review rankings,
+              learn the score system, and cancel before paid billing begins.
+            </p>
+          </div>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            {trustSignals.map((signal) => (
+              <span
+                key={signal}
+                className="rounded-2xl border border-line bg-surface px-3 py-2 text-xs font-black text-ink/68"
+              >
+                {signal}
+              </span>
+            ))}
+          </div>
+        </div>
+
+        <div className="mt-5 rounded-3xl border border-pine/15 bg-mint p-5">
+          <p className="text-sm font-black uppercase tracking-normal text-pine">
+            Beginner promise
           </p>
-          <p className="mt-2 text-sm leading-6 text-ink/60">
-            Checkout starts a {trialDays}-day Stripe subscription trial. To activate it,
-            set Stripe keys, price IDs, webhook secret, and `STRIPE_CHECKOUT_ENABLED=true`
-            in Vercel and local development.
+          <p className="mt-2 text-sm font-semibold leading-7 text-ink/68">
+            SwingFi does not tell you to blindly buy a stock. It gives you a ranked
+            research list, the trade plan, and the risk context so you can slow down and
+            make a more informed decision.
           </p>
         </div>
 
@@ -117,23 +160,33 @@ export default function PricingPage() {
           ))}
         </div>
 
-        <section className="mt-10 rounded-xl border border-line bg-panel p-6 shadow-soft">
-          <h2 className="text-2xl font-bold text-ink">Pricing recommendation</h2>
+        <section className="mt-10 rounded-3xl border border-line bg-panel p-6 shadow-soft">
+          <h2 className="text-2xl font-black text-ink">Which plan should I choose?</h2>
           <div className="mt-4 grid gap-4 text-sm leading-7 text-ink/68 lg:grid-cols-3">
             <p>
-              Launch with one paid plan first. I would start with Pro at $39/month
-              because the product is a daily research workflow, not a casual newsletter.
+              Start with Starter if you want a simple morning watchlist and a slower,
+              beginner-friendly routine for reviewing ideas.
             </p>
             <p>
-              Keep Starter at $19/month only if you want a low-friction beginner tier
-              with fewer picks and less history. It helps conversion but can increase
-              support volume.
+              Choose Pro if you want the full daily research workflow: more ranked
+              opportunities, deeper trade plans, and historical outcome tracking.
             </p>
             <p>
-              Add Premium later after users prove they want deeper backtests, more
-              historical tracking, and priority alerts. Do not overcomplicate day one.
+              Premium is best for active users who want expanded history, deeper
+              backtest context, and priority alert features as SwingFi grows.
             </p>
           </div>
+        </section>
+
+        <section className="mt-8 grid gap-4 lg:grid-cols-3">
+          {faqs.map(([question, answer]) => (
+            <div key={question} className="rounded-2xl border border-line bg-panel p-5 shadow-soft">
+              <h2 className="text-lg font-black text-ink">{question}</h2>
+              <p className="mt-3 text-sm font-semibold leading-6 text-ink/62">
+                {answer}
+              </p>
+            </div>
+          ))}
         </section>
       </section>
     </main>

@@ -14,10 +14,199 @@ import {
   type PositionSizePreference,
   type SetupPreference,
 } from "@/lib/customer-store";
+import { ToastNotice } from "@/components/ToastNotice";
 import type { RiskProfile } from "@/lib/database.types";
+
+type ChoiceOption<T extends string> = {
+  description: string;
+  label: string;
+  value: T;
+};
+
+type SettingsChoices = {
+  accountBudget: AccountBudget;
+  alertChannel: AlertChannel;
+  investingExperience: InvestingExperience;
+  positionSizePreference: PositionSizePreference;
+  riskProfile: RiskProfile;
+  setupPreference: SetupPreference;
+};
+
+const riskOptions: Array<ChoiceOption<RiskProfile>> = [
+  {
+    description: "Prioritize lower volatility, higher confidence, and tighter risk filters.",
+    label: "Careful",
+    value: "conservative",
+  },
+  {
+    description: "Balance quality, upside, and manageable downside for most swing trades.",
+    label: "Balanced",
+    value: "balanced",
+  },
+  {
+    description: "Allow more volatile setups when upside and momentum look stronger.",
+    label: "Growth",
+    value: "aggressive",
+  },
+];
+
+const budgetOptions: Array<ChoiceOption<AccountBudget>> = [
+  {
+    description: "Keep recommendations broad until you set a range.",
+    label: "Not set",
+    value: "not_set",
+  },
+  {
+    description: "Favor lower risk and smaller position sizing.",
+    label: "Under $1k",
+    value: "under_1000",
+  },
+  {
+    description: "Show balanced setups that fit newer accounts.",
+    label: "$1k-$5k",
+    value: "1000_5000",
+  },
+  {
+    description: "Allow a wider mix of quality and momentum.",
+    label: "$5k-$25k",
+    value: "5000_25000",
+  },
+  {
+    description: "Use the full ranked list without small-account filtering.",
+    label: "$25k+",
+    value: "25000_plus",
+  },
+];
+
+const experienceOptions: Array<ChoiceOption<InvestingExperience>> = [
+  {
+    description: "Show more guidance and favor easier-to-understand setups.",
+    label: "Beginner",
+    value: "beginner",
+  },
+  {
+    description: "Balance guidance with a wider range of opportunities.",
+    label: "Intermediate",
+    value: "intermediate",
+  },
+  {
+    description: "Let higher-conviction, higher-volatility ideas surface when justified.",
+    label: "Advanced",
+    value: "advanced",
+  },
+];
+
+const positionSizeOptions: Array<ChoiceOption<PositionSizePreference>> = [
+  {
+    description: "Prefer smaller, more controlled setups.",
+    label: "Small",
+    value: "small",
+  },
+  {
+    description: "Use a balanced sizing assumption.",
+    label: "Moderate",
+    value: "moderate",
+  },
+  {
+    description: "Allow larger swings when risk/reward supports it.",
+    label: "Larger",
+    value: "aggressive",
+  },
+];
+
+const setupOptions: Array<ChoiceOption<SetupPreference>> = [
+  {
+    description: "Favor steadier setups with cleaner confirmation.",
+    label: "Steadier",
+    value: "steady",
+  },
+  {
+    description: "Mix steady setups with momentum opportunities.",
+    label: "Balanced",
+    value: "balanced",
+  },
+  {
+    description: "Favor stronger trend and catalyst setups.",
+    label: "Momentum",
+    value: "momentum",
+  },
+];
+
+const alertChannelOptions: Array<ChoiceOption<AlertChannel>> = [
+  {
+    description: "Send the branded morning market brief to your inbox.",
+    label: "Email",
+    value: "email",
+  },
+  {
+    description: "Keep alerts paused while your preferences stay saved.",
+    label: "Off",
+    value: "none",
+  },
+];
+
+function getChoicesFromCustomer(customer: CustomerProfile): SettingsChoices {
+  return {
+    accountBudget: customer.accountBudget,
+    alertChannel: customer.alertChannel === "sms" ? "email" : customer.alertChannel,
+    investingExperience: customer.investingExperience,
+    positionSizePreference: customer.positionSizePreference,
+    riskProfile: customer.riskProfile,
+    setupPreference: customer.setupPreference,
+  };
+}
+
+function ChoiceCards<T extends string>({
+  name,
+  onChange,
+  options,
+  value,
+}: {
+  name: string;
+  onChange: (value: T) => void;
+  options: Array<ChoiceOption<T>>;
+  value: T;
+}) {
+  return (
+    <div>
+      <input type="hidden" name={name} value={value} />
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        {options.map((option) => {
+          const selected = option.value === value;
+
+          return (
+            <button
+              key={option.value}
+              type="button"
+              onClick={() => onChange(option.value)}
+              className={`rounded-2xl border p-4 text-left transition ${
+                selected
+                  ? "border-pine/30 bg-mint shadow-[0_16px_40px_rgba(27,115,102,0.10)]"
+                  : "border-line bg-surface hover:border-pine/30 hover:bg-white"
+              }`}
+            >
+              <span className="flex items-center justify-between gap-3">
+                <span className="text-sm font-black text-ink">{option.label}</span>
+                <span
+                  className={`h-3 w-3 rounded-full border ${
+                    selected ? "border-pine bg-pine" : "border-ink/20 bg-white"
+                  }`}
+                />
+              </span>
+              <span className="mt-2 block text-xs font-semibold leading-5 text-ink/58">
+                {option.description}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 export function SettingsForm() {
   const [customer, setCustomer] = useState<CustomerProfile | null>(null);
+  const [choices, setChoices] = useState<SettingsChoices | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
@@ -29,6 +218,17 @@ export function SettingsForm() {
       .catch(() => setCustomer(getCurrentCustomer()))
       .finally(() => setLoaded(true));
   }, []);
+
+  useEffect(() => {
+    if (customer) setChoices(getChoicesFromCustomer(customer));
+  }, [customer]);
+
+  function updateChoice<K extends keyof SettingsChoices>(key: K, value: SettingsChoices[K]) {
+    setChoices((current) => ({
+      ...(current ?? (customer ? getChoicesFromCustomer(customer) : ({} as SettingsChoices))),
+      [key]: value,
+    }));
+  }
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -101,6 +301,7 @@ export function SettingsForm() {
   }
 
   const access = getAccessState(customer);
+  const activeChoices = choices ?? getChoicesFromCustomer(customer);
 
   return (
     <form onSubmit={handleSubmit} className="grid gap-5">
@@ -143,9 +344,9 @@ export function SettingsForm() {
           ) : null}
         </div>
         {error ? (
-          <p className="mt-4 rounded-md bg-coral/20 px-3 py-2 text-sm font-bold text-ink">
+          <ToastNotice className="mt-4" tone="error" title="Settings not saved">
             {error}
-          </p>
+          </ToastNotice>
         ) : null}
         <div className="mt-5 grid gap-4 sm:grid-cols-2">
           <label className="grid gap-2 text-sm font-bold text-ink">
@@ -195,69 +396,55 @@ export function SettingsForm() {
           They do not change the market score; they help SwingFi show ideas that better
           match your confidence needs, risk comfort, account range, and trading style.
         </p>
-        <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <label className="grid gap-2 text-sm font-bold text-ink">
-            Risk tolerance
-            <select
+        <div className="mt-6 grid gap-6">
+          <div className="grid gap-3">
+            <p className="text-sm font-black text-ink">Risk tolerance</p>
+            <ChoiceCards
               name="riskProfile"
-              defaultValue={customer.riskProfile}
-              className="rounded-xl border border-line bg-surface px-4 py-3 font-medium outline-none transition focus:border-pine focus:bg-panel"
-            >
-              <option value="conservative">Conservative</option>
-              <option value="balanced">Balanced</option>
-              <option value="aggressive">Aggressive</option>
-            </select>
-          </label>
-          <label className="grid gap-2 text-sm font-bold text-ink">
-            Budget range
-            <select
+              onChange={(value) => updateChoice("riskProfile", value)}
+              options={riskOptions}
+              value={activeChoices.riskProfile}
+            />
+          </div>
+          <div className="grid gap-3">
+            <p className="text-sm font-black text-ink">Budget range</p>
+            <ChoiceCards
               name="accountBudget"
-              defaultValue={customer.accountBudget}
-              className="rounded-xl border border-line bg-surface px-4 py-3 font-medium outline-none transition focus:border-pine focus:bg-panel"
-            >
-              <option value="not_set">Not set</option>
-              <option value="under_1000">Under $1,000</option>
-              <option value="1000_5000">$1,000 to $5,000</option>
-              <option value="5000_25000">$5,000 to $25,000</option>
-              <option value="25000_plus">$25,000+</option>
-            </select>
-          </label>
-          <label className="grid gap-2 text-sm font-bold text-ink">
-            Experience
-            <select
+              onChange={(value) => updateChoice("accountBudget", value)}
+              options={budgetOptions}
+              value={activeChoices.accountBudget}
+            />
+          </div>
+          <div className="grid gap-3">
+            <p className="text-sm font-black text-ink">Experience level</p>
+            <ChoiceCards
               name="investingExperience"
-              defaultValue={customer.investingExperience}
-              className="rounded-xl border border-line bg-surface px-4 py-3 font-medium outline-none transition focus:border-pine focus:bg-panel"
-            >
-              <option value="beginner">Beginner</option>
-              <option value="intermediate">Intermediate</option>
-              <option value="advanced">Advanced</option>
-            </select>
-          </label>
-          <label className="grid gap-2 text-sm font-bold text-ink">
-            Position size style
-            <select
+              onChange={(value) => updateChoice("investingExperience", value)}
+              options={experienceOptions}
+              value={activeChoices.investingExperience}
+            />
+          </div>
+          <div className="grid gap-3">
+            <p className="text-sm font-black text-ink">Position size style</p>
+            <ChoiceCards
               name="positionSizePreference"
-              defaultValue={customer.positionSizePreference}
-              className="rounded-xl border border-line bg-surface px-4 py-3 font-medium outline-none transition focus:border-pine focus:bg-panel"
-            >
-              <option value="small">Small and careful</option>
-              <option value="moderate">Moderate</option>
-              <option value="aggressive">Larger swings</option>
-            </select>
-          </label>
-          <label className="grid gap-2 text-sm font-bold text-ink">
-            Setup preference
-            <select
+              onChange={(value) => updateChoice("positionSizePreference", value)}
+              options={positionSizeOptions}
+              value={activeChoices.positionSizePreference}
+            />
+          </div>
+          <div className="grid gap-3">
+            <p className="text-sm font-black text-ink">Setup preference</p>
+            <ChoiceCards
               name="setupPreference"
-              defaultValue={customer.setupPreference}
-              className="rounded-xl border border-line bg-surface px-4 py-3 font-medium outline-none transition focus:border-pine focus:bg-panel"
-            >
-              <option value="steady">Steadier setups</option>
-              <option value="balanced">Balanced setups</option>
-              <option value="momentum">Momentum setups</option>
-            </select>
-          </label>
+              onChange={(value) => updateChoice("setupPreference", value)}
+              options={setupOptions}
+              value={activeChoices.setupPreference}
+            />
+          </div>
+        </div>
+
+        <div className="mt-6 grid gap-4 sm:grid-cols-2">
           <label className="grid gap-2 text-sm font-bold text-ink">
             Minimum confidence
             <input
@@ -310,18 +497,16 @@ export function SettingsForm() {
           </label>
         </div>
 
-        <div className="mt-5 grid gap-4 sm:grid-cols-2">
-          <label className="grid gap-2 text-sm font-bold text-ink">
-            Channel
-            <select
+        <div className="mt-5 grid gap-5 lg:grid-cols-[1fr_240px]">
+          <div className="grid gap-3">
+            <p className="text-sm font-black text-ink">Delivery channel</p>
+            <ChoiceCards
               name="alertChannel"
-              defaultValue={customer.alertChannel}
-              className="rounded-xl border border-line bg-surface px-4 py-3 font-medium outline-none transition focus:border-pine focus:bg-panel"
-            >
-              <option value="email">Email</option>
-              <option value="none">None</option>
-            </select>
-          </label>
+              onChange={(value) => updateChoice("alertChannel", value)}
+              options={alertChannelOptions}
+              value={activeChoices.alertChannel === "sms" ? "email" : activeChoices.alertChannel}
+            />
+          </div>
           <label className="grid gap-2 text-sm font-bold text-ink">
             Alert time
             <input

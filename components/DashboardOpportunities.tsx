@@ -14,7 +14,11 @@ import {
 } from "@/lib/customer-store";
 import { opportunityFromRow, type Opportunity } from "@/lib/opportunities";
 import type { OpportunityRow } from "@/lib/database.types";
-import type { OpportunityDataSource } from "@/lib/repositories/opportunities";
+import type {
+  OpportunityDataSource,
+  OpportunityTrustPanel,
+  OpportunityTrustStatus,
+} from "@/lib/repositories/opportunities";
 
 type DashboardOpportunitiesProps = {
   dataSource: OpportunityDataSource;
@@ -25,6 +29,7 @@ type DashboardOpportunitiesProps = {
 type DashboardView = "top" | "watchlist" | "higher-risk";
 
 const dashboardActionStorageKey = "swingfi-dashboard-actions";
+const walkthroughStorageKey = "swingfi-first-login-walkthrough-v1";
 
 function AccessGate({
   customer,
@@ -142,8 +147,269 @@ function listStrength(score: number) {
   };
 }
 
+function ActionItem({
+  body,
+  label,
+  title,
+  tone = "neutral",
+}: {
+  body: string;
+  label: string;
+  title: string;
+  tone?: "positive" | "neutral" | "risk";
+}) {
+  const classes = {
+    neutral: "border-line/80 bg-white",
+    positive: "border-pine/20 bg-mint",
+    risk: "border-coral/25 bg-coral/10",
+  };
+
+  return (
+    <div className={`rounded-2xl border p-4 ${classes[tone]}`}>
+      <p className="text-xs font-black uppercase tracking-normal text-ink/45">{label}</p>
+      <h3 className="mt-2 text-lg font-black text-ink">{title}</h3>
+      <p className="mt-2 text-sm font-semibold leading-6 text-ink/62">{body}</p>
+    </div>
+  );
+}
+
+function getRiskReward(opportunity: Opportunity) {
+  const gain = percentNumber(opportunity.potentialGain);
+  const loss = Math.abs(percentNumber(opportunity.potentialLoss));
+
+  return loss > 0 ? gain / loss : gain;
+}
+
+function TodayActionPlan({
+  customer,
+  dailyPicks,
+}: {
+  customer: CustomerProfile | null;
+  dailyPicks: Opportunity[];
+}) {
+  if (dailyPicks.length === 0) return null;
+
+  const reviewFirst = dailyPicks
+    .filter((item) => item.opportunityScore >= 70 && item.confidenceScore >= (customer?.minimumConfidence ?? 70))
+    .slice(0, 3);
+  const highestRisk = [...dailyPicks].sort((a, b) => b.riskScore - a.riskScore)[0];
+  const bestRiskReward = [...dailyPicks].sort((a, b) => getRiskReward(b) - getRiskReward(a))[0];
+  const calmest = [...dailyPicks].sort((a, b) => a.riskScore - b.riskScore)[0];
+  const firstSymbols = (reviewFirst.length ? reviewFirst : dailyPicks.slice(0, 3))
+    .map((item) => item.symbol)
+    .join(", ");
+
+  return (
+    <section className="mt-5 overflow-hidden rounded-3xl border border-line/80 bg-white shadow-[0_24px_80px_rgba(7,20,24,0.08)]">
+      <div className="grid gap-0 xl:grid-cols-[0.9fr_1.1fr]">
+        <div className="bg-[linear-gradient(145deg,#071418,#0b3d3f)] p-6 text-white">
+          <p className="text-xs font-black uppercase tracking-normal text-lime">
+            Today&apos;s action plan
+          </p>
+          <h2 className="mt-3 text-3xl font-black tracking-normal">
+            Review these decisions before any trade
+          </h2>
+          <p className="mt-4 text-sm font-semibold leading-7 text-white/68">
+            SwingFi is giving you a review order, not trade instructions. Start with
+            the cleanest setups, avoid chasing above the entry range, and decide
+            whether the downside fits your plan.
+          </p>
+        </div>
+        <div className="grid gap-3 p-4 sm:grid-cols-2 sm:p-5">
+          <ActionItem
+            label="Review first"
+            title={firstSymbols}
+            body="These are the first setups to compare because they sit highest in your personalized ranked list."
+            tone="positive"
+          />
+          <ActionItem
+            label="Avoid chasing"
+            title={`${dailyPicks[0]?.symbol ?? "Top pick"} entry discipline`}
+            body={`Do not treat the score as permission to buy far above ${dailyPicks[0]?.entryRange ?? "the entry range"}. The plan changes if price runs away.`}
+          />
+          <ActionItem
+            label="Highest risk"
+            title={`${highestRisk.symbol} · ${highestRisk.riskScore}/100 risk`}
+            body="Review this one only if the stop loss and position size still fit your comfort level."
+            tone="risk"
+          />
+          <ActionItem
+            label="Best balance"
+            title={`${bestRiskReward.symbol} reward/risk`}
+            body={`${calmest.symbol} is the calmer idea today; ${bestRiskReward.symbol} has one of the better upside/downside profiles.`}
+          />
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function trustTone(status: OpportunityTrustStatus) {
+  if (status === "live") return "border-pine/20 bg-mint text-pine";
+  if (status === "partial") return "border-amber/30 bg-amber/12 text-ink";
+  if (status === "mock") return "border-line bg-surface text-ink/62";
+  return "border-coral/25 bg-coral/10 text-coral";
+}
+
+function DataTrustPanel({
+  dataSource,
+  trust,
+}: {
+  dataSource: OpportunityDataSource;
+  trust?: OpportunityTrustPanel | null;
+}) {
+  if (!trust) return null;
+
+  const statusLabel = {
+    checked: "Checked",
+    active: `${trust.calibrationRuleCount} active rules`,
+    not_configured: "Not configured",
+  }[trust.calibrationStatus];
+
+  return (
+    <section className="mt-5 rounded-3xl border border-line/80 bg-white p-5 shadow-[0_18px_60px_rgba(7,20,24,0.06)] sm:p-6">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <p className="text-xs font-black uppercase tracking-normal text-pine">
+            Data used today
+          </p>
+          <h2 className="mt-2 text-2xl font-black tracking-normal text-ink">
+            Trust check for this ranking run
+          </h2>
+          <p className="mt-2 max-w-3xl text-sm font-semibold leading-6 text-ink/60">
+            This panel shows what SwingFi used before scores reached your dashboard,
+            including market data, filings, news, macro context, AI explanation support,
+            and backtest calibration.
+          </p>
+        </div>
+        <div className="rounded-2xl border border-line bg-surface px-4 py-3">
+          <p className="text-xs font-black uppercase tracking-normal text-ink/42">
+            Last run
+          </p>
+          <p className="mt-1 text-sm font-black text-ink">
+            {trust.lastRunAt ? new Date(trust.lastRunAt).toLocaleString() : "Not available"}
+          </p>
+          <p className="mt-1 text-xs font-semibold text-ink/50">
+            {dataSource === "supabase" ? "Saved live ranking" : "Live preview"} · {trust.runSource}
+          </p>
+        </div>
+      </div>
+      <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        {trust.dataFeeds.map((feed) => (
+          <div key={feed.label} className={`rounded-2xl border p-4 ${trustTone(feed.status)}`}>
+            <p className="text-xs font-black uppercase tracking-normal opacity-70">
+              {feed.label}
+            </p>
+            <p className="mt-2 text-sm font-black capitalize">{feed.status}</p>
+            <p className="mt-2 text-xs font-semibold leading-5 text-ink/58">{feed.text}</p>
+          </div>
+        ))}
+        <div className={`rounded-2xl border p-4 ${trustTone(trust.openAiStatus)}`}>
+          <p className="text-xs font-black uppercase tracking-normal opacity-70">
+            OpenAI explanation
+          </p>
+          <p className="mt-2 text-sm font-black capitalize">{trust.openAiStatus}</p>
+          <p className="mt-2 text-xs font-semibold leading-5 text-ink/58">
+            {trust.openAiStatus === "live"
+              ? "Available for concise plain-English explanations."
+              : "Fallback explanations are used until OpenAI is configured."}
+          </p>
+        </div>
+        <div className="rounded-2xl border border-line bg-surface p-4">
+          <p className="text-xs font-black uppercase tracking-normal text-ink/45">
+            Calibration
+          </p>
+          <p className="mt-2 text-sm font-black text-ink">{statusLabel}</p>
+          <p className="mt-2 text-xs font-semibold leading-5 text-ink/58">
+            Backtest rules are checked before scores reach the customer UI.
+          </p>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function FirstLoginWalkthrough({ customer }: { customer: CustomerProfile | null }) {
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    if (!customer) return;
+    const dismissed = window.localStorage.getItem(walkthroughStorageKey);
+    setVisible(!dismissed && customer.investingExperience === "beginner");
+  }, [customer]);
+
+  if (!visible) return null;
+
+  const steps = [
+    ["Score", "Review order. Higher means better overall setup quality."],
+    ["Confidence", "Signal agreement. Higher means cleaner data support."],
+    ["Risk", "Fragility. Lower is usually easier to manage."],
+    ["Entry", "The price area to review. Avoid chasing far above it."],
+    ["Target", "The upside area the plan is measuring against."],
+    ["Stop", "The line that defines when the setup may be wrong."],
+  ];
+
+  return (
+    <section className="mb-5 overflow-hidden rounded-3xl border border-pine/20 bg-mint shadow-[0_18px_60px_rgba(7,20,24,0.06)]">
+      <div className="grid gap-0 lg:grid-cols-[340px_1fr]">
+        <div className="bg-ink p-6 text-white">
+          <p className="text-xs font-black uppercase tracking-normal text-lime">
+            60-second walkthrough
+          </p>
+          <h2 className="mt-3 text-2xl font-black">How to read your first list</h2>
+          <p className="mt-3 text-sm font-semibold leading-7 text-white/66">
+            Use this quick guide before reviewing today&apos;s cards. SwingFi ranks
+            research ideas; you still decide what deserves deeper review.
+          </p>
+          <button
+            type="button"
+            onClick={() => {
+              window.localStorage.setItem(walkthroughStorageKey, "dismissed");
+              setVisible(false);
+            }}
+            className="mt-5 rounded-2xl bg-lime px-4 py-3 text-sm font-black text-ink"
+          >
+            Got it
+          </button>
+        </div>
+        <div className="grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-3">
+          {steps.map(([label, text]) => (
+            <div key={label} className="rounded-2xl border border-pine/10 bg-white/78 p-4">
+              <p className="text-sm font-black text-pine">{label}</p>
+              <p className="mt-2 text-xs font-semibold leading-5 text-ink/60">{text}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function percentNumber(value: string) {
   return Number(value.replace("+", "").replace("%", "")) || 0;
+}
+
+function customerSafeFallback(reason?: string) {
+  if (!reason) {
+    return "The morning ranking run has not saved customer-ready picks yet.";
+  }
+
+  const lower = reason.toLowerCase();
+  const internalSignals = [
+    "api_key",
+    "env",
+    "environment",
+    "fmp",
+    "service role",
+    "supabase",
+    "vercel",
+  ];
+
+  if (internalSignals.some((signal) => lower.includes(signal))) {
+    return "The morning ranking run has not saved customer-ready picks yet.";
+  }
+
+  return reason;
 }
 
 function preferenceFitScore(opportunity: Opportunity, customer: CustomerProfile) {
@@ -204,6 +470,7 @@ export function DashboardOpportunities({
   const [opportunities, setOpportunities] = useState(initialOpportunities);
   const [currentDataSource, setCurrentDataSource] = useState<OpportunityDataSource>(dataSource);
   const [currentFallbackReason, setCurrentFallbackReason] = useState(fallbackReason);
+  const [currentTrust, setCurrentTrust] = useState<OpportunityTrustPanel | null>(null);
   const [opportunitiesLoading, setOpportunitiesLoading] = useState(false);
   const [activeView, setActiveView] = useState<DashboardView>("top");
   const [customer, setCustomer] = useState<CustomerProfile | null>(null);
@@ -267,6 +534,7 @@ export function DashboardOpportunities({
           reason?: string;
           rows?: OpportunityRow[];
           source?: OpportunityDataSource;
+          trust?: OpportunityTrustPanel;
         } | null;
 
         if (!isActive) return;
@@ -281,6 +549,7 @@ export function DashboardOpportunities({
         setOpportunities(payload.rows.map(opportunityFromRow));
         setCurrentDataSource(payload.source ?? "supabase");
         setCurrentFallbackReason(payload.reason);
+        setCurrentTrust(payload.trust ?? null);
       } catch {
         if (!isActive) return;
         setOpportunities([]);
@@ -499,10 +768,27 @@ export function DashboardOpportunities({
 
   if (!ready) {
     return (
-      <section className="motion-card rounded-3xl border border-line/80 bg-white p-6 shadow-[0_24px_80px_rgba(7,20,24,0.08)] sm:p-8">
-        <div className="skeleton h-4 w-40 rounded-full" />
-        <div className="skeleton mt-5 h-10 max-w-xl rounded-2xl" />
-        <div className="skeleton mt-4 h-24 rounded-3xl" />
+      <section className="motion-card overflow-hidden rounded-3xl border border-line/80 bg-white shadow-[0_24px_80px_rgba(7,20,24,0.08)]">
+        <div className="grid gap-0 lg:grid-cols-[1fr_320px]">
+          <div className="p-6 sm:p-8">
+            <div className="signal-line mb-6 h-1.5 max-w-56 rounded-full" />
+            <p className="text-xs font-black uppercase tracking-normal text-pine">
+              Checking account access
+            </p>
+            <h2 className="mt-3 max-w-2xl text-3xl font-black tracking-normal text-ink sm:text-4xl">
+              Loading your SwingFi workspace
+            </h2>
+            <p className="mt-3 max-w-2xl text-sm font-semibold leading-7 text-ink/60">
+              We&apos;re confirming your trial or subscription before showing today&apos;s
+              customer analysis.
+            </p>
+          </div>
+          <div className="border-t border-line bg-surface p-6 lg:border-l lg:border-t-0">
+            <div className="skeleton h-4 w-40 rounded-full" />
+            <div className="skeleton mt-5 h-12 rounded-2xl" />
+            <div className="skeleton mt-4 h-24 rounded-3xl" />
+          </div>
+        </div>
       </section>
     );
   }
@@ -536,6 +822,7 @@ export function DashboardOpportunities({
 
   return (
     <>
+      <FirstLoginWalkthrough customer={customer} />
       <div className="motion-card overflow-hidden rounded-3xl border border-line/80 bg-white shadow-[0_24px_80px_rgba(7,20,24,0.08)]">
         <div className="grid gap-0 xl:grid-cols-[1fr_360px]">
           <div className="p-6 sm:p-8">
@@ -617,7 +904,7 @@ export function DashboardOpportunities({
           </p>
         ) : currentDataSource === "empty" ? (
           <p className="border-t border-line bg-coral/12 px-6 py-4 text-sm font-bold text-ink/70">
-            No live picks are available yet{currentFallbackReason ? `: ${currentFallbackReason}` : "."}
+            No customer-ready picks are available yet: {customerSafeFallback(currentFallbackReason)}
           </p>
         ) : currentDataSource === "agent-preview" ? (
           <p className="border-t border-line bg-sky px-6 py-4 text-sm font-bold text-ink/70">
@@ -626,6 +913,9 @@ export function DashboardOpportunities({
           </p>
         ) : null}
       </div>
+
+      <TodayActionPlan customer={customer} dailyPicks={dailyPicks} />
+      <DataTrustPanel dataSource={currentDataSource} trust={currentTrust} />
 
       <div className="mt-5 rounded-3xl border border-line/80 bg-surface/88 p-3 shadow-[0_18px_54px_rgba(7,20,24,0.08)] backdrop-blur-2xl">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
@@ -698,9 +988,9 @@ export function DashboardOpportunities({
                 No ranked opportunities have been saved yet
               </h2>
               <p className="mt-3 max-w-2xl text-sm leading-6 text-ink/60">
-                Connect Supabase in Vercel, run the database schema, and make sure
-                `FMP_API_KEY` is configured. Until then, the dashboard cannot load saved
-                rankings or generate a live preview.
+                Today&apos;s customer-ready ranking list has not been saved yet. Please
+                check back after the morning analysis run, or open your latest email
+                alert when it arrives.
               </p>
             </div>
           ) : visiblePicks.length > 0 ? (

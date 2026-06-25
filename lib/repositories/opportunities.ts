@@ -1,13 +1,33 @@
 import type { AssetType, OpportunityRow } from "@/lib/database.types";
 import { runFmpDailyRankingAgent } from "@/lib/agent";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
+import type { AgentRunResult } from "@/lib/agent/types";
 
 export type OpportunityDataSource = "supabase" | "agent-preview" | "empty";
+
+export type OpportunityTrustStatus = "live" | "partial" | "mock" | "missing";
+
+export type OpportunityTrustPanel = {
+  calibrationStatus: "active" | "checked" | "not_configured";
+  calibrationRuleCount: number;
+  dataFeeds: Array<{
+    label: string;
+    status: OpportunityTrustStatus;
+    text: string;
+  }>;
+  lastRunAt: string | null;
+  marketRegime: string | null;
+  openAiStatus: OpportunityTrustStatus;
+  runSource: string;
+  summary: string | null;
+  universeCount: number;
+};
 
 export type OpportunityListResult = {
   rows: OpportunityRow[];
   source: OpportunityDataSource;
   reason?: string;
+  trust?: OpportunityTrustPanel;
 };
 
 export type OpportunityWriteValues = {
@@ -76,6 +96,92 @@ function hasFmpKey() {
   return Boolean(process.env.FMP_API_KEY || process.env.FINANCIAL_DATA_API_KEY);
 }
 
+function trustStatus(value: unknown): OpportunityTrustStatus {
+  if (value === "live" || value === "partial" || value === "mock") return value;
+  return "missing";
+}
+
+function feedText(status: OpportunityTrustStatus, liveText: string) {
+  if (status === "live") return liveText;
+  if (status === "partial") return "Partially available for this run.";
+  if (status === "mock") return "Using fallback research inputs.";
+  return "Not available for this run.";
+}
+
+function buildTrustPanel(args: {
+  calibrationRuleCount?: number;
+  completedAt?: string | null;
+  dataQuality?: Partial<AgentRunResult["dataQuality"]> | null;
+  marketRegime?: string | null;
+  selectedCount?: number | null;
+  source: string;
+  summary?: string | null;
+  universeCount?: number | null;
+}): OpportunityTrustPanel {
+  const quality = args.dataQuality ?? {};
+  const priceData = trustStatus(quality.priceData);
+  const macroData = trustStatus(quality.macroData);
+  const secData = trustStatus(quality.secData);
+  const newsData = trustStatus(quality.newsData);
+  const eventData = trustStatus(quality.eventData);
+  const financialData = trustStatus(quality.financialData);
+  const calibrationRuleCount = args.calibrationRuleCount ?? 0;
+
+  return {
+    calibrationRuleCount,
+    calibrationStatus: calibrationRuleCount > 0 ? "active" : "checked",
+    dataFeeds: [
+      {
+        label: "FMP market data",
+        status: priceData,
+        text: feedText(priceData, "Live price, volume, technical, and universe data used."),
+      },
+      {
+        label: "Financial statements",
+        status: financialData,
+        text: feedText(financialData, "Company fundamentals and quality signals checked."),
+      },
+      {
+        label: "FRED macro",
+        status: macroData,
+        text: feedText(macroData, "Rates, inflation, labor, and market backdrop included."),
+      },
+      {
+        label: "SEC filings",
+        status: secData,
+        text: feedText(secData, "Recent filing checks included where available."),
+      },
+      {
+        label: "News and events",
+        status: newsData === "live" || eventData === "live" ? "live" : newsData,
+        text:
+          newsData === "live" || eventData === "live"
+            ? "Catalysts, headlines, earnings, and event risk checked."
+            : feedText(newsData, "News and event context checked."),
+      },
+    ],
+    lastRunAt: args.completedAt ?? null,
+    marketRegime: args.marketRegime ?? null,
+    openAiStatus: process.env.OPENAI_API_KEY ? "live" : "missing",
+    runSource: args.source,
+    summary: args.summary ?? null,
+    universeCount: Number(args.universeCount ?? args.selectedCount ?? 0),
+  };
+}
+
+async function getActiveCalibrationRuleCount() {
+  const supabase = createSupabaseAdminClient();
+
+  if (!supabase) return 0;
+
+  const { count } = await supabase
+    .from("ranking_calibration_rules")
+    .select("id", { count: "exact", head: true })
+    .eq("active", true);
+
+  return count ?? 0;
+}
+
 async function listLiveAgentPreviewOpportunities(
   limit: number,
   reasonPrefix: string,
@@ -107,11 +213,22 @@ async function listLiveAgentPreviewOpportunities(
       limit,
       universeLimit: 500,
     });
+    const calibrationRuleCount = result.rankings.filter((item) => item.calibration.length > 0).length;
 
     const nextResult: OpportunityListResult = {
       rows: result.opportunities,
       source: "agent-preview",
       reason: `${reasonPrefix} Showing a fresh FMP-backed agent preview instead of saved Supabase picks.`,
+      trust: buildTrustPanel({
+        calibrationRuleCount,
+        completedAt: result.asOf,
+        dataQuality: result.dataQuality,
+        marketRegime: result.marketRegime,
+        selectedCount: result.selectedCount,
+        source: result.dataSource,
+        summary: result.summary,
+        universeCount: result.universeCount,
+      }),
     };
 
     latestAgentPreviewCache = {
@@ -143,21 +260,21 @@ async function listLiveAgentPreviewOpportunities(
   }
 }
 
-async function getLatestAgentRunId() {
+async function getLatestAgentRun() {
   const supabase = createSupabaseAdminClient();
 
   if (!supabase) return null;
 
   const { data } = await supabase
     .from("agent_runs")
-    .select("id")
+    .select("id,source,universe_count,selected_count,market_regime,summary,data_quality,completed_at,started_at")
     .eq("status", "completed")
     .order("completed_at", { ascending: false, nullsFirst: false })
     .order("started_at", { ascending: false })
     .limit(1)
     .maybeSingle();
 
-  return data?.id ? String(data.id) : null;
+  return data ?? null;
 }
 
 export async function listLatestOpportunities(limit = 30): Promise<OpportunityListResult> {
@@ -170,15 +287,31 @@ export async function listLatestOpportunities(limit = 30): Promise<OpportunityLi
     );
   }
 
-  const latestRunId = await getLatestAgentRunId();
+  const latestRun = await getLatestAgentRun();
+  const calibrationRuleCount = await getActiveCalibrationRuleCount();
+  const trust = latestRun
+    ? buildTrustPanel({
+        calibrationRuleCount,
+        completedAt: latestRun.completed_at ?? latestRun.started_at,
+        dataQuality: latestRun.data_quality as Partial<AgentRunResult["dataQuality"]>,
+        marketRegime: latestRun.market_regime,
+        selectedCount: latestRun.selected_count,
+        source: latestRun.source,
+        summary: latestRun.summary,
+        universeCount: latestRun.universe_count,
+      })
+    : buildTrustPanel({
+        calibrationRuleCount,
+        source: "supabase",
+      });
 
-  if (latestRunId) {
+  if (latestRun?.id) {
     const { data, error } = await supabase
       .from("opportunity_rankings")
       .select(
         "rank, opportunities(id,symbol,asset_type,score,confidence,risk_score,entry_low,entry_high,target_price,stop_loss,expected_gain,expected_loss,holding_period_days,explanation,created_at)",
       )
-      .eq("agent_run_id", latestRunId)
+      .eq("agent_run_id", latestRun.id)
       .order("rank", { ascending: true })
       .limit(limit);
 
@@ -189,6 +322,7 @@ export async function listLatestOpportunities(limit = 30): Promise<OpportunityLi
           .map(normalizeJoinedOpportunity)
           .filter((row): row is OpportunityRow => Boolean(row)),
         source: "supabase",
+        trust,
       };
     }
   }
@@ -212,6 +346,7 @@ export async function listLatestOpportunities(limit = 30): Promise<OpportunityLi
   return {
     rows: data.map((row) => normalizeOpportunity(row as Record<string, unknown>)),
     source: "supabase",
+    trust,
   };
 }
 

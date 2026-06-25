@@ -39,6 +39,13 @@ const cardAnatomy = [
   ["Trade window", "The estimated swing-trade holding period, usually days to weeks rather than minutes or months."],
 ];
 
+const trustProof = [
+  ["Market data", "Price action, volume, trend, and reward/risk context."],
+  ["Macro backdrop", "Economic context that can affect market risk appetite."],
+  ["Filings and events", "SEC filings, earnings, and corporate event checks."],
+  ["Calibration", "Backtesting feedback used to pressure-test ranking quality."],
+];
+
 export default async function LandingPage() {
   const latest = await listLatestOpportunities(3);
   const featured = latest.rows.map(opportunityFromRow);
@@ -56,7 +63,7 @@ export default async function LandingPage() {
           <nav className="flex shrink-0 items-center gap-2 text-sm font-bold">
             <Link
               href="/pricing"
-              className="hidden rounded-lg border border-transparent px-4 py-2 text-ink/70 hover:bg-surface hover:text-ink sm:inline-flex"
+              className="rounded-lg border border-transparent px-2.5 py-2 text-ink/70 hover:bg-surface hover:text-ink sm:px-4"
             >
               Pricing
             </Link>
@@ -77,12 +84,12 @@ export default async function LandingPage() {
       </section>
 
       <section className="border-b border-line/80 bg-panel/70">
-        <div className="mx-auto grid min-h-[78vh] max-w-7xl items-center gap-10 px-4 py-10 sm:px-6 lg:grid-cols-[0.9fr_1.1fr] lg:px-8">
+        <div className="mx-auto grid min-h-[78vh] max-w-7xl items-center gap-10 px-4 py-9 sm:px-6 sm:py-10 lg:grid-cols-[0.9fr_1.1fr] lg:px-8">
           <div>
             <p className="text-sm font-bold uppercase tracking-normal text-pine">
               30 days free · Beginner-friendly swing trading research
             </p>
-            <h1 className="mt-4 max-w-3xl text-5xl font-bold leading-[1.02] text-ink sm:text-6xl">
+            <h1 className="mt-4 max-w-3xl text-4xl font-black leading-[1.04] text-ink sm:text-6xl">
               AI-ranked swing trade research, explained before you trade
             </h1>
             <p className="mt-6 max-w-2xl text-lg leading-8 text-ink/70">
@@ -91,18 +98,7 @@ export default async function LandingPage() {
               what price range to review, where the target and stop loss sit, how risky
               it looks, and how long the swing trade may take.
             </p>
-            <div className="mt-6 rounded-3xl border border-line/80 bg-white/80 p-4 shadow-[0_14px_40px_rgba(7,20,24,0.055)]">
-              <p className="text-xs font-black uppercase tracking-normal text-pine">
-                The beginner rule
-              </p>
-              <p className="mt-2 text-sm font-semibold leading-7 text-ink/68">
-                A ranking is a research starting point, not a buy button. Start with the
-                highest-quality ideas, then check confidence, risk, entry range, target,
-                stop loss, and estimated holding window before deciding what deserves
-                more research.
-              </p>
-            </div>
-            <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+            <div className="mt-7 flex flex-col gap-3 sm:flex-row">
               <Link
                 href="/signup"
                 className="rounded-lg bg-ink px-5 py-3 text-center text-sm font-black text-white shadow-[0_18px_42px_rgba(7,20,24,0.2)] hover:bg-pine"
@@ -115,6 +111,17 @@ export default async function LandingPage() {
               >
                 See how it works
               </Link>
+            </div>
+            <div className="mt-6 rounded-3xl border border-line/80 bg-white/80 p-4 shadow-[0_14px_40px_rgba(7,20,24,0.055)]">
+              <p className="text-xs font-black uppercase tracking-normal text-pine">
+                The beginner rule
+              </p>
+              <p className="mt-2 text-sm font-semibold leading-7 text-ink/68">
+                A ranking is a research starting point, not a buy button. Start with the
+                highest-quality ideas, then check confidence, risk, entry range, target,
+                stop loss, and estimated holding window before deciding what deserves
+                more research.
+              </p>
             </div>
             <div className="mt-8 grid gap-3 sm:grid-cols-3">
               {["Morning rankings", "Plain-English scores", "Entry, target, stop"].map(
@@ -219,6 +226,17 @@ export default async function LandingPage() {
               )}
             </div>
           </div>
+        </div>
+      </section>
+
+      <section className="border-b border-line bg-white/70">
+        <div className="mx-auto grid max-w-7xl gap-3 px-4 py-6 sm:px-6 md:grid-cols-4 lg:px-8">
+          {trustProof.map(([label, text]) => (
+            <div key={label} className="rounded-2xl border border-line bg-panel p-4 shadow-[0_10px_28px_rgba(7,20,24,0.045)]">
+              <p className="text-sm font-black text-ink">{label}</p>
+              <p className="mt-2 text-xs font-semibold leading-5 text-ink/58">{text}</p>
+            </div>
+          ))}
         </div>
       </section>
 

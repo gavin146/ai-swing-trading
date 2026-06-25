@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
+import { PasswordField } from "@/components/PasswordField";
+import { ToastNotice, type ToastTone } from "@/components/ToastNotice";
 import {
   rememberAuthenticatedCustomer,
   SWINGFI_ADMIN_EMAIL,
@@ -39,6 +41,17 @@ type SignupResponse = {
   };
   error?: string;
   verificationEmailSent?: boolean;
+};
+
+type AccountStatusResponse = {
+  exists?: boolean | null;
+  validEmail?: boolean;
+};
+
+type SignupNotice = {
+  message: string;
+  title?: string;
+  tone: ToastTone;
 };
 
 const initialValues: SignupValues = {
@@ -131,11 +144,34 @@ function ChoiceGrid<T extends string>({
   );
 }
 
+async function getAccountStatus(email: string) {
+  const response = await fetch("/api/auth/account-status", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email }),
+  });
+
+  return (await response.json().catch(() => ({}))) as AccountStatusResponse;
+}
+
+function friendlySignupError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error);
+  const lower = message.toLowerCase();
+
+  if (lower.includes("already exists") || lower.includes("already registered")) {
+    return "An account already exists for that email. Log in or reset your password instead.";
+  }
+  if (lower.includes("password")) return message;
+  if (lower.includes("email")) return message;
+
+  return message || "Signup failed.";
+}
+
 export function SignupForm() {
   const router = useRouter();
   const [step, setStep] = useState(0);
   const [values, setValues] = useState<SignupValues>(initialValues);
-  const [error, setError] = useState("");
+  const [notice, setNotice] = useState<SignupNotice | null>(null);
   const [loading, setLoading] = useState(false);
   const progress = Math.round(((step + 1) / steps.length) * 100);
   const fullName = `${values.firstName.trim()} ${values.lastName.trim()}`.trim();
@@ -180,6 +216,10 @@ export function SignupForm() {
     setValues((current) => ({ ...current, [key]: value }));
   }
 
+  function showNotice(tone: ToastTone, message: string, title?: string) {
+    setNotice({ message, title, tone });
+  }
+
   function validateCurrentStep() {
     if (step === 0 && (!values.firstName.trim() || !values.lastName.trim())) {
       return "Enter your first and last name.";
@@ -196,26 +236,46 @@ export function SignupForm() {
     return "";
   }
 
-  function goNext() {
+  async function goNext() {
     const validation = validateCurrentStep();
     if (validation) {
-      setError(validation);
+      showNotice("warning", validation, "Quick check");
       return;
     }
 
-    setError("");
+    if (step === 1) {
+      setLoading(true);
+      const status = await getAccountStatus(values.email);
+      setLoading(false);
+
+      if (status.validEmail === false) {
+        showNotice("warning", "Enter a valid email address.", "Email needed");
+        return;
+      }
+
+      if (status.exists === true) {
+        showNotice(
+          "info",
+          "An account already exists for that email. Log in or reset your password instead.",
+          "Account already exists",
+        );
+        return;
+      }
+    }
+
+    setNotice(null);
     setStep((current) => Math.min(current + 1, steps.length - 1));
   }
 
   async function handleCreateAccount() {
     const validation = validateCurrentStep();
     if (validation) {
-      setError(validation);
+      showNotice("warning", validation, "Quick check");
       return;
     }
 
     setLoading(true);
-    setError("");
+    setNotice(null);
 
     try {
       const response = await fetch("/api/auth/signup", {
@@ -240,7 +300,7 @@ export function SignupForm() {
 
       router.push(`/verify-email?sent=1&email=${encodeURIComponent(customer.email)}`);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Signup failed.");
+      showNotice("error", friendlySignupError(caught), "Could not create account");
       setLoading(false);
     }
   }
@@ -423,10 +483,10 @@ export function SignupForm() {
               <div className="grid gap-4">
                 <label className="grid gap-2 text-sm font-bold text-ink">
                   Password
-                  <input
+                  <PasswordField
+                    label="password"
                     value={values.password}
                     onChange={(event) => update("password", event.target.value)}
-                    type="password"
                     autoComplete="new-password"
                     className="rounded-2xl border border-line bg-surface px-4 py-3 font-medium outline-none transition focus:border-pine focus:bg-panel"
                     placeholder="Create a password"
@@ -456,17 +516,17 @@ export function SignupForm() {
             ) : null}
           </div>
 
-          {error ? (
-            <p className="mt-5 rounded-2xl bg-coral/20 px-4 py-3 text-sm font-bold text-ink">
-              {error}
-            </p>
+          {notice ? (
+            <ToastNotice className="mt-5" tone={notice.tone} title={notice.title}>
+              {notice.message}
+            </ToastNotice>
           ) : null}
 
           <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
             <button
               type="button"
               onClick={() => {
-                setError("");
+                setNotice(null);
                 setStep((currentStep) => Math.max(0, currentStep - 1));
               }}
               disabled={step === 0 || loading}
@@ -477,10 +537,11 @@ export function SignupForm() {
             {step < steps.length - 1 ? (
               <button
                 type="button"
-                onClick={goNext}
-                className="rounded-2xl bg-ink px-6 py-3 text-sm font-black text-white shadow-[0_14px_34px_rgba(7,20,24,0.16)] hover:bg-pine"
+                onClick={() => void goNext()}
+                disabled={loading}
+                className="rounded-2xl bg-ink px-6 py-3 text-sm font-black text-white shadow-[0_14px_34px_rgba(7,20,24,0.16)] hover:bg-pine disabled:cursor-not-allowed disabled:opacity-70"
               >
-                Continue
+                {loading ? "Checking..." : "Continue"}
               </button>
             ) : (
               <button

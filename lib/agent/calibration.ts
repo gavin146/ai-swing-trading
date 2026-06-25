@@ -26,7 +26,7 @@ export type RankingCalibrationRule = {
   averageReturnPct: number;
   confidence: "low" | "medium" | "high";
   active: boolean;
-  source: "default" | "backtest" | "environment";
+  source: "default" | "backtest" | "environment" | "forward";
   createdAt: string;
 };
 

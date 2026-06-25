@@ -10,6 +10,7 @@ import type { OpportunityDataSource } from "@/lib/repositories/opportunities";
 type AdminDestination =
   | "operations"
   | "backtesting"
+  | "accuracy"
   | "access"
   | "communications"
   | "customers"
@@ -19,6 +20,10 @@ type StatusPayload = {
   adminProtected: boolean;
   cronProtected: boolean;
   vercelCronConfigured: boolean;
+  predictionEvaluationCronConfigured: boolean;
+  dailyRankingsScheduleUtc: string;
+  morningAlertsScheduleUtc: string;
+  predictionEvaluationScheduleUtc: string;
   emailReady: boolean;
   openAiReady: boolean;
   stripeReady: boolean;
@@ -40,6 +45,16 @@ type AdminCommandCenterProps = {
   onNavigate: (destination: AdminDestination) => void;
 };
 
+type ActivityItem = {
+  description: string;
+  id: string;
+  meta?: string;
+  status: "good" | "warn" | "bad" | "neutral";
+  timestamp: string;
+  title: string;
+  type: "agent" | "email" | "click" | "backtest" | "error";
+};
+
 const requiredChecks: Array<[keyof StatusPayload, string]> = [
   ["adminProtected", "Admin secret"],
   ["cronProtected", "Cron secret"],
@@ -59,6 +74,83 @@ function formatDate(value?: string | null) {
     hour: "numeric",
     minute: "2-digit",
   }).format(new Date(value));
+}
+
+function activityTone(status: ActivityItem["status"]) {
+  if (status === "good") return "border-pine/25 bg-mint text-pine";
+  if (status === "warn") return "border-amber/30 bg-amber/12 text-ink";
+  if (status === "bad") return "border-coral/25 bg-coral/10 text-coral";
+  return "border-line bg-surface text-ink/62";
+}
+
+function activityLabel(type: ActivityItem["type"]) {
+  return {
+    agent: "Run",
+    backtest: "Test",
+    click: "Click",
+    email: "Send",
+    error: "Alert",
+  }[type];
+}
+
+function ActivityFeed({ items }: { items: ActivityItem[] }) {
+  return (
+    <section className="premium-panel rounded-3xl p-5 sm:p-6">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <p className="text-sm font-black uppercase tracking-normal text-pine">
+            Unified activity feed
+          </p>
+          <h3 className="mt-2 text-2xl font-black text-ink">
+            Agent, email, customer, and backtest activity
+          </h3>
+          <p className="mt-2 max-w-3xl text-sm font-semibold leading-6 text-ink/60">
+            This ties the major admin signals together so you can quickly see what
+            ran, what was sent, what customers clicked, what backtesting learned,
+            and whether any API or workflow failed.
+          </p>
+        </div>
+        <span className="rounded-2xl border border-line bg-surface px-4 py-3 text-sm font-black text-ink">
+          {items.length} recent events
+        </span>
+      </div>
+
+      <div className="mt-5 grid gap-3">
+        {items.length ? (
+          items.map((item) => (
+            <div
+              key={item.id}
+              className="grid gap-3 rounded-2xl border border-line bg-surface p-4 sm:grid-cols-[78px_1fr_auto] sm:items-center"
+            >
+              <div className={`w-fit rounded-full border px-3 py-1 text-xs font-black ${activityTone(item.status)}`}>
+                {activityLabel(item.type)}
+              </div>
+              <div className="min-w-0">
+                <p className="text-sm font-black text-ink">{item.title}</p>
+                <p className="mt-1 text-xs font-semibold leading-5 text-ink/58">
+                  {item.description}
+                </p>
+                {item.meta ? (
+                  <p className="mt-1 text-xs font-bold text-ink/42">{item.meta}</p>
+                ) : null}
+              </div>
+              <p className="text-xs font-bold text-ink/45 sm:text-right">
+                {formatDate(item.timestamp)}
+              </p>
+            </div>
+          ))
+        ) : (
+          <div className="rounded-2xl border border-line bg-surface p-5">
+            <p className="text-sm font-black text-ink">No activity loaded yet</p>
+            <p className="mt-2 text-xs font-semibold leading-5 text-ink/55">
+              Once the agent, alert sender, click tracking, or backtests run, this
+              area becomes the admin timeline.
+            </p>
+          </div>
+        )}
+      </div>
+    </section>
+  );
 }
 
 function HealthCard({
@@ -86,6 +178,7 @@ function HealthCard({
 
 export function AdminCommandCenter({ onNavigate }: AdminCommandCenterProps) {
   const [status, setStatus] = useState<StatusPayload | null>(null);
+  const [activity, setActivity] = useState<ActivityItem[]>([]);
   const [customers, setCustomers] = useState<CustomerProfile[]>([]);
   const [usage, setUsage] = useState<CustomerUsageSummary[]>([]);
   const [opportunities, setOpportunities] = useState<OpportunityRow[]>([]);
@@ -95,10 +188,11 @@ export function AdminCommandCenter({ onNavigate }: AdminCommandCenterProps) {
   useEffect(() => {
     async function loadOverview() {
       try {
-        const [statusResponse, customerResponse, opportunityResponse] = await Promise.all([
+        const [statusResponse, customerResponse, opportunityResponse, activityResponse] = await Promise.all([
           fetch("/api/admin/status"),
           fetch("/api/admin/customers", { headers: getAdminHeaders() }),
           fetch("/api/opportunities"),
+          fetch("/api/admin/activity", { headers: getAdminHeaders() }),
         ]);
 
         const statusPayload = (await statusResponse.json()) as StatusPayload;
@@ -110,8 +204,12 @@ export function AdminCommandCenter({ onNavigate }: AdminCommandCenterProps) {
           rows?: OpportunityRow[];
           source?: OpportunityDataSource;
         };
+        const activityPayload = (await activityResponse.json().catch(() => ({}))) as {
+          items?: ActivityItem[];
+        };
 
         setStatus(statusPayload);
+        setActivity(activityPayload.items ?? []);
         setCustomers(customerPayload.customers ?? []);
         setUsage(customerPayload.usage ?? []);
         setOpportunities(opportunityPayload.rows ?? []);
@@ -127,11 +225,14 @@ export function AdminCommandCenter({ onNavigate }: AdminCommandCenterProps) {
 
   const missingChecks = useMemo(
     () =>
-      requiredChecks
-        .filter(([key]) => !status?.[key])
-        .map(([, label]) => label),
+      status
+        ? requiredChecks
+            .filter(([key]) => !status?.[key])
+            .map(([, label]) => label)
+        : [],
     [status],
   );
+  const isLoading = !status;
   const monthlyClicks = usage.reduce((total, item) => total + item.totalLinkClicks, 0);
   const activeCustomers = usage.filter((item) => item.totalLinkClicks > 0).length;
   const latestOpportunity = opportunities
@@ -139,8 +240,27 @@ export function AdminCommandCenter({ onNavigate }: AdminCommandCenterProps) {
     .sort()
     .at(-1);
   const topSaved = opportunities.filter((item) => item.score >= 75).length;
-  const apiReadyCount = requiredChecks.length - missingChecks.length;
-  const apiHealth = Math.round((apiReadyCount / requiredChecks.length) * 100);
+  const apiReadyCount = status ? requiredChecks.length - missingChecks.length : 0;
+  const apiHealth = status ? Math.round((apiReadyCount / requiredChecks.length) * 100) : 0;
+  const qualityGateChecks = [
+    ["Picks saved", opportunities.length > 0, "Today has customer-ready rankings saved."],
+    ["Email ready", Boolean(status?.emailReady), "The branded sender is ready for alerts."],
+    [
+      "Data ready",
+      Boolean(status?.marketDataReady && status?.macroDataReady),
+      "Market and macro providers are available.",
+    ],
+    [
+      "Calibration ready",
+      Boolean(status?.supabaseAdminReady),
+      "Backtest feedback can be saved and applied.",
+    ],
+    [
+      "Outcome checks",
+      Boolean(status?.predictionEvaluationCronConfigured),
+      "Forward predictions are evaluated after the market closes.",
+    ],
+  ] as const;
 
   return (
     <section className="grid min-w-0 gap-5">
@@ -162,23 +282,23 @@ export function AdminCommandCenter({ onNavigate }: AdminCommandCenterProps) {
             <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
               <HealthCard
                 label="Run status"
-                status={opportunities.length > 0 ? "good" : "bad"}
-                value={opportunities.length > 0 ? "Picks saved" : "No picks"}
+                status={isLoading ? "warn" : opportunities.length > 0 ? "good" : "bad"}
+                value={isLoading ? "Checking" : opportunities.length > 0 ? "Picks saved" : "No picks"}
               />
               <HealthCard
                 label="Email"
-                status={status?.emailReady ? "good" : "bad"}
-                value={status?.emailReady ? "Ready" : "Blocked"}
+                status={isLoading ? "warn" : status?.emailReady ? "good" : "bad"}
+                value={isLoading ? "Checking" : status?.emailReady ? "Ready" : "Blocked"}
               />
               <HealthCard
                 label="Customers"
-                status={customers.length > 0 ? "good" : "warn"}
-                value={String(customers.length)}
+                status={isLoading ? "warn" : customers.length > 0 ? "good" : "warn"}
+                value={isLoading ? "Checking" : String(customers.length)}
               />
               <HealthCard
                 label="API health"
-                status={apiHealth >= 90 ? "good" : apiHealth >= 70 ? "warn" : "bad"}
-                value={`${apiHealth}%`}
+                status={isLoading ? "warn" : apiHealth >= 90 ? "good" : apiHealth >= 70 ? "warn" : "bad"}
+                value={isLoading ? "Checking" : `${apiHealth}%`}
               />
             </div>
           </div>
@@ -188,11 +308,16 @@ export function AdminCommandCenter({ onNavigate }: AdminCommandCenterProps) {
               Needs attention
             </p>
             <p className="mt-3 text-4xl font-black">
-              {missingChecks.length}
+              {isLoading ? "..." : missingChecks.length}
               <span className="text-base text-white/44"> issues</span>
             </p>
             <div className="mt-4 grid gap-2">
-              {(missingChecks.length ? missingChecks : ["All required systems ready"]).map(
+              {(isLoading
+                ? ["Loading provider health"]
+                : missingChecks.length
+                  ? missingChecks
+                  : ["All required systems ready"]
+              ).map(
                 (item) => (
                   <p
                     key={item}
@@ -226,7 +351,7 @@ export function AdminCommandCenter({ onNavigate }: AdminCommandCenterProps) {
               onClick={() => onNavigate("operations")}
               className="rounded-2xl bg-ink px-4 py-3 text-sm font-black text-white hover:bg-pine"
             >
-              Run agent
+              Open agent controls
             </button>
           </div>
 
@@ -273,6 +398,7 @@ export function AdminCommandCenter({ onNavigate }: AdminCommandCenterProps) {
           <div className="mt-5 grid gap-3">
             {[
               ["Backtesting", "Verify whether recent picks hit target, stop, or expired.", "backtesting"],
+              ["Prediction accuracy", "Measure live picks against SPY/QQQ before making stronger claims.", "accuracy"],
               ["Customers", "See which users open emails and which symbols they revisit.", "customers"],
               ["Alert studio", "Preview the branded morning email before scheduled sends.", "communications"],
               ["Admin access", "Approve admins and confirm role-based access.", "access"],
@@ -292,6 +418,43 @@ export function AdminCommandCenter({ onNavigate }: AdminCommandCenterProps) {
           </div>
         </section>
       </div>
+
+      <section className="premium-panel rounded-3xl p-5 sm:p-6">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <p className="text-sm font-black uppercase tracking-normal text-pine">
+              Operator checklist
+            </p>
+            <h3 className="mt-2 text-2xl font-black text-ink">
+              What should be true before alerts go out
+            </h3>
+          </div>
+          <span className="rounded-2xl border border-line bg-surface px-4 py-3 text-sm font-black text-ink">
+            Morning quality gate
+          </span>
+        </div>
+        <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          {qualityGateChecks.map(([label, ready, detail]) => (
+            <div
+              key={String(label)}
+              className={`rounded-2xl border p-4 ${
+                isLoading
+                  ? "border-line bg-surface"
+                  : ready
+                    ? "border-pine/20 bg-mint"
+                    : "border-amber/30 bg-amber/[0.16]"
+              }`}
+            >
+              <p className="text-sm font-black text-ink">{label}</p>
+              <p className="mt-2 text-xs font-semibold leading-5 text-ink/58">
+                {isLoading ? "Checking status..." : detail}
+              </p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <ActivityFeed items={activity} />
 
       <section className="premium-panel rounded-3xl p-5 sm:p-6">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">

@@ -26,6 +26,23 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  const { data: userRow, error: userError } = await supabase
+    .from("users")
+    .select("id")
+    .eq("email", email)
+    .maybeSingle();
+
+  if (userError) {
+    return NextResponse.json({ error: userError.message }, { status: 503 });
+  }
+
+  if (!userRow) {
+    return NextResponse.json(
+      { error: "No SwingFi account was found for that email. Check the spelling or create an account." },
+      { status: 404 },
+    );
+  }
+
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? request.nextUrl.origin;
   const { data, error } = await supabase.auth.admin.generateLink({
     type: "recovery",

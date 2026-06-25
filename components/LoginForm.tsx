@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
+import { PasswordField } from "@/components/PasswordField";
+import { ToastNotice, type ToastTone } from "@/components/ToastNotice";
 import {
   isAdminCustomer,
   loginCustomer,
@@ -10,26 +12,144 @@ import {
 } from "@/lib/customer-store";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 
+type SessionProfileResponse = {
+  customer?: Parameters<typeof rememberAuthenticatedCustomer>[0];
+  error?: string;
+};
+
+type AccountStatusResponse = {
+  error?: string;
+  exists?: boolean | null;
+  validEmail?: boolean;
+};
+
+type AuthNotice = {
+  message: string;
+  title?: string;
+  tone: ToastTone;
+};
+
+async function getAccountStatus(email: string) {
+  const response = await fetch("/api/auth/account-status", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email }),
+  });
+
+  return (await response.json().catch(() => ({}))) as AccountStatusResponse;
+}
+
+function friendlyLoginError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error);
+  const lower = message.toLowerCase();
+
+  if (lower.includes("no swingfi account")) return message;
+  if (lower.includes("password does not match")) return message;
+  if (lower.includes("invalid login credentials")) {
+    return "That email or password is not correct. Check the email spelling or reset your password.";
+  }
+  if (lower.includes("email not confirmed")) {
+    return "Confirm your email before logging in. Use the verification link we sent, or request a new one.";
+  }
+  if (lower.includes("too many")) {
+    return "Too many login attempts. Wait a few minutes, then try again.";
+  }
+
+  return message || "Login failed.";
+}
+
 export function LoginForm() {
   const router = useRouter();
-  const [error, setError] = useState("");
+  const [notice, setNotice] = useState<AuthNotice | null>(null);
   const [loading, setLoading] = useState(false);
   const [recoveryMode, setRecoveryMode] = useState(false);
+  const [recoveryReady, setRecoveryReady] = useState(false);
   const [newPassword, setNewPassword] = useState("");
 
+  function showNotice(tone: ToastTone, message: string, title?: string) {
+    setNotice({ message, title, tone });
+  }
+
   useEffect(() => {
-    const hash = window.location.hash;
-    const query = window.location.search;
-    setRecoveryMode(hash.includes("type=recovery") || query.includes("reset=1"));
+    let mounted = true;
+
+    async function prepareRecoverySession() {
+      const params = new URLSearchParams(window.location.search);
+      const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+      const isRecovery =
+        params.get("reset") === "1" ||
+        params.has("code") ||
+        hashParams.get("type") === "recovery";
+
+      setRecoveryMode(isRecovery);
+      if (!isRecovery) return;
+
+      const supabase = createSupabaseBrowserClient();
+      if (!supabase) {
+        if (mounted) {
+          showNotice("error", "Password reset is not configured yet.", "Reset unavailable");
+          setRecoveryReady(false);
+        }
+        return;
+      }
+
+      const code = params.get("code");
+      if (code) {
+        const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
+        if (exchangeError) {
+          if (mounted) {
+            showNotice(
+              "warning",
+              "This password reset link is expired or invalid. Request a fresh reset email.",
+              "Reset link expired",
+            );
+            setRecoveryReady(false);
+          }
+          return;
+        }
+
+        window.history.replaceState({}, "", "/login?reset=1");
+      }
+
+      const { data } = await supabase.auth.getSession();
+      if (mounted) {
+        setRecoveryReady(Boolean(data.session));
+        if (!data.session) {
+          showNotice(
+            "warning",
+            "This password reset link is expired or invalid. Request a fresh reset email.",
+            "Reset link expired",
+          );
+        }
+      }
+    }
+
+    void prepareRecoverySession();
+
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setLoading(true);
-    setError("");
+    setNotice(null);
     const formData = new FormData(event.currentTarget);
-    const email = String(formData.get("email") ?? "");
+    const email = String(formData.get("email") ?? "").trim().toLowerCase();
     const password = String(formData.get("password") ?? "");
+
+    if (!email.includes("@")) {
+      showNotice("warning", "Enter the email address you used to create your SwingFi account.", "Email needed");
+      setLoading(false);
+      return;
+    }
+
+    if (!password) {
+      showNotice("warning", "Enter your password, or use password reset if you forgot it.", "Password needed");
+      setLoading(false);
+      return;
+    }
 
     try {
       const supabase = createSupabaseBrowserClient();
@@ -42,16 +162,34 @@ export function LoginForm() {
         });
 
         if (authError || !data.user) {
+          const status = await getAccountStatus(email);
+
+          if (status.validEmail === false || status.exists === false) {
+            throw new Error("No SwingFi account was found for that email. Check the spelling or create an account.");
+          }
+
+          if (status.exists === true) {
+            throw new Error("That password does not match this account. Try again or reset your password.");
+          }
+
           customer = loginCustomer(email, password);
         } else {
+          const profileResponse = await fetch("/api/customers/session", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${data.session?.access_token ?? ""}`,
+            },
+            body: JSON.stringify({ accessToken: data.session?.access_token }),
+          });
+          const profilePayload = (await profileResponse.json().catch(() => ({}))) as SessionProfileResponse;
+
+          if (!profileResponse.ok || profilePayload.error || !profilePayload.customer) {
+            throw new Error(profilePayload.error ?? "Could not load your saved SwingFi profile.");
+          }
+
           customer = rememberAuthenticatedCustomer({
-            authUserId: data.user.id,
-            createdAt: data.user.created_at,
-            email: data.user.email ?? email,
-            fullName:
-              typeof data.user.user_metadata?.full_name === "string"
-                ? data.user.user_metadata.full_name
-                : email,
+            ...profilePayload.customer,
             password,
           });
         }
@@ -61,7 +199,7 @@ export function LoginForm() {
 
       router.push(isAdminCustomer(customer) ? "/admin" : "/dashboard");
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Login failed.");
+      showNotice("error", friendlyLoginError(caught), "Could not log in");
       setLoading(false);
     }
   }
@@ -71,12 +209,24 @@ export function LoginForm() {
     const email = emailInput?.value.trim() ?? "";
 
     if (!email) {
-      setError("Enter your email first, then request a reset link.");
+      showNotice("warning", "Enter your email first, then request a reset link.", "Email needed");
       return;
     }
 
     setLoading(true);
-    setError("");
+    setNotice(null);
+
+    const status = await getAccountStatus(email);
+    if (status.validEmail === false || status.exists === false) {
+      showNotice(
+        "error",
+        "No SwingFi account was found for that email. Check the spelling or create an account.",
+        "Account not found",
+      );
+      setLoading(false);
+      return;
+    }
+
     const response = await fetch("/api/auth/password-reset", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -86,41 +236,61 @@ export function LoginForm() {
     setLoading(false);
 
     if (!response.ok || payload.error) {
-      setError(payload.error ?? "Password reset email could not be sent.");
+      showNotice(
+        "error",
+        payload.error ?? "Password reset email could not be sent. Check the email and try again.",
+        "Reset email failed",
+      );
       return;
     }
 
-    setError("Password reset email sent from SwingFi. Check your inbox and spam folder.");
+    showNotice(
+      "success",
+      "Password reset email sent from SwingFi. Check your inbox and spam folder, then open the secure link.",
+      "Reset email sent",
+    );
   }
 
   async function handlePasswordUpdate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     if (newPassword.length < 8) {
-      setError("Create a password with at least 8 characters.");
+      showNotice("warning", "Create a password with at least 8 characters.", "Password too short");
       return;
     }
 
     const supabase = createSupabaseBrowserClient();
     if (!supabase) {
-      setError("Password reset is not configured yet.");
+      showNotice("error", "Password reset is not configured yet.", "Reset unavailable");
       return;
     }
 
     setLoading(true);
-    setError("");
+    setNotice(null);
+    const { data: sessionData } = await supabase.auth.getSession();
+    if (!sessionData.session) {
+      showNotice(
+        "warning",
+        "This password reset link is expired or invalid. Request a fresh reset email.",
+        "Reset link expired",
+      );
+      setLoading(false);
+      setRecoveryReady(false);
+      return;
+    }
+
     const { error: updateError } = await supabase.auth.updateUser({ password: newPassword });
     setLoading(false);
 
     if (updateError) {
-      setError(updateError.message);
+      showNotice("error", friendlyLoginError(updateError), "Password update failed");
       return;
     }
 
     window.history.replaceState({}, "", "/login");
     setRecoveryMode(false);
     setNewPassword("");
-    setError("Password updated. Log in with your new password.");
+    showNotice("success", "Password updated. Log in with your new password.", "Password updated");
   }
 
   return (
@@ -134,7 +304,9 @@ export function LoginForm() {
         </h1>
         <p className="mt-2 text-sm leading-6 text-ink/60">
           {recoveryMode
-            ? "Enter a fresh password, then return to sign in."
+            ? recoveryReady
+              ? "Enter a fresh password, then return to sign in."
+              : "Checking your secure password reset link."
             : "Sign in to review today’s ranked opportunities, saved preferences, and morning email settings."}
         </p>
       </div>
@@ -143,25 +315,25 @@ export function LoginForm() {
         <form onSubmit={handlePasswordUpdate} className="mt-8 grid gap-4">
           <label className="grid gap-2 text-sm font-bold text-ink">
             New password
-            <input
+            <PasswordField
+              label="new password"
               value={newPassword}
               onChange={(event) => setNewPassword(event.target.value)}
-              type="password"
               autoComplete="new-password"
               className="rounded-md border border-line bg-surface px-4 py-3 font-medium outline-none transition focus:border-pine focus:bg-panel"
             />
           </label>
-          {error ? (
-            <p className="rounded-md bg-coral/20 px-3 py-2 text-sm font-bold text-ink">
-              {error}
-            </p>
+          {notice ? (
+            <ToastNotice tone={notice.tone} title={notice.title}>
+              {notice.message}
+            </ToastNotice>
           ) : null}
           <button
             type="submit"
-            disabled={loading}
+            disabled={loading || !recoveryReady}
             className="mt-2 rounded-2xl bg-ink px-4 py-3 text-sm font-black text-white shadow-[0_14px_34px_rgba(7,20,24,0.16)] hover:bg-pine disabled:cursor-not-allowed disabled:opacity-70"
           >
-            {loading ? "Updating..." : "Update password"}
+            {loading ? "Updating..." : recoveryReady ? "Update password" : "Reset link not ready"}
           </button>
         </form>
       ) : (
@@ -177,17 +349,17 @@ export function LoginForm() {
         </label>
         <label className="grid gap-2 text-sm font-bold text-ink">
           Password
-          <input
+          <PasswordField
+            label="password"
             name="password"
-            type="password"
             autoComplete="current-password"
             className="rounded-md border border-line bg-surface px-4 py-3 font-medium outline-none transition focus:border-pine focus:bg-panel"
           />
         </label>
-        {error ? (
-          <p className="rounded-md bg-coral/20 px-3 py-2 text-sm font-bold text-ink">
-            {error}
-          </p>
+        {notice ? (
+          <ToastNotice tone={notice.tone} title={notice.title}>
+            {notice.message}
+          </ToastNotice>
         ) : null}
         <button
           type="submit"

@@ -62,6 +62,8 @@ const legacyDemoEmail = "avery@example.com";
 const trialLengthDays = 30;
 const sessionLengthDays = 14;
 const activeSubscriptionStatuses = new Set<SubscriptionStatus>(["active", "trialing"]);
+let lastCustomerSyncSignature = "";
+let inFlightCustomerSyncSignature = "";
 
 export const SWINGFI_ADMIN_EMAIL = "gavin@onefear.co";
 
@@ -182,7 +184,7 @@ function normalizeCustomer(customer: StoredCustomer): StoredCustomer {
   return {
     ...customer,
     email,
-    role: isAdminEmail(email) ? "admin" : "customer",
+    role: email === SWINGFI_ADMIN_EMAIL || customer.role === "admin" ? "admin" : "customer",
     phone: customer.phone ?? "",
     authUserId: customer.authUserId ?? null,
     riskProfile: customer.riskProfile ?? "balanced",
@@ -297,6 +299,26 @@ function writeCustomers(customers: StoredCustomer[]) {
   window.dispatchEvent(new Event("swingfi-customer-updated"));
 }
 
+function writeCustomersIfChanged(customers: StoredCustomer[], currentCustomerId?: string) {
+  const previousCustomers = readCustomers();
+  const previousCurrentId = readStorageValue(currentCustomerKey, legacyCurrentCustomerKey);
+  const customersChanged = JSON.stringify(previousCustomers) !== JSON.stringify(customers);
+  const currentChanged =
+    currentCustomerId !== undefined && previousCurrentId !== currentCustomerId;
+
+  if (customersChanged) {
+    window.localStorage.setItem(customersKey, JSON.stringify(customers));
+  }
+
+  if (currentChanged && currentCustomerId) {
+    window.localStorage.setItem(currentCustomerKey, currentCustomerId);
+  }
+
+  if (customersChanged || currentChanged) {
+    window.dispatchEvent(new Event("swingfi-customer-updated"));
+  }
+}
+
 function applySyncedProfile(
   customerId: string,
   updates: {
@@ -331,6 +353,36 @@ function applySyncedProfile(
 function syncCustomerProfile(customer: CustomerProfile | null) {
   if (!customer || typeof window === "undefined") return;
 
+  const signature = JSON.stringify({
+    accountBudget: customer.accountBudget,
+    alertChannel: customer.alertChannel,
+    alertTime: customer.alertTime,
+    authUserId: customer.authUserId ?? null,
+    createdAt: customer.createdAt,
+    email: customer.email,
+    emailVerifiedAt: customer.emailVerifiedAt ?? null,
+    fullName: customer.fullName,
+    id: customer.id,
+    investingExperience: customer.investingExperience,
+    lastLoginAt: customer.lastLoginAt ?? null,
+    maxRiskScore: customer.maxRiskScore,
+    minimumConfidence: customer.minimumConfidence,
+    morningAlertsEnabled: customer.morningAlertsEnabled,
+    phone: customer.phone,
+    positionSizePreference: customer.positionSizePreference,
+    riskProfile: customer.riskProfile,
+    role: customer.role,
+    setupPreference: customer.setupPreference,
+    subscriptionStatus: customer.subscriptionStatus ?? null,
+    timezone: customer.timezone,
+  });
+
+  if (signature === lastCustomerSyncSignature || signature === inFlightCustomerSyncSignature) {
+    return;
+  }
+
+  inFlightCustomerSyncSignature = signature;
+
   fetch("/api/customers/sync", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -352,9 +404,15 @@ function syncCustomerProfile(customer: CustomerProfile | null) {
         role: payload?.customer?.role,
         subscriptionStatus: payload?.customer?.subscriptionStatus,
       });
+      lastCustomerSyncSignature = signature;
     })
     .catch((error) => {
       console.warn("SwingFi customer sync failed", error);
+    })
+    .finally(() => {
+      if (inFlightCustomerSyncSignature === signature) {
+        inFlightCustomerSyncSignature = "";
+      }
     });
 }
 
@@ -411,12 +469,14 @@ export function getCurrentCustomer(): CustomerProfile | null {
 export function loginCustomer(email: string, password: string) {
   const customers = readCustomers();
   const normalizedEmail = normalizeEmail(email);
-  const customer = customers.find(
-    (item) => normalizeEmail(item.email) === normalizedEmail && item.password === password,
-  );
+  const customer = customers.find((item) => normalizeEmail(item.email) === normalizedEmail);
 
   if (!customer) {
-    throw new Error("No customer matched that email and password.");
+    throw new Error("No SwingFi account was found for that email.");
+  }
+
+  if (customer.password !== password) {
+    throw new Error("That password does not match this account.");
   }
 
   customer.lastLoginAt = new Date().toISOString();
@@ -482,19 +542,27 @@ export function signupCustomer(values: {
 
 export function rememberAuthenticatedCustomer(values: {
   accountBudget?: AccountBudget;
+  alertChannel?: AlertChannel;
+  alertTime?: string;
   authUserId?: string | null;
   id?: string;
   email: string;
+  emailVerifiedAt?: string | null;
   fullName: string;
   investingExperience?: InvestingExperience;
+  lastLoginAt?: string | null;
+  maxRiskScore?: number;
+  minimumConfidence?: number;
+  morningAlertsEnabled?: boolean;
   password?: string;
   phone?: string;
   positionSizePreference?: PositionSizePreference;
   riskProfile?: RiskProfile;
+  role?: CustomerRole;
   setupPreference?: SetupPreference;
   createdAt?: string | null;
-  emailVerifiedAt?: string | null;
   subscriptionStatus?: SubscriptionStatus | null;
+  timezone?: string | null;
 }) {
   const customers = readCustomers();
   const normalizedEmail = normalizeEmail(values.email);
@@ -508,7 +576,12 @@ export function rememberAuthenticatedCustomer(values: {
     authUserId: values.authUserId ?? existing?.authUserId ?? null,
     email: normalizedEmail,
     fullName: values.fullName.trim() || existing?.fullName || normalizedEmail,
-    role: isAdminEmail(normalizedEmail) ? "admin" : "customer",
+    role:
+      normalizedEmail === SWINGFI_ADMIN_EMAIL ||
+      values.role === "admin" ||
+      (!values.role && existing?.role === "admin")
+        ? "admin"
+        : "customer",
     phone: values.phone?.trim() ?? existing?.phone ?? "",
     riskProfile,
     accountBudget: values.accountBudget ?? existing?.accountBudget ?? "not_set",
@@ -517,20 +590,23 @@ export function rememberAuthenticatedCustomer(values: {
       values.positionSizePreference ?? existing?.positionSizePreference ?? "small",
     setupPreference: values.setupPreference ?? existing?.setupPreference ?? "balanced",
     minimumConfidence:
+      values.minimumConfidence ??
       existing?.minimumConfidence ??
       (riskProfile === "conservative" ? 78 : riskProfile === "aggressive" ? 62 : 70),
     maxRiskScore:
+      values.maxRiskScore ??
       existing?.maxRiskScore ??
       (riskProfile === "conservative" ? 45 : riskProfile === "aggressive" ? 78 : 65),
-    morningAlertsEnabled: existing?.morningAlertsEnabled ?? true,
-    alertChannel: existing?.alertChannel ?? "email",
-    alertTime: existing?.alertTime ?? "08:30",
+    morningAlertsEnabled: values.morningAlertsEnabled ?? existing?.morningAlertsEnabled ?? true,
+    alertChannel: values.alertChannel ?? existing?.alertChannel ?? "email",
+    alertTime: values.alertTime ?? existing?.alertTime ?? "08:30",
     timezone:
+      values.timezone ??
       existing?.timezone ??
       (typeof Intl !== "undefined"
         ? Intl.DateTimeFormat().resolvedOptions().timeZone
         : "America/Chicago"),
-    lastLoginAt: new Date().toISOString(),
+    lastLoginAt: values.lastLoginAt ?? existing?.lastLoginAt ?? new Date().toISOString(),
     createdAt: existing?.createdAt ?? values.createdAt ?? new Date().toISOString(),
     emailVerifiedAt:
       values.emailVerifiedAt !== undefined
@@ -544,9 +620,7 @@ export function rememberAuthenticatedCustomer(values: {
       ? customers.map((customer, index) => (index === existingIndex ? nextCustomer : customer))
       : [nextCustomer, ...customers];
 
-  writeCustomers(nextCustomers);
-  window.localStorage.setItem(currentCustomerKey, nextCustomer.id);
-  window.dispatchEvent(new Event("swingfi-customer-updated"));
+  writeCustomersIfChanged(nextCustomers, nextCustomer.id);
   const profile = withoutPassword(nextCustomer);
   syncCustomerProfile(profile);
   return profile;

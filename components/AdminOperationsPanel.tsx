@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { PasswordField } from "@/components/PasswordField";
 import {
   getAdminHeaders,
   getStoredAdminToken,
@@ -237,8 +238,8 @@ export function AdminOperationsPanel() {
       <div className="mt-4 grid gap-3 rounded-2xl border border-line bg-panel p-4 md:grid-cols-[1fr_auto] md:items-end">
         <label className="grid gap-2 text-sm font-bold text-ink">
           Production admin API secret
-          <input
-            type="password"
+          <PasswordField
+            label="admin API secret"
             value={adminToken}
             onChange={(event) => setAdminToken(event.target.value)}
             placeholder="Paste ADMIN_API_SECRET for protected admin actions"
