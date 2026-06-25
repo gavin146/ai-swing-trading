@@ -56,6 +56,13 @@ export default function PrivacyPage() {
           with law, and protect the service.
         </p>
         <p>
+          If SMS alerts are enabled, SwingFi uses the phone number on the customer
+          profile to send account alerts and daily trade-research notifications. Providing
+          a phone number during signup does not by itself opt a customer into SMS. SMS
+          users can reply STOP to unsubscribe or HELP for help. Message and data rates
+          may apply.
+        </p>
+        <p>
           You may contact us to request access, correction, or deletion of personal
           information. Some records may be retained when required for security, legal,
           financial, fraud-prevention, backup, or audit purposes.

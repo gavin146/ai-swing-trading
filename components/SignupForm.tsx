@@ -421,6 +421,12 @@ export function SignupForm() {
                   Your trial starts after signup. We will use email first for morning alerts,
                   and SMS can be added later from settings.
                 </div>
+                <p className="rounded-2xl border border-line bg-surface px-4 py-3 text-xs font-semibold leading-5 text-ink/58">
+                  Providing a phone number does not opt you into text messages. If you
+                  later enable SMS alerts in settings, SwingFi may text daily account
+                  alerts and trade-research links. Message and data rates may apply.
+                  Reply STOP to unsubscribe or HELP for help.
+                </p>
               </div>
             ) : null}
 

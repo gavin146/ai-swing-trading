@@ -62,7 +62,7 @@ export function buildMorningAlertMessage(args: {
     ? ` for ${args.customerName.trim().split(/\s+/)[0]}`
     : "";
 
-  return `SwingFi morning brief${recipient}: market is ${args.marketRegime}. Top picks: ${picks}. Review risk before trading.`;
+  return `SwingFi morning brief${recipient}: market is ${args.marketRegime}. Top picks: ${picks}. Review risk before trading. Reply STOP to unsubscribe or HELP for help.`;
 }
 
 export function buildMorningEmailAlert(args: {

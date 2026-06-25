@@ -139,6 +139,11 @@ const alertChannelOptions: Array<ChoiceOption<AlertChannel>> = [
     value: "email",
   },
   {
+    description: "Text the morning account alert and dashboard link to your phone.",
+    label: "SMS",
+    value: "sms",
+  },
+  {
     description: "Keep alerts paused while your preferences stay saved.",
     label: "Off",
     value: "none",
@@ -148,7 +153,7 @@ const alertChannelOptions: Array<ChoiceOption<AlertChannel>> = [
 function getChoicesFromCustomer(customer: CustomerProfile): SettingsChoices {
   return {
     accountBudget: customer.accountBudget,
-    alertChannel: customer.alertChannel === "sms" ? "email" : customer.alertChannel,
+    alertChannel: customer.alertChannel,
     investingExperience: customer.investingExperience,
     positionSizePreference: customer.positionSizePreference,
     riskProfile: customer.riskProfile,
@@ -236,11 +241,18 @@ export function SettingsForm() {
     setError("");
 
     try {
+      const nextAlertChannel = String(formData.get("alertChannel") ?? "email") as AlertChannel;
+      const nextPhone = String(formData.get("phone") ?? "").trim();
+
+      if (nextAlertChannel === "sms" && !nextPhone) {
+        throw new Error("Add a phone number before enabling SMS alerts.");
+      }
+
       const next = updateCurrentCustomer({
         accountBudget: String(formData.get("accountBudget") ?? "not_set") as AccountBudget,
         fullName: String(formData.get("fullName") ?? ""),
         email: String(formData.get("email") ?? ""),
-        phone: String(formData.get("phone") ?? ""),
+        phone: nextPhone,
         investingExperience: String(
           formData.get("investingExperience") ?? "beginner",
         ) as InvestingExperience,
@@ -252,7 +264,7 @@ export function SettingsForm() {
         minimumConfidence: Number(formData.get("minimumConfidence") ?? 70),
         maxRiskScore: Number(formData.get("maxRiskScore") ?? 65),
         morningAlertsEnabled: formData.get("morningAlertsEnabled") === "on",
-        alertChannel: String(formData.get("alertChannel") ?? "email") as AlertChannel,
+        alertChannel: nextAlertChannel,
         alertTime: String(formData.get("alertTime") ?? "08:30"),
         timezone: String(formData.get("timezone") ?? "America/Chicago"),
       });
@@ -504,8 +516,17 @@ export function SettingsForm() {
               name="alertChannel"
               onChange={(value) => updateChoice("alertChannel", value)}
               options={alertChannelOptions}
-              value={activeChoices.alertChannel === "sms" ? "email" : activeChoices.alertChannel}
+              value={activeChoices.alertChannel}
             />
+            {activeChoices.alertChannel === "sms" ? (
+              <div className="rounded-2xl border border-line bg-mint p-4 text-xs font-semibold leading-5 text-pine">
+                By choosing SMS and saving settings, you consent to receive SwingFi
+                account alerts and daily trade-research notifications at the phone
+                number on your profile. Message frequency varies, usually one pre-market
+                alert per trading day. Message and data rates may apply. Reply STOP to
+                unsubscribe or HELP for help.
+              </div>
+            ) : null}
           </div>
           <label className="grid gap-2 text-sm font-bold text-ink">
             Alert time

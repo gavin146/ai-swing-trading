@@ -45,6 +45,20 @@ export default function TermsPage() {
         </p>
       </LegalSection>
 
+      <LegalSection title="Email And SMS Alerts">
+        <p>
+          Customers may opt into SwingFi alerts in account settings. Email and SMS alerts
+          may include account notices, daily trade-research links, and market-analysis
+          summaries. SMS message frequency varies, usually one pre-market alert per
+          trading day when enabled. Message and data rates may apply.
+        </p>
+        <p>
+          Providing a phone number during signup does not by itself opt you into SMS
+          alerts. If you enable SMS alerts, you can reply STOP to unsubscribe or HELP for
+          help.
+        </p>
+      </LegalSection>
+
       <LegalSection title="Customer Conduct">
         <p>
           You agree not to misuse the service, scrape protected parts of the app, attempt
