@@ -149,6 +149,129 @@ function DecisionChecklist({
   );
 }
 
+function ModelReadinessPanel({ opportunity }: { opportunity: Opportunity }) {
+  const toneClasses = {
+    caution: "border-coral/25 bg-coral/10 text-coral",
+    neutral: "border-amber/30 bg-amber/12 text-ink",
+    positive: "border-pine/20 bg-mint text-pine",
+  };
+  const groups = [
+    {
+      items: opportunity.analysisProfile.keyStrengths,
+      label: "Why it made the list",
+    },
+    {
+      items: opportunity.analysisProfile.watchouts,
+      label: "What to watch",
+    },
+    {
+      items: opportunity.analysisProfile.invalidationSignals,
+      label: "Setup is weaker if",
+    },
+    {
+      items: opportunity.analysisProfile.followUpChecks,
+      label: "Before acting",
+    },
+  ];
+
+  return (
+    <section className="rounded-3xl border border-line bg-white p-6 shadow-[0_18px_60px_rgba(7,20,24,0.06)]">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <p className="text-xs font-black uppercase tracking-normal text-pine">
+            Model readiness
+          </p>
+          <h2 className="mt-2 text-2xl font-black text-ink">
+            What would make this prediction useful or wrong?
+          </h2>
+          <p className="mt-3 max-w-3xl text-sm font-semibold leading-6 text-ink/60">
+            This turns the score into a checklist. A high rank is not a trade signal by
+            itself; it is a structured reason to review the setup.
+          </p>
+        </div>
+        <div className={`rounded-2xl border px-4 py-3 ${toneClasses[opportunity.analysisProfile.readinessTone]}`}>
+          <p className="text-xs font-black uppercase tracking-normal opacity-70">
+            Readiness
+          </p>
+          <p className="mt-1 text-2xl font-black">
+            {opportunity.analysisProfile.readinessScore}/100
+          </p>
+          <p className="mt-1 text-xs font-bold">{opportunity.analysisProfile.readinessLabel}</p>
+        </div>
+      </div>
+      <p className="mt-4 rounded-2xl border border-line bg-surface px-4 py-3 text-sm font-bold leading-6 text-ink/62">
+        Reward/risk: {opportunity.analysisProfile.rewardRiskLabel}.{" "}
+        {opportunity.analysisProfile.summary}
+      </p>
+      <div className="mt-5 grid gap-3 md:grid-cols-2">
+        {groups.map((group) => (
+          <div key={group.label} className="rounded-2xl border border-line bg-surface p-4">
+            <p className="text-xs font-black uppercase tracking-normal text-ink/42">
+              {group.label}
+            </p>
+            <ul className="mt-3 grid gap-2">
+              {group.items.map((item) => (
+                <li key={item} className="text-sm font-semibold leading-6 text-ink/64">
+                  {item}
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function DataFreshnessScoreboard({ opportunity }: { opportunity: Opportunity }) {
+  const freshnessItems = [
+    ["Price", opportunity.dataFreshness.priceFreshness],
+    ["News", opportunity.dataFreshness.newsFreshness],
+    ["Filings", opportunity.dataFreshness.filingFreshness],
+    ["Earnings", opportunity.dataFreshness.earningsRisk],
+    ["Macro", opportunity.dataFreshness.macroFreshness],
+    ["Calibration", opportunity.dataFreshness.calibration],
+  ];
+  const statusTone =
+    opportunity.dataFreshness.status === "fresh"
+      ? "border-pine/20 bg-mint text-pine"
+      : opportunity.dataFreshness.status === "aging"
+        ? "border-amber/30 bg-amber/12 text-ink"
+        : "border-coral/25 bg-coral/10 text-coral";
+
+  return (
+    <section className="rounded-3xl border border-line bg-white p-6 shadow-[0_18px_60px_rgba(7,20,24,0.06)]">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <p className="text-xs font-black uppercase tracking-normal text-pine">
+            Data freshness
+          </p>
+          <h2 className="mt-2 text-2xl font-black text-ink">
+            What data should be rechecked?
+          </h2>
+          <p className="mt-2 text-sm font-semibold leading-6 text-ink/60">
+            Freshness is based on the saved ranking run. Recheck live price, news,
+            and filings before acting.
+          </p>
+        </div>
+        <span className={`w-fit rounded-full border px-4 py-2 text-sm font-black capitalize ${statusTone}`}>
+          {opportunity.dataFreshness.status}
+        </span>
+      </div>
+      <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        {freshnessItems.map(([label, value]) => (
+          <div key={label} className="rounded-2xl border border-line bg-surface p-4">
+            <p className="text-xs font-black uppercase tracking-normal text-ink/42">
+              {label}
+            </p>
+            <p className="mt-2 text-sm font-black leading-6 text-ink">{value}</p>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 export function OpportunityDetailView({
   dataSource,
   fallbackReason,
@@ -366,6 +489,12 @@ export function OpportunityDetailView({
               <span className="rounded-full bg-surface px-3 py-1 text-xs font-bold text-ink/55 ring-1 ring-line">
                 {opportunity.timeHorizon}
               </span>
+              <span className="rounded-full bg-sky px-3 py-1 text-xs font-bold text-ink/60 ring-1 ring-line">
+                {opportunity.sector}
+              </span>
+              <span className="rounded-full bg-surface px-3 py-1 text-xs font-bold text-ink/55 ring-1 ring-line">
+                {opportunity.setupPattern}
+              </span>
             </div>
             <h2 className="mt-5 text-5xl font-black tracking-normal text-ink">
               {opportunity.symbol}
@@ -374,6 +503,30 @@ export function OpportunityDetailView({
             <p className="mt-5 max-w-3xl text-sm font-medium leading-7 text-ink/66">
               {opportunity.rankingSummary}
             </p>
+            <div className="mt-5 grid gap-3 sm:grid-cols-2">
+              <div className="rounded-2xl border border-line bg-surface p-4">
+                <p className="text-xs font-black uppercase tracking-normal text-ink/42">
+                  Score movement
+                </p>
+                <p className="mt-2 text-base font-black text-ink">
+                  {opportunity.scoreMovement.label}
+                </p>
+                <p className="mt-2 text-sm font-semibold leading-6 text-ink/58">
+                  {opportunity.scoreMovement.reason}
+                </p>
+              </div>
+              <div className="rounded-2xl border border-line bg-surface p-4">
+                <p className="text-xs font-black uppercase tracking-normal text-ink/42">
+                  Beginner lesson
+                </p>
+                <p className="mt-2 text-base font-black text-ink">
+                  {opportunity.beginnerLesson.title}
+                </p>
+                <p className="mt-2 text-sm font-semibold leading-6 text-ink/58">
+                  {opportunity.beginnerLesson.body}
+                </p>
+              </div>
+            </div>
           </div>
           <div className="border-t border-line bg-[linear-gradient(145deg,#071418,#0b3d3f)] p-6 text-white lg:border-l lg:border-t-0">
             <p className="text-xs font-black uppercase tracking-normal text-lime">
@@ -447,6 +600,10 @@ export function OpportunityDetailView({
           </section>
 
           <DecisionChecklist customer={customer} opportunity={opportunity} />
+
+          <ModelReadinessPanel opportunity={opportunity} />
+
+          <DataFreshnessScoreboard opportunity={opportunity} />
 
           <section className="rounded-3xl border border-line bg-white p-6 shadow-[0_18px_60px_rgba(7,20,24,0.06)]">
             <p className="text-xs font-black uppercase tracking-normal text-pine">

@@ -1,4 +1,13 @@
 import type { AssetType as DatabaseAssetType, OpportunityRow } from "./database.types";
+import {
+  getBeginnerLesson,
+  getDataFreshnessProfile,
+  getScoreMovement,
+  getSectorForSymbol,
+  getSetupPatternForOpportunity,
+  type SectorName,
+  type SetupPattern,
+} from "./market-intelligence";
 import { mockOpportunities } from "./mock-data";
 
 export type AssetType = "US Stock" | "ETF" | "Crypto";
@@ -12,6 +21,7 @@ export type Opportunity = {
   riskScore: number;
   scoreLabel: string;
   confidenceLabel: string;
+  dataFreshness: ReturnType<typeof getDataFreshnessProfile>;
   riskLabel: string;
   rankingSummary: string;
   entryRange: string;
@@ -23,10 +33,25 @@ export type Opportunity = {
   estimatedSellWindow: string;
   tradeQuality: "Excellent" | "Strong" | "Balanced" | "Speculative";
   setup: string;
+  setupPattern: SetupPattern;
+  sector: SectorName;
   thesis: string;
   potentialGain: string;
   potentialLoss: string;
+  scoreMovement: ReturnType<typeof getScoreMovement>;
+  beginnerLesson: ReturnType<typeof getBeginnerLesson>;
   aiExplanation: string;
+  analysisProfile: {
+    followUpChecks: string[];
+    invalidationSignals: string[];
+    keyStrengths: string[];
+    readinessLabel: string;
+    readinessScore: number;
+    readinessTone: "positive" | "neutral" | "caution";
+    rewardRiskLabel: string;
+    summary: string;
+    watchouts: string[];
+  };
   historicalPerformance: {
     label: string;
     value: string;
@@ -180,6 +205,85 @@ function getRankingSummary(row: OpportunityRow) {
   return `${row.symbol} ${setup}. The model sees about ${reward.toFixed(1)}% potential upside versus ${risk.toFixed(1)}% planned downside, or roughly ${rewardRisk.toFixed(1)}R reward/risk.`;
 }
 
+function getAnalysisProfile(row: OpportunityRow): Opportunity["analysisProfile"] {
+  const rewardRisk = row.expected_loss > 0 ? row.expected_gain / row.expected_loss : 0;
+  const readinessScore = Math.round(
+    Math.max(
+      0,
+      Math.min(
+        100,
+        row.score * 0.42 +
+          row.confidence * 0.28 +
+          Math.min(rewardRisk, 3.5) * 8 -
+          row.risk_score * 0.18,
+      ),
+    ),
+  );
+  const readinessLabel =
+    readinessScore >= 78 && row.risk_score <= 55
+      ? "Ready for focused review"
+      : readinessScore >= 64
+        ? "Watchlist with conditions"
+        : "Needs stronger confirmation";
+  const readinessTone =
+    readinessScore >= 78 && row.risk_score <= 55
+      ? "positive"
+      : readinessScore >= 64
+        ? "neutral"
+        : "caution";
+  const keyStrengths = [
+    row.score >= 78
+      ? "Strong overall rank versus the current opportunity list."
+      : "Defined setup with enough score strength to keep on the research list.",
+    row.confidence >= 75
+      ? "Multiple signals agree enough to support deeper review."
+      : "The model has a trade plan, but signal agreement is not yet ideal.",
+    rewardRisk >= 2
+      ? `Reward/risk is attractive at roughly ${rewardRisk.toFixed(1)}R.`
+      : "Upside exists, but the reward/risk spread is tighter than ideal.",
+  ];
+  const watchouts = [
+    row.risk_score >= 60
+      ? "Risk is elevated, so position size and stop discipline matter more."
+      : "Risk is not extreme, but the stop still defines the trade.",
+    row.confidence < 70
+      ? "Confidence is below the preferred beginner threshold."
+      : "Confidence can still change if news, volume, or market regime shifts.",
+    rewardRisk < 1.8
+      ? "The target does not leave much room for sloppy entries."
+      : "Do not chase above the entry range or the reward/risk profile weakens.",
+  ];
+  const invalidationSignals = [
+    `Price moves below the stop loss at ${formatCurrency(row.stop_loss)}.`,
+    `Price runs above the entry range before review, especially above ${formatCurrency(row.entry_high)}.`,
+    "A new earnings, SEC filing, downgrade, or market-wide risk event changes the setup.",
+    "Volume fades while the broader market or sector weakens.",
+  ];
+  const followUpChecks = [
+    "Confirm price is still inside or close to the entry range.",
+    "Check today's news and upcoming earnings before placing any order.",
+    "Compare position size against the planned stop loss.",
+    "Review whether SPY/QQQ and the stock's sector are supporting the move.",
+  ];
+
+  return {
+    followUpChecks,
+    invalidationSignals,
+    keyStrengths,
+    readinessLabel,
+    readinessScore,
+    readinessTone,
+    rewardRiskLabel: `${rewardRisk.toFixed(1)}R`,
+    summary:
+      readinessTone === "positive"
+        ? "This setup is worth reviewing early, but only if the entry range and stop still fit your plan."
+        : readinessTone === "neutral"
+          ? "This is useful for the watchlist, but it needs the stated conditions to stay valid."
+          : "This should stay lower priority until confirmation improves or risk comes down.",
+    watchouts,
+  };
+}
+
 function getHistoricalPerformance(row: OpportunityRow): Opportunity["historicalPerformance"] {
   const winRate = Math.max(45, Math.min(72, row.confidence - Math.round(row.risk_score / 5)));
 
@@ -216,7 +320,7 @@ function getSellWindow(row: OpportunityRow) {
 }
 
 export function opportunityFromRow(row: OpportunityRow): Opportunity {
-  return {
+  const base = {
     symbol: row.symbol,
     name: symbolNames[row.symbol] ?? row.symbol,
     assetType: assetTypeLabels[row.asset_type],
@@ -240,7 +344,17 @@ export function opportunityFromRow(row: OpportunityRow): Opportunity {
     potentialGain: formatPercent(row.expected_gain),
     potentialLoss: `-${row.expected_loss.toFixed(1)}%`,
     aiExplanation: row.explanation,
+    analysisProfile: getAnalysisProfile(row),
     historicalPerformance: getHistoricalPerformance(row),
+  };
+
+  return {
+    ...base,
+    beginnerLesson: getBeginnerLesson(base),
+    dataFreshness: getDataFreshnessProfile(row.created_at, row.risk_score),
+    scoreMovement: getScoreMovement(base),
+    sector: getSectorForSymbol(row.symbol),
+    setupPattern: getSetupPatternForOpportunity(base),
   };
 }
 

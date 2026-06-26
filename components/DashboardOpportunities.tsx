@@ -14,6 +14,12 @@ import {
 } from "@/lib/customer-store";
 import { opportunityFromRow, type Opportunity } from "@/lib/opportunities";
 import type { OpportunityRow } from "@/lib/database.types";
+import {
+  buildSectorRotation,
+  getMarketRegimeSummary,
+  type MarketRegimeSummary,
+  type SectorRotationItem,
+} from "@/lib/market-intelligence";
 import type {
   OpportunityDataSource,
   OpportunityTrustPanel,
@@ -335,6 +341,255 @@ function TodayActionPlan({
           />
         </div>
       </div>
+    </section>
+  );
+}
+
+function MarketRegimeBanner({
+  regime,
+}: {
+  regime: MarketRegimeSummary;
+}) {
+  const tone = {
+    balanced: "border-amber/30 bg-amber/12 text-ink",
+    defensive: "border-coral/25 bg-coral/10 text-coral",
+    "risk-on": "border-pine/20 bg-mint text-pine",
+  }[regime.label];
+
+  return (
+    <section className="mt-5 overflow-hidden rounded-3xl border border-line/80 bg-white shadow-[0_18px_54px_rgba(7,20,24,0.065)]">
+      <div className="grid gap-0 lg:grid-cols-[300px_1fr]">
+        <div className="bg-[linear-gradient(145deg,#071418,#0b3d3f)] p-5 text-white">
+          <p className="text-xs font-black uppercase tracking-normal text-lime">
+            Market regime
+          </p>
+          <h2 className="mt-2 text-3xl font-black capitalize tracking-normal">
+            {regime.label.replace("-", " ")}
+          </h2>
+          <p className="mt-2 text-sm font-semibold leading-6 text-white/62">
+            Morning score: {regime.score}/100
+          </p>
+        </div>
+        <div className="grid gap-3 p-4 sm:grid-cols-[1fr_260px] sm:p-5">
+          <div>
+            <p className="text-sm font-bold leading-6 text-ink/66">{regime.description}</p>
+            <p className="mt-3 rounded-2xl border border-line bg-surface px-4 py-3 text-sm font-black leading-6 text-ink">
+              Suggested pace: {regime.pace}
+            </p>
+          </div>
+          <div className={`rounded-2xl border p-4 ${tone}`}>
+            <p className="text-xs font-black uppercase tracking-normal opacity-70">
+              How to use it
+            </p>
+            <p className="mt-2 text-sm font-bold leading-6">
+              This adjusts how aggressive the review should feel. It does not change
+              the need for entry, target, and stop discipline.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function SectorRotationDashboard({
+  sectors,
+}: {
+  sectors: SectorRotationItem[];
+}) {
+  if (sectors.length === 0) return null;
+
+  return (
+    <section className="mt-5 rounded-3xl border border-line/80 bg-white p-5 shadow-[0_18px_54px_rgba(7,20,24,0.06)] sm:p-6">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+        <div>
+          <p className="text-xs font-black uppercase tracking-normal text-pine">
+            Sector rotation
+          </p>
+          <h2 className="mt-2 text-2xl font-black text-ink">
+            Which groups are leading today&apos;s ranked list
+          </h2>
+          <p className="mt-2 max-w-3xl text-sm font-semibold leading-6 text-ink/58">
+            SwingFi compares the current opportunity list against broad-market and
+            sector context so users understand why several picks may cluster in one
+            area.
+          </p>
+        </div>
+        <span className="rounded-2xl border border-line bg-surface px-4 py-3 text-sm font-black text-ink">
+          Leader: {sectors[0]?.label}
+        </span>
+      </div>
+      <div className="mt-5 grid gap-3 xl:grid-cols-3">
+        {sectors.slice(0, 6).map((sector) => (
+          <div key={sector.label} className="rounded-2xl border border-line bg-surface p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-sm font-black text-ink">{sector.label}</p>
+                <p className="mt-1 text-xs font-semibold text-ink/52">
+                  {sector.count} picks · top: {sector.topSymbol}
+                </p>
+              </div>
+              <p className="rounded-full bg-white px-3 py-1 text-sm font-black text-pine ring-1 ring-line">
+                {sector.leadershipScore}
+              </p>
+            </div>
+            <div className="mt-4 grid grid-cols-3 gap-2">
+              <div>
+                <p className="text-[11px] font-black uppercase text-ink/38">Score</p>
+                <p className="text-sm font-black text-ink">{sector.averageScore}</p>
+              </div>
+              <div>
+                <p className="text-[11px] font-black uppercase text-ink/38">Conf</p>
+                <p className="text-sm font-black text-ink">{sector.averageConfidence}</p>
+              </div>
+              <div>
+                <p className="text-[11px] font-black uppercase text-ink/38">Risk</p>
+                <p className="text-sm font-black text-ink">{sector.averageRisk}</p>
+              </div>
+            </div>
+            <p className="mt-3 text-xs font-semibold leading-5 text-ink/58">
+              {sector.benchmarkNote}
+            </p>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function WatchlistChangeAlerts({
+  picks,
+  savedSymbols,
+  watchedSymbols,
+}: {
+  picks: Opportunity[];
+  savedSymbols: Set<string>;
+  watchedSymbols: Set<string>;
+}) {
+  const watched = picks.filter(
+    (pick) => savedSymbols.has(pick.symbol) || watchedSymbols.has(pick.symbol),
+  );
+
+  if (watched.length === 0) return null;
+
+  return (
+    <section className="mt-5 rounded-3xl border border-line/80 bg-white p-5 shadow-[0_18px_54px_rgba(7,20,24,0.06)] sm:p-6">
+      <p className="text-xs font-black uppercase tracking-normal text-pine">
+        Watchlist change alerts
+      </p>
+      <h2 className="mt-2 text-2xl font-black text-ink">
+        Saved tickers that changed enough to recheck
+      </h2>
+      <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+        {watched.slice(0, 6).map((pick) => (
+          <Link
+            key={pick.symbol}
+            href={`/opportunities/${pick.symbol}`}
+            className="rounded-2xl border border-line bg-surface p-4 transition hover:border-pine/35 hover:bg-white"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <p className="text-lg font-black text-ink">{pick.symbol}</p>
+              <span className="rounded-full bg-white px-3 py-1 text-xs font-black text-ink ring-1 ring-line">
+                {pick.scoreMovement.label}
+              </span>
+            </div>
+            <p className="mt-2 text-sm font-semibold leading-6 text-ink/62">
+              {pick.scoreMovement.reason}
+            </p>
+            <p className="mt-2 text-xs font-bold text-ink/45">
+              Freshness: {pick.dataFreshness.status} · Pattern: {pick.setupPattern}
+            </p>
+          </Link>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function BeginnerLessonCards({ picks }: { picks: Opportunity[] }) {
+  const lessons = picks
+    .slice(0, 4)
+    .map((pick) => ({ ...pick.beginnerLesson, symbol: pick.symbol }))
+    .filter((lesson, index, list) => list.findIndex((item) => item.title === lesson.title) === index);
+
+  if (lessons.length === 0) return null;
+
+  return (
+    <section className="mt-5 rounded-3xl border border-line/80 bg-white p-5 shadow-[0_18px_54px_rgba(7,20,24,0.06)] sm:p-6">
+      <p className="text-xs font-black uppercase tracking-normal text-pine">
+        Beginner lessons from today&apos;s picks
+      </p>
+      <h2 className="mt-2 text-2xl font-black text-ink">
+        Learn the decision behind the ranking
+      </h2>
+      <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        {lessons.map((lesson) => (
+          <div key={lesson.title} className="rounded-2xl border border-line bg-surface p-4">
+            <p className="text-xs font-black uppercase tracking-normal text-ink/42">
+              {lesson.symbol}
+            </p>
+            <h3 className="mt-2 text-base font-black text-ink">{lesson.title}</h3>
+            <p className="mt-2 text-sm font-semibold leading-6 text-ink/62">{lesson.body}</p>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function PortfolioFitPanel({
+  picks,
+  savedSymbols,
+  watchedSymbols,
+}: {
+  picks: Opportunity[];
+  savedSymbols: Set<string>;
+  watchedSymbols: Set<string>;
+}) {
+  const queue = picks.filter(
+    (pick) => savedSymbols.has(pick.symbol) || watchedSymbols.has(pick.symbol),
+  );
+  const source = queue.length > 0 ? queue : picks.slice(0, 8);
+  const sectorCounts = source.reduce<Record<string, number>>((totals, pick) => {
+    totals[pick.sector] = (totals[pick.sector] ?? 0) + 1;
+    return totals;
+  }, {});
+  const [topSector, topCount] =
+    Object.entries(sectorCounts).sort((a, b) => b[1] - a[1])[0] ?? ["None", 0];
+  const concentration = source.length ? Math.round((topCount / source.length) * 100) : 0;
+  const message =
+    concentration >= 50
+      ? `${topSector} is dominating your review queue. Consider whether you are taking the same sector risk repeatedly.`
+      : "Your current review queue is not overly concentrated in one sector.";
+
+  if (source.length === 0) return null;
+
+  return (
+    <section className="mt-5 rounded-3xl border border-line/80 bg-white p-5 shadow-[0_18px_54px_rgba(7,20,24,0.06)] sm:p-6">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <p className="text-xs font-black uppercase tracking-normal text-pine">
+            Portfolio fit
+          </p>
+          <h2 className="mt-2 text-2xl font-black text-ink">
+            Avoid stacking the same kind of risk
+          </h2>
+          <p className="mt-2 max-w-3xl text-sm font-semibold leading-6 text-ink/58">
+            This first version uses saved and watched ideas as a proxy for your review
+            queue. Later we can add manual holdings or brokerage-connected holdings.
+          </p>
+        </div>
+        <div className="rounded-2xl border border-line bg-surface px-4 py-3">
+          <p className="text-xs font-black uppercase tracking-normal text-ink/42">
+            Top exposure
+          </p>
+          <p className="mt-1 text-xl font-black text-ink">{topSector}</p>
+          <p className="mt-1 text-xs font-bold text-ink/48">{concentration}% of queue</p>
+        </div>
+      </div>
+      <p className="mt-4 rounded-2xl border border-line bg-surface px-4 py-3 text-sm font-bold leading-6 text-ink/62">
+        {message}
+      </p>
     </section>
   );
 }
@@ -1120,6 +1375,8 @@ export function DashboardOpportunities({
       watchlistCount,
     };
   }, [dailyPicks]);
+  const marketRegime = useMemo(() => getMarketRegimeSummary(dailyPicks), [dailyPicks]);
+  const sectorRotation = useMemo(() => buildSectorRotation(dailyPicks), [dailyPicks]);
   const activeViewCopy = {
     top: {
       eyebrow: "Best-fit opportunities",
@@ -1272,6 +1529,16 @@ export function DashboardOpportunities({
         ) : null}
       </div>
 
+      <MarketRegimeBanner regime={marketRegime} />
+
+      <SectorRotationDashboard sectors={sectorRotation} />
+
+      <WatchlistChangeAlerts
+        picks={dailyPicks}
+        savedSymbols={savedSymbols}
+        watchedSymbols={watchedSymbols}
+      />
+
       <div className="mt-4 rounded-3xl border border-line/80 bg-surface/88 p-3 shadow-[0_14px_42px_rgba(7,20,24,0.065)] backdrop-blur-2xl">
         <div className="grid gap-3 xl:grid-cols-[300px_1fr] xl:items-stretch">
           <div>
@@ -1392,6 +1659,14 @@ export function DashboardOpportunities({
       </div>
 
       <TodayActionPlan customer={customer} dailyPicks={dailyPicks} />
+
+      <BeginnerLessonCards picks={dailyPicks} />
+
+      <PortfolioFitPanel
+        picks={dailyPicks}
+        savedSymbols={savedSymbols}
+        watchedSymbols={watchedSymbols}
+      />
 
       <div className="mt-5 grid gap-3 md:grid-cols-3">
         {[

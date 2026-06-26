@@ -47,6 +47,46 @@ function StatCard({
   );
 }
 
+function HeatmapGrid({
+  items,
+  title,
+}: {
+  items: PredictionAccuracySummary["outcomeHeatmap"]["byScoreBand"];
+  title: string;
+}) {
+  return (
+    <div className="rounded-2xl border border-line bg-surface p-4">
+      <p className="text-sm font-black text-ink">{title}</p>
+      <div className="mt-3 grid gap-2">
+        {items.map((item) => {
+          const strength =
+            item.count === 0
+              ? "bg-white text-ink/45"
+              : item.averageReturnPct >= 2 || item.targetHitRate >= 45
+                ? "bg-mint text-pine"
+                : item.stopHitRate >= 35 || item.averageReturnPct < 0
+                  ? "bg-coral/10 text-coral"
+                  : "bg-white text-ink";
+
+          return (
+            <div key={item.label} className={`rounded-xl border border-line px-3 py-2 ${strength}`}>
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-xs font-black uppercase tracking-normal">{item.label}</p>
+                <p className="text-xs font-black">{item.count} trades</p>
+              </div>
+              <div className="mt-2 grid grid-cols-3 gap-2 text-[11px] font-bold">
+                <span>Target {item.targetHitRate}%</span>
+                <span>Stop {item.stopHitRate}%</span>
+                <span>{formatPercent(item.averageReturnPct)}</span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export function PredictionAccuracyPanel() {
   const [adminAllowed, setAdminAllowed] = useState(false);
   const [checkedAccess, setCheckedAccess] = useState(false);
@@ -263,6 +303,33 @@ export function PredictionAccuracyPanel() {
               ))}
             </tbody>
           </table>
+        </div>
+      </section>
+
+      <section className="premium-panel rounded-3xl p-5 sm:p-6">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <p className="text-sm font-black uppercase tracking-normal text-pine">
+              Outcome heatmap
+            </p>
+            <h3 className="mt-2 text-2xl font-black text-ink">
+              Where predictions are working or failing
+            </h3>
+            <p className="mt-2 max-w-3xl text-sm font-semibold leading-6 text-ink/60">
+              This groups completed predictions by score band, risk band, setup
+              pattern, and holding window so calibration can reward what works and
+              penalize what does not.
+            </p>
+          </div>
+          <span className="rounded-2xl border border-line bg-surface px-4 py-3 text-sm font-black text-ink">
+            Admin only
+          </span>
+        </div>
+        <div className="mt-5 grid gap-3 xl:grid-cols-2">
+          <HeatmapGrid title="Score band" items={summary?.outcomeHeatmap.byScoreBand ?? []} />
+          <HeatmapGrid title="Risk band" items={summary?.outcomeHeatmap.byRiskBand ?? []} />
+          <HeatmapGrid title="Setup pattern" items={summary?.outcomeHeatmap.bySetupPattern ?? []} />
+          <HeatmapGrid title="Holding window" items={summary?.outcomeHeatmap.byHoldingWindow ?? []} />
         </div>
       </section>
 

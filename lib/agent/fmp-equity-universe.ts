@@ -84,6 +84,8 @@ type CandidateBuildResult = {
   hasLiveSecData: boolean;
 };
 
+type CandidateBuildMode = "full" | "price-only";
+
 type CombinedMacroContext = FredMacroContext & {
   bls: BlsMacroContext;
   treasury: TreasuryMacroContext;
@@ -807,6 +809,7 @@ async function buildFmpCandidate(
   macro: CombinedMacroContext,
   benchmarks: BenchmarkContext,
   fallback: EquityCandidate,
+  mode: CandidateBuildMode = "full",
 ) {
   const from = daysAgo(asOf, 430);
   const to = asOf.toISOString().slice(0, 10);
@@ -819,6 +822,37 @@ async function buildFmpCandidate(
 
   if (!earlyTechnical) {
     return null;
+  }
+
+  if (mode === "price-only") {
+    const sector = fallbackSector;
+
+    return {
+      candidate: {
+        symbol,
+        companyName: fallback.companyName,
+        sector,
+        averageVolume: fallback.averageVolume,
+        marketCapBillions: fallback.marketCapBillions,
+        technical: earlyTechnical,
+        financials: fallback.financials,
+        news: {
+          sentimentScore: 55,
+          catalystScore: 52,
+          headlineCount: 0,
+          riskFlagCount: 0,
+          summary:
+            `${symbol} passed the live price and technical scan. News, event, SEC, and financial enrichment is reserved for the strongest candidates to control API cost and rate limits.`,
+        },
+        market: {
+          ...buildMarketSnapshot(sector, macro),
+        },
+      },
+      hasLiveFinancialData: false,
+      hasLiveNewsData: false,
+      hasLiveEventData: false,
+      hasLiveSecData: false,
+    };
   }
 
   const [profile, incomeStatements, ratios, keyMetrics, news, earnings, secFilings] =
@@ -1001,6 +1035,7 @@ export async function getFmpEquityUniverse(
   symbols: string[],
   screenerRows: FmpCompanyScreenerRow[] = [],
   allowFallbackForMissing = true,
+  mode: CandidateBuildMode = "full",
 ) {
   if (!hasFmpCredentials()) {
     throw new Error("FMP_API_KEY is not configured.");
@@ -1036,7 +1071,7 @@ export async function getFmpEquityUniverse(
     }
 
     try {
-      const candidate = await buildFmpCandidate(symbol, asOf, macro, benchmarks, fallback);
+      const candidate = await buildFmpCandidate(symbol, asOf, macro, benchmarks, fallback, mode);
 
       if (candidate) {
         return {
@@ -1102,6 +1137,7 @@ export async function runFmpDailyRankingAgent({
 }: RunFmpOptions = {}): Promise<AgentRunResult> {
   const minimumScreenerCount = envNumber("FMP_MIN_SCREENER_ROWS", 250, 40, 1500);
   const minimumDetailedCandidateCount = envNumber("FMP_MIN_DETAILED_CANDIDATES", 120, 30, 500);
+  const enrichmentLimit = envNumber("FMP_ENRICHMENT_LIMIT", 90, limit, 150);
   const coverageGateEnabled = !envFlag("DISABLE_MARKET_COVERAGE_GATE", false);
   const macro = await getFredMacroContext();
   const bls = await getBlsMacroContext();
@@ -1118,29 +1154,30 @@ export async function runFmpDailyRankingAgent({
           .slice(0, detailedLimit)
           .map((row) => String(row.symbol).toUpperCase())
       : starterSymbols);
-  const universeResult = await getFmpEquityUniverse(
+  const initialUniverseResult = await getFmpEquityUniverse(
     asOf,
     combinedMacro,
     benchmarks,
     universeSymbols,
     screenerRows,
     false,
+    symbols ? "full" : "price-only",
   );
-  const qualityUniverse = universeResult.candidates.filter(hasSwingQuality);
-  const universe =
-    qualityUniverse.length >= limit ? qualityUniverse : universeResult.candidates;
+  const qualityUniverse = initialUniverseResult.candidates.filter(hasSwingQuality);
+  const initialUniverse =
+    qualityUniverse.length >= limit ? qualityUniverse : initialUniverseResult.candidates;
   const qualityFilteredCount =
-    qualityUniverse.length >= limit ? universeResult.candidates.length - universe.length : 0;
+    qualityUniverse.length >= limit ? initialUniverseResult.candidates.length - initialUniverse.length : 0;
   const qualitySupplementCount =
-    qualityUniverse.length < limit ? universe.length - qualityUniverse.length : 0;
-  const skippedCount = universeSymbols.length - universe.length;
+    qualityUniverse.length < limit ? initialUniverse.length - qualityUniverse.length : 0;
+  const skippedCount = universeSymbols.length - initialUniverse.length;
   const coverageWarning =
     symbols
       ? null
       : screenerRows.length < minimumScreenerCount
         ? `Market coverage gate failed: FMP screener returned ${screenerRows.length} rows, below the required ${minimumScreenerCount}.`
-        : universeResult.candidates.length < minimumDetailedCandidateCount
-          ? `Market coverage gate failed: only ${universeResult.candidates.length} detailed live candidates were analyzed, below the required ${minimumDetailedCandidateCount}.`
+        : initialUniverseResult.candidates.length < minimumDetailedCandidateCount
+          ? `Market coverage gate failed: only ${initialUniverseResult.candidates.length} live technical candidates were analyzed, below the required ${minimumDetailedCandidateCount}.`
           : null;
   const coverageStatus = coverageWarning ? "blocked" : qualityUniverse.length < limit ? "thin" : "healthy";
 
@@ -1150,11 +1187,76 @@ export async function runFmpDailyRankingAgent({
     );
   }
 
-  const livePriceCount = universeResult.livePriceCount;
-  const liveFinancialCount = universeResult.liveFinancialCount;
-  const liveNewsCount = universeResult.liveNewsCount;
-  const liveEventCount = universeResult.liveEventCount;
-  const liveSecCount = universeResult.liveSecCount;
+  const preliminaryRanking =
+    !symbols && initialUniverse.length > limit
+      ? rankEquityCandidates(initialUniverse, {
+          asOf,
+          limit: enrichmentLimit,
+          source: "fmp",
+          dataQuality: {
+            priceData: dataQualityLabel(
+              Math.min(initialUniverseResult.livePriceCount, initialUniverse.length),
+              initialUniverse.length,
+            ),
+            financialData: "partial",
+            macroData: combinedMacro.isLive ? "live" : "partial",
+            newsData: "partial",
+            eventData: "partial",
+            secData: "partial",
+            marketCoverage: {
+              status: coverageStatus,
+              requestedUniverseLimit: universeLimit,
+              screenerCount: screenerRows.length,
+              detailedCandidateTarget: detailedLimit,
+              detailedCandidateCount: initialUniverseResult.candidates.length,
+              qualifiedCandidateCount: qualityUniverse.length,
+              rankedCandidateCount: initialUniverse.length,
+              minimumScreenerCount,
+              minimumDetailedCandidateCount,
+              warning: coverageWarning,
+            },
+            notes: [
+              "Preliminary technical scan used live FMP daily candles before expensive enrichment.",
+            ],
+          },
+          summaryPrefix: "FMP-backed preliminary scan",
+        })
+      : null;
+  const enrichmentSymbols =
+    preliminaryRanking?.rankings.map((ranking) => ranking.candidate.symbol) ??
+    initialUniverse.slice(0, enrichmentLimit).map((candidate) => candidate.symbol);
+  const enrichedUniverseResult =
+    !symbols && enrichmentSymbols.length > 0
+      ? await getFmpEquityUniverse(
+          asOf,
+          combinedMacro,
+          benchmarks,
+          enrichmentSymbols,
+          screenerRows,
+          true,
+          "full",
+        )
+      : initialUniverseResult;
+  const baseBySymbol = new Map(initialUniverse.map((candidate) => [candidate.symbol, candidate] as const));
+  const enrichedBySymbol = new Map(
+    enrichedUniverseResult.candidates.map((candidate) => [candidate.symbol, candidate] as const),
+  );
+  const selectedSymbols = new Set<string>();
+  const universe = [
+    ...enrichmentSymbols
+      .map((symbol) => {
+        selectedSymbols.add(symbol);
+        return enrichedBySymbol.get(symbol) ?? baseBySymbol.get(symbol);
+      })
+      .filter((candidate) => candidate !== undefined),
+    ...initialUniverse.filter((candidate) => !selectedSymbols.has(candidate.symbol)),
+  ].slice(0, Math.max(enrichmentLimit, limit));
+
+  const livePriceCount = initialUniverseResult.livePriceCount;
+  const liveFinancialCount = enrichedUniverseResult.liveFinancialCount;
+  const liveNewsCount = enrichedUniverseResult.liveNewsCount;
+  const liveEventCount = enrichedUniverseResult.liveEventCount;
+  const liveSecCount = enrichedUniverseResult.liveSecCount;
 
   return rankEquityCandidates(universe, {
     asOf,
@@ -1173,7 +1275,7 @@ export async function runFmpDailyRankingAgent({
         requestedUniverseLimit: universeLimit,
         screenerCount: screenerRows.length,
         detailedCandidateTarget: detailedLimit,
-        detailedCandidateCount: universeResult.candidates.length,
+        detailedCandidateCount: initialUniverseResult.candidates.length,
         qualifiedCandidateCount: qualityUniverse.length,
         rankedCandidateCount: universe.length,
         minimumScreenerCount,
@@ -1187,13 +1289,13 @@ export async function runFmpDailyRankingAgent({
         symbols
           ? `This run used ${universeSymbols.length} explicitly requested symbols.`
           : screenerRows.length > 0
-            ? `FMP broad screener reviewed ${screenerRows.length} liquid US candidates and deeply analyzed ${universeSymbols.length} symbols before selecting the top ${limit}.`
+            ? `FMP broad screener reviewed ${screenerRows.length} liquid US candidates, technically scanned ${universeSymbols.length} symbols, and enriched the strongest ${enrichmentSymbols.length} before selecting the top ${limit}.`
             : `FMP screener was unavailable, so the agent fell back to the ${starterSymbols.length}-symbol starter universe.`,
-        `${livePriceCount} of ${universeResult.candidates.length} detailed candidates used live FMP price candles in this run.`,
-        `${liveFinancialCount} of ${universeResult.candidates.length} detailed candidates used live FMP fundamental data in this run.`,
-        `${liveNewsCount} of ${universeResult.candidates.length} detailed candidates used live FMP stock news for catalyst scoring.`,
-        `${liveEventCount} of ${universeResult.candidates.length} detailed candidates used live FMP earnings/corporate event data.`,
-        `${liveSecCount} of ${universeResult.candidates.length} detailed candidates used live SEC filing checks from FMP or direct SEC EDGAR fallback.`,
+        `${livePriceCount} of ${initialUniverseResult.candidates.length} technical candidates used live FMP price candles in this run.`,
+        `${liveFinancialCount} of ${enrichedUniverseResult.candidates.length} enriched candidates used live FMP fundamental data in this run.`,
+        `${liveNewsCount} of ${enrichedUniverseResult.candidates.length} enriched candidates used live FMP stock news for catalyst scoring.`,
+        `${liveEventCount} of ${enrichedUniverseResult.candidates.length} enriched candidates used live FMP earnings/corporate event data.`,
+        `${liveSecCount} of ${enrichedUniverseResult.candidates.length} enriched candidates used live SEC filing checks from FMP or direct SEC EDGAR fallback.`,
         qualityFilteredCount > 0
           ? `${qualityFilteredCount} live candidates were removed by the swing-quality gate for weak liquidity, upside room, relative strength, volume trend, or technical structure.`
           : qualitySupplementCount > 0

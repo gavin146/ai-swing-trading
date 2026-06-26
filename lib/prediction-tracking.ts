@@ -1,5 +1,11 @@
 import type { PredictionOutcomeRow, PredictionStatus } from "@/lib/database.types";
 import type { RankingCalibrationRule } from "@/lib/agent/calibration";
+import {
+  buildOutcomeHeatmap,
+  getSetupPatternForOpportunity,
+  type OutcomeHeatmap,
+  type SetupPattern,
+} from "@/lib/market-intelligence";
 import { getFmpHistoricalCandles, type FmpHistoricalCandle } from "@/lib/providers/fmp";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 
@@ -24,6 +30,7 @@ export type PredictionAccuracySummary = {
   latestPredictionDate: string | null;
   noEntryCount: number;
   openCount: number;
+  outcomeHeatmap: OutcomeHeatmap;
   pendingCount: number;
   predictions: PredictionOutcomeRow[];
   scoreBands: PredictionScoreBand[];
@@ -77,6 +84,7 @@ function emptySummary(verificationMessage: string): PredictionAccuracySummary {
     latestPredictionDate: null,
     noEntryCount: 0,
     openCount: 0,
+    outcomeHeatmap: buildOutcomeHeatmap([]),
     pendingCount: 0,
     predictions: [],
     scoreBands: buildScoreBands([]),
@@ -343,6 +351,15 @@ function buildForwardCalibrationRules(predictions: PredictionOutcomeRow[]) {
       prediction.status !== "target_hit" &&
       (prediction.return_pct <= 0 || (prediction.excess_return_pct ?? 0) <= 0),
   );
+  const setupPatterns: SetupPattern[] = [
+    "Breakout",
+    "Pullback",
+    "Trend continuation",
+    "Catalyst",
+    "Relative strength",
+    "Defensive strength",
+    "High-volatility reversal",
+  ];
 
   if (highScore.length >= 8 && (highScoreStopRate >= 24 || averageExcessReturnPct < -1)) {
     rules.push({
@@ -432,6 +449,52 @@ function buildForwardCalibrationRules(predictions: PredictionOutcomeRow[]) {
     });
   }
 
+  setupPatterns.forEach((pattern) => {
+    const sample = usable.filter((prediction) => {
+      const predictionPattern = getSetupPatternForOpportunity({
+        confidenceScore: prediction.confidence,
+        opportunityScore: prediction.score,
+        potentialGain: `${prediction.expected_gain}%`,
+        potentialLoss: `-${prediction.expected_loss}%`,
+        riskScore: prediction.risk_score,
+        symbol: prediction.symbol,
+      });
+
+      return predictionPattern === pattern;
+    });
+
+    if (sample.length < 8) return;
+
+    const patternTargetHitRate = hitRate(sample, "target_hit");
+    const patternStopHitRate = hitRate(sample, "stop_hit");
+    const patternAverageReturn = round(average(sample.map((prediction) => prediction.return_pct)), 2);
+    const patternAverageExcess = round(
+      average(sample.map((prediction) => prediction.excess_return_pct ?? 0)),
+      2,
+    );
+
+    if (patternStopHitRate >= 34 || patternAverageExcess < -1.5) {
+      rules.push({
+        id: `forward-setup-pattern-${pattern.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${Date.now()}`,
+        ruleKey: `setup_pattern_${pattern.toLowerCase().replace(/[^a-z0-9]+/g, "_")}`,
+        label: `${pattern} setup guard`,
+        description: `Forward outcomes show ${pattern.toLowerCase()} setups need stricter confirmation before ranking as high-priority.`,
+        triggerDescription: `${pattern} setup pattern with elevated risk or weak reward/risk.`,
+        scorePenalty: patternStopHitRate >= 42 ? 6 : 4,
+        confidencePenalty: patternAverageExcess < -2 ? 6 : 4,
+        riskAdjustment: patternStopHitRate >= 42 ? 7 : 4,
+        sampleSize: sample.length,
+        targetHitRate: patternTargetHitRate,
+        stopHitRate: patternStopHitRate,
+        averageReturnPct: patternAverageReturn,
+        confidence: confidenceForSample(sample.length),
+        active: true,
+        source: "forward",
+        createdAt: generatedAt,
+      });
+    }
+  });
+
   return rules;
 }
 
@@ -487,6 +550,7 @@ function summarize(predictions: PredictionOutcomeRow[], updatedCount: number): P
     latestPredictionDate,
     noEntryCount,
     openCount,
+    outcomeHeatmap: buildOutcomeHeatmap(evaluated),
     pendingCount,
     predictions,
     scoreBands: buildScoreBands(evaluated),

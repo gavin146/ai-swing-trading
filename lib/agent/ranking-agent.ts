@@ -324,6 +324,20 @@ function scoreCandidate(candidate: EquityCandidate): ScoreBreakdown {
     0,
     100,
   );
+  const marketRelative = candidate.technical.relativeStrengthVsMarket ?? 50;
+  const sectorRelative = candidate.technical.relativeStrengthVsSector ?? 50;
+  const benchmarkAdjustment = clamp(
+    (marketRelative - 50) * 0.08 + (sectorRelative - 50) * 0.07,
+    -6,
+    6,
+  );
+  const catalystAdjustment = clamp(
+    ((candidate.news.catalystScore ?? 50) - 50) * 0.05 -
+      (candidate.news.eventRiskScore ?? 0) * 0.035 -
+      (candidate.news.filingRiskScore ?? 0) * 0.03,
+    -7,
+    5,
+  );
   const composite = Math.round(
     clamp(
       partial.technical * 0.34 +
@@ -332,7 +346,9 @@ function scoreCandidate(candidate: EquityCandidate): ScoreBreakdown {
         partial.macro * 0.12 +
         partial.liquidity * 0.06 +
         rewardRiskScore * 0.06 +
-        (100 - partial.risk) * 0.05,
+        (100 - partial.risk) * 0.05 +
+        benchmarkAdjustment +
+        catalystAdjustment,
     ),
   );
 

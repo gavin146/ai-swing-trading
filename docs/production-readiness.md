@@ -41,6 +41,7 @@ Optional:
   Supabase's newer key names. The app accepts both old and new naming styles.
 - `FMP_UNIVERSE_LIMIT`
 - `FMP_DETAILED_LIMIT`
+- `FMP_ENRICHMENT_LIMIT`
 - `STRIPE_STARTER_PRICE_ID`
 - `STRIPE_PREMIUM_PRICE_ID`
 - `TWILIO_ACCOUNT_SID`

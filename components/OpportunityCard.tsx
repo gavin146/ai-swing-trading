@@ -87,6 +87,9 @@ export function OpportunityCard({
               <span className="rounded-full bg-mint px-3 py-1 text-xs font-black text-pine">
                 {opportunity.tradeQuality}
               </span>
+              <span className="rounded-full bg-sky px-3 py-1 text-xs font-bold text-ink/64 ring-1 ring-line/60">
+                {opportunity.setupPattern}
+              </span>
             </div>
             <h2 className={`mt-4 font-black tracking-normal text-ink ${compact ? "text-2xl 2xl:text-xl" : "text-3xl"}`}>
               {opportunity.symbol}
@@ -145,6 +148,49 @@ export function OpportunityCard({
           <p className="mt-2 text-sm font-semibold leading-6 text-ink/68 2xl:text-xs 2xl:leading-5">
             {nextStep(opportunity)}
           </p>
+        </div>
+
+        <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto]">
+          <div className="rounded-2xl border border-line/80 bg-white p-3">
+            <p className="text-xs font-black uppercase tracking-normal text-ink/42">
+              Model readiness
+            </p>
+            <p className="mt-1 text-sm font-black text-ink">
+              {opportunity.analysisProfile.readinessLabel}
+            </p>
+            <p className="mt-1 text-xs font-semibold leading-5 text-ink/58">
+              {opportunity.analysisProfile.summary}
+            </p>
+          </div>
+          <div className="rounded-2xl border border-line/80 bg-surface p-3 sm:w-28">
+            <p className="text-xs font-black uppercase tracking-normal text-ink/42">
+              R/R
+            </p>
+            <p className="mt-1 text-2xl font-black text-pine">
+              {opportunity.analysisProfile.rewardRiskLabel}
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-3 grid gap-2 sm:grid-cols-3">
+          <div className="rounded-2xl border border-line/80 bg-surface p-3">
+            <p className="text-xs font-black uppercase tracking-normal text-ink/42">
+              Sector
+            </p>
+            <p className="mt-1 text-sm font-black text-ink">{opportunity.sector}</p>
+          </div>
+          <div className="rounded-2xl border border-line/80 bg-surface p-3">
+            <p className="text-xs font-black uppercase tracking-normal text-ink/42">
+              Movement
+            </p>
+            <p className="mt-1 text-sm font-black text-ink">{opportunity.scoreMovement.label}</p>
+          </div>
+          <div className="rounded-2xl border border-line/80 bg-surface p-3">
+            <p className="text-xs font-black uppercase tracking-normal text-ink/42">
+              Freshness
+            </p>
+            <p className="mt-1 text-sm font-black capitalize text-ink">{opportunity.dataFreshness.status}</p>
+          </div>
         </div>
 
         <div className="mt-5 grid gap-3 sm:grid-cols-3 2xl:mt-4 2xl:gap-2">

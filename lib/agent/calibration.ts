@@ -9,7 +9,8 @@ export type CalibrationRuleKey =
   | "tight_stop_volatility"
   | "low_target_hit_conservatism"
   | "event_risk_drag"
-  | "weak_quality_drag";
+  | "weak_quality_drag"
+  | `setup_pattern_${string}`;
 
 export type RankingCalibrationRule = {
   id: string;
@@ -137,6 +138,22 @@ function resistanceDistancePct(candidate: EquityCandidate) {
   return ((resistance - price) / price) * 100;
 }
 
+function setupPatternKey(candidate: EquityCandidate, scores: ScoreBreakdown) {
+  const rewardRoom = resistanceDistancePct(candidate);
+  const supportDistance = supportDistancePct(candidate);
+  const riskReward = supportDistance > 0 ? rewardRoom / supportDistance : rewardRoom;
+  const defensiveSector = ["Consumer Staples", "Health Care", "Utilities"].includes(candidate.sector);
+
+  if (scores.risk >= 68 && rewardRoom >= 8) return "setup_pattern_high_volatility_reversal";
+  if (scores.confidence >= 78 && scores.composite >= 78) return "setup_pattern_trend_continuation";
+  if (rewardRoom >= 9 && riskReward >= 2) return "setup_pattern_breakout";
+  if (scores.composite >= 74 && scores.confidence < 72) return "setup_pattern_catalyst";
+  if (defensiveSector && scores.risk <= 52) return "setup_pattern_defensive_strength";
+  if (scores.risk <= 48 && riskReward >= 1.6) return "setup_pattern_pullback";
+
+  return "setup_pattern_relative_strength";
+}
+
 function parseEnvironmentRules() {
   const raw = process.env.BACKTEST_CALIBRATION_TABLE;
 
@@ -186,6 +203,13 @@ function matchesCalibrationRule(
   scores: ScoreBreakdown,
 ) {
   const distanceToSupport = supportDistancePct(candidate);
+
+  if (rule.ruleKey.startsWith("setup_pattern_")) {
+    return (
+      setupPatternKey(candidate, scores) === rule.ruleKey &&
+      (scores.risk >= 52 || scores.confidence < 74 || resistanceDistancePct(candidate) < 10)
+    );
+  }
 
   switch (rule.ruleKey) {
     case "high_score_stop_out_guard":
