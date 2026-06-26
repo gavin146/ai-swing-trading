@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { BillingSuccessAnalytics } from "@/components/BillingSuccessAnalytics";
 import { BrandMark } from "@/components/BrandMark";
 import { ToastNotice } from "@/components/ToastNotice";
 import { syncCheckoutSession } from "@/lib/stripe/subscription-sync";
@@ -26,6 +27,10 @@ export default async function BillingSuccessPage({ searchParams }: BillingSucces
 
   return (
     <main className="min-h-screen bg-surface px-4 py-10">
+      <BillingSuccessAnalytics
+        persisted={Boolean(syncResult?.persisted)}
+        sessionId={params.session_id}
+      />
       <section className="mx-auto max-w-xl rounded-xl border border-line bg-panel p-6 shadow-soft">
         <BrandMark />
         <p className="mt-8 text-sm font-bold uppercase tracking-normal text-pine">

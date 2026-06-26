@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { ToastNotice, type ToastTone } from "@/components/ToastNotice";
+import { trackAnalyticsEvent } from "@/lib/client-analytics";
 import type { BillingPlanKey } from "@/lib/stripe/config";
 import { getCurrentCustomer } from "@/lib/customer-store";
 
@@ -52,6 +53,12 @@ export function BillingCheckoutButton({
         });
         return;
       }
+
+      trackAnalyticsEvent("begin_checkout", {
+        currency: "USD",
+        plan_key: planKey,
+        value: 0,
+      });
 
       window.location.href = payload.url;
     } catch (error) {

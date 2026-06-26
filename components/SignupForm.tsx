@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { PasswordField } from "@/components/PasswordField";
 import { ToastNotice, type ToastTone } from "@/components/ToastNotice";
+import { trackAnalyticsEvent } from "@/lib/client-analytics";
 import {
   rememberAuthenticatedCustomer,
   SWINGFI_ADMIN_EMAIL,
@@ -296,6 +297,14 @@ export function SignupForm() {
       const customer = rememberAuthenticatedCustomer({
         ...payload.customer,
         password: values.password,
+      });
+
+      trackAnalyticsEvent("sign_up", {
+        account_budget: values.accountBudget,
+        investing_experience: values.investingExperience,
+        method: "email",
+        risk_profile: values.riskProfile,
+        setup_preference: values.setupPreference,
       });
 
       router.push(`/verify-email?sent=1&email=${encodeURIComponent(customer.email)}`);
