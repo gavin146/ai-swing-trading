@@ -60,9 +60,22 @@ type AgentPreviewCacheEntry = {
   result: OpportunityListResult;
 };
 
+type OpportunityListCacheEntry = {
+  expiresAt: number;
+  result: OpportunityListResult;
+};
+
 const agentPreviewCacheTtlMs = 15 * 60 * 1000;
+const opportunityListCacheTtlMs = 60 * 1000;
 let latestAgentPreviewCache: AgentPreviewCacheEntry | null = null;
 const symbolAgentPreviewCache = new Map<string, AgentPreviewCacheEntry>();
+const opportunityListCache = new Map<string, OpportunityListCacheEntry>();
+const inFlightOpportunityListRequests = new Map<string, Promise<OpportunityListResult>>();
+
+export function invalidateOpportunityListCache() {
+  opportunityListCache.clear();
+  inFlightOpportunityListRequests.clear();
+}
 
 function calculateDerived(values: OpportunityWriteValues) {
   const expectedGain = ((values.target_price - values.entry_low) / values.entry_low) * 100;
@@ -342,6 +355,39 @@ async function getLatestAgentRun() {
 }
 
 export async function listLatestOpportunities(limit = 30): Promise<OpportunityListResult> {
+  const normalizedLimit = Math.max(1, Math.min(100, Math.round(limit)));
+  const cacheKey = `latest:${normalizedLimit}`;
+  const now = Date.now();
+  const cached = opportunityListCache.get(cacheKey);
+
+  if (cached && cached.expiresAt > now) {
+    return cached.result;
+  }
+
+  const inFlight = inFlightOpportunityListRequests.get(cacheKey);
+  if (inFlight) {
+    return inFlight;
+  }
+
+  const request = listLatestOpportunitiesFresh(normalizedLimit)
+    .then((result) => {
+      opportunityListCache.set(cacheKey, {
+        expiresAt: Date.now() + opportunityListCacheTtlMs,
+        result,
+      });
+
+      return result;
+    })
+    .finally(() => {
+      inFlightOpportunityListRequests.delete(cacheKey);
+    });
+
+  inFlightOpportunityListRequests.set(cacheKey, request);
+
+  return request;
+}
+
+async function listLatestOpportunitiesFresh(limit: number): Promise<OpportunityListResult> {
   const supabase = createSupabaseAdminClient();
 
   if (!supabase) {
@@ -549,6 +595,8 @@ export async function upsertSupabaseOpportunity(values: OpportunityWriteValues, 
     };
   }
 
+  invalidateOpportunityListCache();
+
   return {
     ok: true,
     row: normalizeOpportunity(data as Record<string, unknown>),
@@ -566,6 +614,10 @@ export async function deleteSupabaseOpportunity(id: string) {
   }
 
   const { error } = await supabase.from("opportunities").delete().eq("id", id);
+
+  if (!error) {
+    invalidateOpportunityListCache();
+  }
 
   return {
     ok: !error,

@@ -5,9 +5,9 @@ export default function HistoryPage() {
   return (
     <AppShell
       active="history"
-      eyebrow="Pick history"
-      title="Saved daily picks"
-      subtitle="Review the personalized SwingFi lists saved from morning agent runs."
+      eyebrow="Performance center"
+      title="Tracked picks and outcomes"
+      subtitle="Review saved SwingFi lists, measured outcomes, benchmark context, and the proof points behind the ranking system."
     >
       <PickHistoryPanel />
     </AppShell>

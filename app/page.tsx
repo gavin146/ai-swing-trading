@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { BrandMark } from "@/components/BrandMark";
+import { brand, getPublicAppUrl } from "@/lib/brand";
 import { opportunityFromRow } from "@/lib/opportunities";
 import { listLatestOpportunities } from "@/lib/repositories/opportunities";
 
@@ -49,9 +50,55 @@ const trustProof = [
 export default async function LandingPage() {
   const latest = await listLatestOpportunities(3);
   const featured = latest.rows.map(opportunityFromRow);
+  const appUrl = getPublicAppUrl();
+  const structuredData = {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "Organization",
+        name: brand.appName,
+        url: appUrl,
+        email: brand.contactEmail,
+        logo: `${appUrl}/icon.svg`,
+      },
+      {
+        "@type": "WebSite",
+        name: brand.appName,
+        url: appUrl,
+        description:
+          "Beginner-friendly AI-ranked swing trade research with opportunity scores, confidence, risk, entry ranges, targets, stop losses, and outcome tracking.",
+        publisher: {
+          "@type": "Organization",
+          name: brand.appName,
+        },
+      },
+      {
+        "@type": "SoftwareApplication",
+        applicationCategory: "FinanceApplication",
+        operatingSystem: "Web",
+        name: brand.appName,
+        url: appUrl,
+        description:
+          "AI-ranked swing trade research software for reviewing US stock, ETF, and crypto opportunities with entry, target, stop-loss, risk, confidence, and historical outcome context.",
+        offers: {
+          "@type": "Offer",
+          availability: "https://schema.org/InStock",
+          category: "Subscription",
+          price: "0",
+          priceCurrency: "USD",
+          description: "30-day free trial for new SwingFi accounts.",
+        },
+      },
+    ],
+  };
 
   return (
     <main>
+      <script
+        id="swingfi-structured-data"
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
+      />
       <section className="border-b border-line/80 bg-panel/85">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-4 sm:px-6 lg:px-8">
           <div className="sm:hidden">

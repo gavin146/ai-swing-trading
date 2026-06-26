@@ -16,7 +16,9 @@
   </defs>
   <rect width="512" height="512" rx="112" fill="url(#base)"/>
   <rect width="512" height="512" rx="112" fill="url(#shine)"/>
-  <path d="M94 329c78-132 176 20 324-177" fill="none" stroke="#ffffff" stroke-width="28" stroke-linecap="round" filter="url(#shadow)"/>
-  <path d="M360 151h58v58" fill="none" stroke="#b7f34b" stroke-width="28" stroke-linecap="round" stroke-linejoin="round"/>
-  <text x="256" y="294" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="112" font-weight="900" fill="#ffffff" letter-spacing="-4">SF</text>
+  <circle cx="256" cy="292" r="136" fill="#061c1f" fill-opacity=".42"/>
+  <circle cx="256" cy="292" r="135" fill="none" stroke="#ffffff" stroke-opacity=".12" stroke-width="4"/>
+  <path d="M126 168c54-56 112-58 170-16 39 28 78 26 120-38" fill="none" stroke="#ffffff" stroke-width="24" stroke-linecap="round" filter="url(#shadow)"/>
+  <path d="M366 114h52v52" fill="none" stroke="#b7f34b" stroke-width="24" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="256" y="332" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="150" font-weight="900" fill="#ffffff" letter-spacing="-6">SF</text>
 </svg>

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { hydrateRuntimeCalibrationFromSupabase, runFmpDailyRankingAgent } from "@/lib/agent";
 import { sendAdminFailureAlert } from "@/lib/email";
 import { persistAgentRun, recordAppEvent, summarizeCalibration } from "@/lib/persistence";
+import { invalidateOpportunityListCache } from "@/lib/repositories/opportunities";
 
 export const dynamic = "force-dynamic";
 
@@ -47,6 +48,10 @@ async function runCron(request: NextRequest) {
     const result = await runFmpDailyRankingAgent({ limit: 30 });
     const persistence = await persistAgentRun(result);
     const calibration = summarizeCalibration(result.rankings);
+
+    if (persistence.persisted) {
+      invalidateOpportunityListCache();
+    }
 
     if (result.selectedCount === 0) {
       await recordAppEvent({

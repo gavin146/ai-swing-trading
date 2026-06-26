@@ -28,8 +28,105 @@ type DashboardOpportunitiesProps = {
 
 type DashboardView = "top" | "watchlist" | "higher-risk";
 
+type DashboardOpportunitiesPayload = {
+  reason?: string;
+  rows?: OpportunityRow[];
+  source?: OpportunityDataSource;
+  trust?: OpportunityTrustPanel | null;
+};
+
 const dashboardActionStorageKey = "swingfi-dashboard-actions";
+const dashboardOpportunityCacheKey = "swingfi-dashboard-opportunities-cache-v1";
 const walkthroughStorageKey = "swingfi-first-login-walkthrough-v1";
+const dashboardOpportunityCacheTtlMs = 60 * 1000;
+let dashboardOpportunitiesRequest: Promise<DashboardOpportunitiesPayload | null> | null = null;
+
+function readDashboardOpportunityCache() {
+  try {
+    const stored = window.sessionStorage.getItem(dashboardOpportunityCacheKey);
+    if (!stored) return null;
+
+    const parsed = JSON.parse(stored) as {
+      expiresAt?: number;
+      payload?: DashboardOpportunitiesPayload;
+    };
+
+    if (!parsed.expiresAt || parsed.expiresAt <= Date.now() || !parsed.payload?.rows?.length) {
+      window.sessionStorage.removeItem(dashboardOpportunityCacheKey);
+      return null;
+    }
+
+    return parsed.payload;
+  } catch {
+    window.sessionStorage.removeItem(dashboardOpportunityCacheKey);
+    return null;
+  }
+}
+
+function writeDashboardOpportunityCache(payload: DashboardOpportunitiesPayload) {
+  if (!payload.rows?.length) return;
+
+  try {
+    window.sessionStorage.setItem(
+      dashboardOpportunityCacheKey,
+      JSON.stringify({
+        expiresAt: Date.now() + dashboardOpportunityCacheTtlMs,
+        payload,
+      }),
+    );
+  } catch {
+    window.sessionStorage.removeItem(dashboardOpportunityCacheKey);
+  }
+}
+
+async function fetchDashboardOpportunities() {
+  if (!dashboardOpportunitiesRequest) {
+    dashboardOpportunitiesRequest = fetch("/api/opportunities", {
+      cache: "no-store",
+    })
+      .then(async (response) => {
+        const payload = (await response.json().catch(() => null)) as
+          | DashboardOpportunitiesPayload
+          | null;
+
+        if (!response.ok) {
+          return {
+            reason: payload?.reason ?? "Rankings could not be loaded.",
+            source: "empty" as OpportunityDataSource,
+          };
+        }
+
+        return payload;
+      })
+      .finally(() => {
+        dashboardOpportunitiesRequest = null;
+      });
+  }
+
+  return dashboardOpportunitiesRequest;
+}
+
+function applyDashboardPayload(
+  payload: DashboardOpportunitiesPayload | null,
+  setters: {
+    setCurrentDataSource: Dispatch<SetStateAction<OpportunityDataSource>>;
+    setCurrentFallbackReason: Dispatch<SetStateAction<string | undefined>>;
+    setCurrentTrust: Dispatch<SetStateAction<OpportunityTrustPanel | null>>;
+    setOpportunities: Dispatch<SetStateAction<Opportunity[]>>;
+  },
+) {
+  if (!payload?.rows) {
+    setters.setOpportunities([]);
+    setters.setCurrentDataSource("empty");
+    setters.setCurrentFallbackReason(payload?.reason ?? "Rankings could not be loaded.");
+    return;
+  }
+
+  setters.setOpportunities(payload.rows.map(opportunityFromRow));
+  setters.setCurrentDataSource(payload.source ?? "supabase");
+  setters.setCurrentFallbackReason(payload.reason);
+  setters.setCurrentTrust(payload.trust ?? null);
+}
 
 function AccessGate({
   customer,
@@ -165,10 +262,10 @@ function ActionItem({
   };
 
   return (
-    <div className={`rounded-2xl border p-4 ${classes[tone]}`}>
+    <div className={`rounded-2xl border p-3 ${classes[tone]}`}>
       <p className="text-xs font-black uppercase tracking-normal text-ink/45">{label}</p>
-      <h3 className="mt-2 text-lg font-black text-ink">{title}</h3>
-      <p className="mt-2 text-sm font-semibold leading-6 text-ink/62">{body}</p>
+      <h3 className="mt-1 text-base font-black text-ink">{title}</h3>
+      <p className="mt-1 text-xs font-semibold leading-5 text-ink/62">{body}</p>
     </div>
   );
 }
@@ -200,22 +297,20 @@ function TodayActionPlan({
     .join(", ");
 
   return (
-    <section className="mt-5 overflow-hidden rounded-3xl border border-line/80 bg-white shadow-[0_24px_80px_rgba(7,20,24,0.08)]">
-      <div className="grid gap-0 xl:grid-cols-[0.9fr_1.1fr]">
-        <div className="bg-[linear-gradient(145deg,#071418,#0b3d3f)] p-6 text-white">
+    <section className="mt-4 overflow-hidden rounded-3xl border border-line/80 bg-white shadow-[0_18px_54px_rgba(7,20,24,0.065)]">
+      <div className="grid gap-0 2xl:grid-cols-[300px_1fr]">
+        <div className="bg-[linear-gradient(145deg,#071418,#0b3d3f)] p-4 text-white sm:p-5">
           <p className="text-xs font-black uppercase tracking-normal text-lime">
             Today&apos;s action plan
           </p>
-          <h2 className="mt-3 text-3xl font-black tracking-normal">
-            Review these decisions before any trade
+          <h2 className="mt-2 text-2xl font-black tracking-normal">
+            Start here
           </h2>
-          <p className="mt-4 text-sm font-semibold leading-7 text-white/68">
-            SwingFi is giving you a review order, not trade instructions. Start with
-            the cleanest setups, avoid chasing above the entry range, and decide
-            whether the downside fits your plan.
+          <p className="mt-2 text-sm font-semibold leading-6 text-white/68">
+            A quick review order before you open the cards.
           </p>
         </div>
-        <div className="grid gap-3 p-4 sm:grid-cols-2 sm:p-5">
+        <div className="grid gap-2 p-3 sm:grid-cols-2 sm:p-4 xl:grid-cols-4">
           <ActionItem
             label="Review first"
             title={firstSymbols}
@@ -365,6 +460,7 @@ function DataTrustPanel({
 
 function FirstLoginWalkthrough({ customer }: { customer: CustomerProfile | null }) {
   const [visible, setVisible] = useState(false);
+  const [expanded, setExpanded] = useState(false);
 
   useEffect(() => {
     if (!customer) return;
@@ -384,35 +480,187 @@ function FirstLoginWalkthrough({ customer }: { customer: CustomerProfile | null 
   ];
 
   return (
-    <section className="mb-5 overflow-hidden rounded-3xl border border-pine/20 bg-mint shadow-[0_18px_60px_rgba(7,20,24,0.06)]">
-      <div className="grid gap-0 lg:grid-cols-[340px_1fr]">
-        <div className="bg-ink p-6 text-white">
-          <p className="text-xs font-black uppercase tracking-normal text-lime">
-            60-second walkthrough
+    <section className="mb-4 overflow-hidden rounded-3xl border border-pine/20 bg-mint shadow-[0_14px_44px_rgba(7,20,24,0.055)]">
+      <div className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
+        <div className="min-w-0">
+          <p className="text-xs font-black uppercase tracking-normal text-pine">
+            New to swing trading?
           </p>
-          <h2 className="mt-3 text-2xl font-black">How to read your first list</h2>
-          <p className="mt-3 text-sm font-semibold leading-7 text-white/66">
-            Use this quick guide before reviewing today&apos;s cards. SwingFi ranks
-            research ideas; you still decide what deserves deeper review.
+          <h2 className="mt-1 text-xl font-black text-ink">Read the list in under a minute</h2>
+          <p className="mt-1 max-w-3xl text-sm font-semibold leading-6 text-ink/62">
+            Start with score, then confidence, then risk. Use entry, target, and stop
+            to decide whether the setup deserves deeper review.
           </p>
+        </div>
+        <div className="flex shrink-0 gap-2">
+          <button
+            type="button"
+            onClick={() => setExpanded((current) => !current)}
+            className="rounded-2xl bg-ink px-4 py-3 text-sm font-black text-white transition hover:bg-pine"
+          >
+            {expanded ? "Hide guide" : "Show guide"}
+          </button>
           <button
             type="button"
             onClick={() => {
               window.localStorage.setItem(walkthroughStorageKey, "dismissed");
               setVisible(false);
             }}
-            className="mt-5 rounded-2xl bg-lime px-4 py-3 text-sm font-black text-ink"
+            className="rounded-2xl border border-pine/20 bg-white/72 px-4 py-3 text-sm font-black text-ink transition hover:bg-white"
           >
             Got it
           </button>
         </div>
-        <div className="grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-3">
+      </div>
+      {expanded ? (
+        <div className="grid gap-3 border-t border-pine/15 p-4 sm:grid-cols-2 lg:grid-cols-3">
           {steps.map(([label, text]) => (
             <div key={label} className="rounded-2xl border border-pine/10 bg-white/78 p-4">
               <p className="text-sm font-black text-pine">{label}</p>
               <p className="mt-2 text-xs font-semibold leading-5 text-ink/60">{text}</p>
             </div>
           ))}
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+function DashboardAnalysisSkeleton() {
+  return (
+    <section
+      aria-busy="true"
+      className="motion-card overflow-hidden rounded-3xl border border-line/80 bg-white shadow-[0_24px_80px_rgba(7,20,24,0.08)]"
+    >
+      <div className="grid gap-0 xl:grid-cols-[1fr_320px]">
+        <div className="p-5 sm:p-6">
+          <div className="signal-line mb-5 h-1.5 max-w-48 rounded-full" />
+          <div className="flex flex-wrap gap-2">
+            <div className="h-6 w-28 rounded-full bg-ink/10" />
+            <div className="h-6 w-24 rounded-full bg-mint" />
+          </div>
+          <p className="mt-5 text-xs font-black uppercase tracking-normal text-pine">
+            Loading today&apos;s analysis
+          </p>
+          <h2 className="mt-2 max-w-2xl text-2xl font-black tracking-normal text-ink sm:text-3xl">
+            Preparing your ranked list
+          </h2>
+          <p className="mt-2 max-w-2xl text-sm font-semibold leading-6 text-ink/58">
+            Pulling the saved morning run and matching it to your risk and confidence
+            settings.
+          </p>
+          <div className="mt-5 grid grid-cols-3 gap-2 sm:gap-3">
+            <div className="skeleton h-20 rounded-2xl" />
+            <div className="skeleton h-20 rounded-2xl" />
+            <div className="skeleton h-20 rounded-2xl" />
+          </div>
+        </div>
+        <div className="hidden border-l border-line bg-surface p-5 xl:block">
+          <div className="skeleton h-4 w-28 rounded-full" />
+          <div className="skeleton mt-5 h-12 rounded-2xl" />
+          <div className="skeleton mt-4 h-28 rounded-3xl" />
+        </div>
+      </div>
+      <div className="border-t border-line/70 bg-surface/60 p-4 sm:p-5">
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          {[0, 1, 2].map((item) => (
+            <div key={item} className="rounded-2xl border border-line/70 bg-white p-4">
+              <div className="skeleton h-4 w-20 rounded-full" />
+              <div className="skeleton mt-4 h-7 w-28 rounded-xl" />
+              <div className="skeleton mt-4 h-16 rounded-2xl" />
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function ValueStackPanel({
+  customer,
+  savedCount,
+  trust,
+  watchedCount,
+}: {
+  customer: CustomerProfile | null;
+  savedCount: number;
+  trust?: OpportunityTrustPanel | null;
+  watchedCount: number;
+}) {
+  const liveFeeds = trust?.dataFeeds.filter((feed) => feed.status === "live").length ?? 0;
+  const totalFeeds = trust?.dataFeeds.length ?? 5;
+  const marketCoverage = trust?.marketCoverage;
+  const scanLabel =
+    marketCoverage?.screenerCount && marketCoverage?.requestedUniverseLimit
+      ? `${marketCoverage.screenerCount}/${marketCoverage.requestedUniverseLimit}`
+      : marketCoverage?.detailedCandidateCount
+        ? `${marketCoverage.detailedCandidateCount} analyzed`
+        : "Tracking live runs";
+
+  return (
+    <section className="mt-5 rounded-3xl border border-line/80 bg-white p-5 shadow-[0_18px_54px_rgba(7,20,24,0.06)]">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+        <div>
+          <p className="text-xs font-black uppercase tracking-normal text-pine">
+            What SwingFi is doing for you
+          </p>
+          <h2 className="mt-2 text-2xl font-black text-ink">
+            Research workflow, not just stock names
+          </h2>
+          <p className="mt-2 max-w-3xl text-sm font-semibold leading-6 text-ink/58">
+            The product value comes from ranking, personalization, outcome tracking,
+            and a safer handoff into your own brokerage research flow.
+          </p>
+        </div>
+        <Link
+          href="/history"
+          className="rounded-2xl bg-ink px-4 py-3 text-center text-sm font-black text-white shadow-[0_14px_34px_rgba(7,20,24,0.16)] hover:bg-pine"
+        >
+          View performance center
+        </Link>
+      </div>
+      <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <div className="rounded-2xl border border-line bg-surface p-4">
+          <p className="text-xs font-black uppercase tracking-normal text-ink/42">
+            Personalized filters
+          </p>
+          <p className="mt-2 text-xl font-black text-ink">
+            {customer?.riskProfile ?? "Balanced"} · {customer?.minimumConfidence ?? 70}+ conf
+          </p>
+          <p className="mt-2 text-xs font-semibold leading-5 text-ink/55">
+            Picks are reshaped around your risk, confidence, and account preferences.
+          </p>
+        </div>
+        <div className="rounded-2xl border border-line bg-surface p-4">
+          <p className="text-xs font-black uppercase tracking-normal text-ink/42">
+            Data coverage
+          </p>
+          <p className="mt-2 text-xl font-black text-ink">{scanLabel}</p>
+          <p className="mt-2 text-xs font-semibold leading-5 text-ink/55">
+            {liveFeeds}/{totalFeeds} research feeds reported live for the latest saved run.
+          </p>
+        </div>
+        <div className="rounded-2xl border border-line bg-surface p-4">
+          <p className="text-xs font-black uppercase tracking-normal text-ink/42">
+            Your research queue
+          </p>
+          <p className="mt-2 text-xl font-black text-ink">
+            {savedCount} saved · {watchedCount} watched
+          </p>
+          <p className="mt-2 text-xs font-semibold leading-5 text-ink/55">
+            Save or watch ideas to build a review list instead of chasing every ticker.
+          </p>
+        </div>
+        <div className="rounded-2xl border border-line bg-surface p-4">
+          <p className="text-xs font-black uppercase tracking-normal text-ink/42">
+            Brokerage handoff
+          </p>
+          <p className="mt-2 text-xl font-black text-ink">
+            {customer?.preferredBrokerage === "none" ? "Choose broker" : "Ready"}
+          </p>
+          <p className="mt-2 text-xs font-semibold leading-5 text-ink/55">
+            Opportunity pages can open your preferred brokerage without storing login details.
+          </p>
         </div>
       </div>
     </section>
@@ -523,6 +771,7 @@ export function DashboardOpportunities({
   const [activeView, setActiveView] = useState<DashboardView>("top");
   const [customer, setCustomer] = useState<CustomerProfile | null>(null);
   const [ready, setReady] = useState(false);
+  const [opportunityRefreshToken, setOpportunityRefreshToken] = useState(0);
   const [savedSymbols, setSavedSymbols] = useState<Set<string>>(new Set());
   const [skippedSymbols, setSkippedSymbols] = useState<Set<string>>(new Set());
   const [watchedSymbols, setWatchedSymbols] = useState<Set<string>>(new Set());
@@ -552,17 +801,22 @@ export function DashboardOpportunities({
       setReady(true);
     };
 
+    const refreshOpportunities = () => {
+      window.sessionStorage.removeItem(dashboardOpportunityCacheKey);
+      setOpportunityRefreshToken(Date.now());
+    };
+
     refresh().catch(() => {
       setCustomer(getCurrentCustomer());
       setReady(true);
     });
     window.addEventListener("storage", refresh);
-    window.addEventListener("swingfi-opportunities-updated", refresh);
+    window.addEventListener("swingfi-opportunities-updated", refreshOpportunities);
     window.addEventListener("swingfi-customer-updated", refresh);
 
     return () => {
       window.removeEventListener("storage", refresh);
-      window.removeEventListener("swingfi-opportunities-updated", refresh);
+      window.removeEventListener("swingfi-opportunities-updated", refreshOpportunities);
       window.removeEventListener("swingfi-customer-updated", refresh);
     };
   }, [dataSource]);
@@ -574,43 +828,61 @@ export function DashboardOpportunities({
     let isActive = true;
 
     async function loadOpportunities() {
-      setOpportunitiesLoading(true);
-      const controller = new AbortController();
-      const timeoutId = window.setTimeout(() => controller.abort(), 15_000);
+      const cachedPayload = readDashboardOpportunityCache();
+      const hasCachedRows = Boolean(cachedPayload?.rows?.length);
+
+      if (cachedPayload) {
+        applyDashboardPayload(cachedPayload, {
+          setCurrentDataSource,
+          setCurrentFallbackReason,
+          setCurrentTrust,
+          setOpportunities,
+        });
+      }
+
+      setOpportunitiesLoading(!hasCachedRows);
+      const timeoutPromise = new Promise<DashboardOpportunitiesPayload | null>((resolve) => {
+        window.setTimeout(
+          () =>
+            resolve({
+              reason: "Rankings are taking longer than expected. Please try again shortly.",
+              source: "empty",
+            }),
+          15_000,
+        );
+      });
 
       try {
-        const response = await fetch("/api/opportunities", {
-          cache: "no-store",
-          signal: controller.signal,
-        });
-        window.clearTimeout(timeoutId);
-        const payload = (await response.json().catch(() => null)) as {
-          reason?: string;
-          rows?: OpportunityRow[];
-          source?: OpportunityDataSource;
-          trust?: OpportunityTrustPanel;
-        } | null;
+        const payload = await Promise.race([
+          fetchDashboardOpportunities(),
+          timeoutPromise,
+        ]);
 
         if (!isActive) return;
 
-        if (!response.ok || !payload?.rows) {
+        if (!payload?.rows) {
+          if (hasCachedRows) return;
+
           setOpportunities([]);
           setCurrentDataSource("empty");
           setCurrentFallbackReason(payload?.reason ?? "Rankings could not be loaded.");
           return;
         }
 
-        setOpportunities(payload.rows.map(opportunityFromRow));
-        setCurrentDataSource(payload.source ?? "supabase");
-        setCurrentFallbackReason(payload.reason);
-        setCurrentTrust(payload.trust ?? null);
+        writeDashboardOpportunityCache(payload);
+        applyDashboardPayload(payload, {
+          setCurrentDataSource,
+          setCurrentFallbackReason,
+          setCurrentTrust,
+          setOpportunities,
+        });
       } catch {
         if (!isActive) return;
+        if (hasCachedRows) return;
         setOpportunities([]);
         setCurrentDataSource("empty");
         setCurrentFallbackReason("Rankings could not be loaded. Please try again shortly.");
       } finally {
-        window.clearTimeout(timeoutId);
         if (isActive) setOpportunitiesLoading(false);
       }
     }
@@ -620,7 +892,7 @@ export function DashboardOpportunities({
     return () => {
       isActive = false;
     };
-  }, [customer, ready]);
+  }, [customer, opportunityRefreshToken, ready]);
 
   useEffect(() => {
     if (!ready) return;
@@ -685,11 +957,15 @@ export function DashboardOpportunities({
     const activePicks = dailyPicks.filter(
       (opportunity) => !skippedSymbols.has(opportunity.symbol),
     );
+    const maxRisk = customer?.maxRiskScore ?? 65;
+    const minConfidence = customer?.minimumConfidence ?? 70;
 
     if (activeView === "top") {
       const riskCeiling = topViewRiskCeiling(customer);
       const calmerPicks = activePicks.filter(
-        (opportunity) => opportunity.riskScore <= riskCeiling,
+        (opportunity) =>
+          opportunity.riskScore <= riskCeiling &&
+          opportunity.confidenceScore >= Math.max(60, minConfidence - 8),
       );
 
       return (calmerPicks.length >= 3 ? calmerPicks : activePicks).slice(0, 5);
@@ -709,59 +985,79 @@ export function DashboardOpportunities({
         .filter(
           (opportunity) =>
             opportunity.opportunityScore >= 60 &&
-            (opportunity.opportunityScore < 75 || opportunity.confidenceScore < 72),
-        )
-        .slice(0, 8);
+            percentNumber(opportunity.potentialGain) < 8 &&
+            (opportunity.opportunityScore < 75 ||
+              opportunity.confidenceScore < minConfidence ||
+              opportunity.riskScore > maxRisk),
+        );
     }
 
     return activePicks
       .filter(
         (opportunity) =>
-          opportunity.riskScore >= Math.max(customer?.maxRiskScore ?? 55, 55) ||
-          percentNumber(opportunity.potentialGain) >= 8,
-      )
-      .slice(0, 8);
+          percentNumber(opportunity.potentialGain) >= 8 ||
+          opportunity.riskScore >= Math.max(maxRisk + 5, 60),
+      );
   }, [activeView, customer, dailyPicks, savedSymbols, skippedSymbols, watchedSymbols]);
 
   const viewOptions = useMemo(
-    () => [
-      {
-        count: Math.min(5, dailyPicks.filter((item) => !skippedSymbols.has(item.symbol)).length),
-        description: "Start here when you only have a few minutes.",
-        key: "top" as const,
-        label: "Top 5",
-      },
-      {
-        count:
-          savedSymbols.size + watchedSymbols.size > 0
-            ? dailyPicks.filter(
-                (item) =>
-                  !skippedSymbols.has(item.symbol) &&
-                  (savedSymbols.has(item.symbol) || watchedSymbols.has(item.symbol)),
-              ).length
-            : dailyPicks.filter(
-                (item) =>
-                  !skippedSymbols.has(item.symbol) &&
-                  item.opportunityScore >= 60 &&
-                  (item.opportunityScore < 75 || item.confidenceScore < 72),
-              ).length,
-        description: "Saved ideas plus setups worth monitoring.",
-        key: "watchlist" as const,
-        label: "Watchlist",
-      },
-      {
-        count: dailyPicks.filter(
-          (item) =>
-            !skippedSymbols.has(item.symbol) &&
-            (item.riskScore >= Math.max(customer?.maxRiskScore ?? 55, 55) ||
-              percentNumber(item.potentialGain) >= 8),
-        ).length,
-        description: "More upside potential, but less forgiving.",
-        key: "higher-risk" as const,
-        label: "Higher risk",
-      },
+    () => {
+      const activePicks = dailyPicks.filter((item) => !skippedSymbols.has(item.symbol));
+      const maxRisk = customer?.maxRiskScore ?? 65;
+      const minConfidence = customer?.minimumConfidence ?? 70;
+      const bestFitCount = activePicks.filter(
+        (item) =>
+          item.riskScore <= topViewRiskCeiling(customer) &&
+          item.confidenceScore >= Math.max(60, minConfidence - 8),
+      ).length;
+      const savedOrWatchedCount = activePicks.filter(
+        (item) => savedSymbols.has(item.symbol) || watchedSymbols.has(item.symbol),
+      ).length;
+      const watchWaitCount =
+        savedOrWatchedCount > 0
+          ? savedOrWatchedCount
+          : activePicks.filter(
+              (item) =>
+                item.opportunityScore >= 60 &&
+                percentNumber(item.potentialGain) < 8 &&
+                (item.opportunityScore < 75 ||
+                  item.confidenceScore < minConfidence ||
+                  item.riskScore > maxRisk),
+            ).length;
+      const higherUpsideCount = activePicks.filter(
+        (item) =>
+          percentNumber(item.potentialGain) >= 8 ||
+          item.riskScore >= Math.max(maxRisk + 5, 60),
+      ).length;
+
+      return [
+        {
+          count: Math.min(5, bestFitCount || activePicks.length),
+          description: "Focused first review for your confidence and risk settings.",
+          key: "top" as const,
+          label: "Best fit",
+        },
+        {
+          count: watchWaitCount,
+          description: "All monitor-worthy ideas to save or revisit near entry.",
+          key: "watchlist" as const,
+          label: "Watch & wait",
+        },
+        {
+          count: higherUpsideCount,
+          description: "All bigger-upside ideas with less forgiving risk.",
+          key: "higher-risk" as const,
+          label: "Higher upside",
+        },
+      ];
+    },
+    [
+      customer,
+      dailyPicks,
+      savedSymbols,
+      skippedSymbols,
+      watchedSymbols,
     ],
-    [customer?.maxRiskScore, dailyPicks, savedSymbols, skippedSymbols, watchedSymbols],
   );
 
   const toggleSymbol = (symbol: string, setter: Dispatch<SetStateAction<Set<string>>>) => {
@@ -824,6 +1120,23 @@ export function DashboardOpportunities({
       watchlistCount,
     };
   }, [dailyPicks]);
+  const activeViewCopy = {
+    top: {
+      eyebrow: "Best-fit opportunities",
+      title: "Start with these profile-friendly setups",
+      note: "Best fit is intentionally focused on the first five ideas so the starting point stays manageable.",
+    },
+    watchlist: {
+      eyebrow: "Watch & wait",
+      title: "Monitor these before acting",
+      note: "Showing every monitor-worthy idea in this mode.",
+    },
+    "higher-risk": {
+      eyebrow: "Higher-upside review",
+      title: "Review only if the risk fits your plan",
+      note: "Showing every higher-upside idea in this mode.",
+    },
+  }[activeView];
   const access = getAccessState(customer);
 
   if (!ready) {
@@ -858,35 +1171,15 @@ export function DashboardOpportunities({
   }
 
   if (opportunitiesLoading && opportunities.length === 0) {
-    return (
-      <section className="motion-card rounded-3xl border border-line/80 bg-white p-6 shadow-[0_24px_80px_rgba(7,20,24,0.08)] sm:p-8">
-        <div className="signal-line mb-6 h-1.5 max-w-56 rounded-full" />
-        <p className="text-xs font-black uppercase tracking-normal text-pine">
-          Loading today&apos;s analysis
-        </p>
-        <h2 className="mt-3 max-w-2xl text-3xl font-black tracking-normal text-ink sm:text-4xl">
-          Preparing your personalized ranked list
-        </h2>
-        <p className="mt-3 max-w-2xl text-sm font-semibold leading-7 text-ink/60">
-          SwingFi is matching the saved agent rankings against your risk, confidence,
-          and account preferences.
-        </p>
-        <div className="mt-6 grid gap-3 sm:grid-cols-3">
-          <div className="skeleton h-24 rounded-2xl" />
-          <div className="skeleton h-24 rounded-2xl" />
-          <div className="skeleton h-24 rounded-2xl" />
-        </div>
-      </section>
-    );
+    return <DashboardAnalysisSkeleton />;
   }
 
   return (
     <>
-      <FirstLoginWalkthrough customer={customer} />
-      <div className="motion-card overflow-hidden rounded-3xl border border-line/80 bg-white shadow-[0_24px_80px_rgba(7,20,24,0.08)]">
-        <div className="grid gap-0 xl:grid-cols-[1fr_360px]">
-          <div className="p-6 sm:p-8">
-            <div className="signal-line mb-6 h-1.5 max-w-56 rounded-full" />
+      <div className="motion-card overflow-hidden rounded-3xl border border-line/80 bg-white shadow-[0_20px_64px_rgba(7,20,24,0.07)]">
+        <div className="grid gap-0 lg:grid-cols-[1fr_260px] 2xl:grid-cols-[1fr_300px]">
+          <div className="p-5 sm:p-6">
+            <div className="signal-line mb-4 h-1.5 max-w-48 rounded-full" />
             <div className="flex flex-wrap items-center gap-2">
               <span className="rounded-full bg-ink px-3 py-1 text-xs font-black uppercase tracking-normal text-white">
                 Pre-market list
@@ -894,65 +1187,70 @@ export function DashboardOpportunities({
               <span className="rounded-full bg-mint px-3 py-1 text-xs font-black uppercase tracking-normal text-pine">
                 {currentDataSource === "supabase" ? "Live data" : "Preview"}
               </span>
+              {opportunitiesLoading ? (
+                <span className="rounded-full border border-line bg-surface px-3 py-1 text-xs font-black uppercase tracking-normal text-ink/50">
+                  Refreshing
+                </span>
+              ) : null}
             </div>
-            <h2 className="mt-5 max-w-3xl text-3xl font-black tracking-normal text-ink sm:text-4xl">
+            <h2 className="mt-4 max-w-3xl text-2xl font-black tracking-normal text-ink sm:text-3xl">
               {customer ? "Ranked around your risk profile" : "Today's ranked opportunities"}
             </h2>
-            <p className="mt-4 max-w-3xl text-sm font-medium leading-7 text-ink/62">
+            <p className="mt-3 max-w-3xl text-sm font-medium leading-6 text-ink/62">
               {customer
-                ? `Showing ${dailyPicks.length} personalized picks from ${opportunities.length} agent-ranked opportunities. ${personalized.dailyDirectMatchCount} of these picks match your confidence and risk settings${
+                ? `Showing ${dailyPicks.length} personalized picks. Start with Best fit, then open any card that fits your entry, target, and stop plan. ${personalized.dailyDirectMatchCount} picks match your confidence and risk settings${
                     personalized.closestFitCount > 0
-                      ? `; ${personalized.closestFitCount} are the closest high-quality fits so the list stays useful.`
+                      ? `; ${personalized.closestFitCount} are close-fit backups.`
                       : "."
-                  } ${personalized.directMatchCount > personalized.dailyDirectMatchCount ? `${personalized.directMatchCount} total opportunities in today's full list match your filters.` : ""}`
+                  }`
                 : `Showing ${dailyPicks.length} agent-ranked opportunities. Create a profile to personalize the list by risk, budget, and confidence preference.`}
             </p>
-            <div className="mt-6 grid grid-cols-3 gap-2 sm:gap-3">
-              <div className="rounded-2xl border border-line/80 bg-surface p-3 sm:p-4">
+            <div className="mt-4 grid grid-cols-3 gap-2 sm:gap-3">
+              <div className="rounded-2xl border border-line/80 bg-surface p-3">
                 <p className="text-xs font-black uppercase tracking-normal text-ink/45">
                   Confidence
                 </p>
-                <p className="mt-2 text-xl font-black text-ink sm:text-2xl">
+                <p className="mt-1 text-lg font-black text-ink sm:text-xl">
                   {customer?.minimumConfidence ?? 70}
                   <span className="text-sm text-ink/42">/100</span>
                 </p>
               </div>
-              <div className="rounded-2xl border border-line/80 bg-surface p-3 sm:p-4">
+              <div className="rounded-2xl border border-line/80 bg-surface p-3">
                 <p className="text-xs font-black uppercase tracking-normal text-ink/45">
                   Max risk
                 </p>
-                <p className="mt-2 text-xl font-black text-ink sm:text-2xl">
+                <p className="mt-1 text-lg font-black text-ink sm:text-xl">
                   {customer?.maxRiskScore ?? 65}
                   <span className="text-sm text-ink/42">/100</span>
                 </p>
               </div>
-              <div className="rounded-2xl border border-line/80 bg-surface p-3 sm:p-4">
+              <div className="rounded-2xl border border-line/80 bg-surface p-3">
                 <p className="text-xs font-black uppercase tracking-normal text-ink/45">
                   Review
                 </p>
-                <p className="mt-2 text-xl font-black text-ink sm:text-2xl">8:30 ET</p>
+                <p className="mt-1 text-lg font-black text-ink sm:text-xl">8:30 ET</p>
               </div>
             </div>
           </div>
-          <div className="hidden border-t border-line bg-[linear-gradient(145deg,#071418,#0b3d3f)] p-6 text-white sm:block xl:border-l xl:border-t-0">
+          <div className="hidden border-t border-line bg-[linear-gradient(145deg,#071418,#0b3d3f)] p-4 text-white sm:block lg:border-l lg:border-t-0 2xl:p-5">
             <p className="text-xs font-black uppercase tracking-normal text-lime">
               Today&apos;s read
             </p>
-            <p className={`mt-4 text-5xl font-black ${summary.strength.tone === "text-coral" ? "text-coral" : "text-white"}`}>
+            <p className={`mt-3 text-3xl font-black 2xl:text-4xl ${summary.strength.tone === "text-coral" ? "text-coral" : "text-white"}`}>
               {summary.strength.label}
             </p>
-            <p className="mt-4 text-sm font-semibold leading-7 text-white/68">
+            <p className="mt-3 text-sm font-semibold leading-6 text-white/68">
               {summary.strength.description}
             </p>
-            <div className="mt-6 rounded-2xl border border-white/14 bg-white/8 p-4">
+            <div className="mt-3 rounded-2xl border border-white/14 bg-white/8 p-3 2xl:mt-4">
               <p className="text-xs font-black uppercase tracking-normal text-white/48">
                 List quality
               </p>
-              <p className="mt-2 text-4xl font-black text-lime">
+              <p className="mt-1 text-3xl font-black text-lime">
                 {summary.avgOpportunity}
                 <span className="text-base text-white/44">/100</span>
               </p>
-              <p className="mt-2 text-xs font-semibold leading-5 text-white/55">
+              <p className="mt-1 text-xs font-semibold leading-5 text-white/55">
                 Average opportunity score for the picks shown today.
               </p>
             </div>
@@ -974,17 +1272,15 @@ export function DashboardOpportunities({
         ) : null}
       </div>
 
-      <TodayActionPlan customer={customer} dailyPicks={dailyPicks} />
-      <DataTrustPanel dataSource={currentDataSource} trust={currentTrust} />
-
-      <div className="mt-5 rounded-3xl border border-line/80 bg-surface/88 p-3 shadow-[0_18px_54px_rgba(7,20,24,0.08)] backdrop-blur-2xl">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+      <div className="mt-4 rounded-3xl border border-line/80 bg-surface/88 p-3 shadow-[0_14px_42px_rgba(7,20,24,0.065)] backdrop-blur-2xl">
+        <div className="grid gap-3 xl:grid-cols-[300px_1fr] xl:items-stretch">
           <div>
             <p className="text-xs font-black uppercase tracking-normal text-pine">
-              Today&apos;s decision desk
+              Choose your review mode
             </p>
             <p className="mt-1 text-sm font-semibold text-ink/58">
-              Showing {visiblePicks.length} active picks. {skippedSymbols.size} skipped ideas are hidden.
+              Start with best fit. Move to watch & wait or higher upside only when
+              you want a broader review.
             </p>
           </div>
           <div className="grid gap-2 sm:grid-cols-3">
@@ -993,7 +1289,7 @@ export function DashboardOpportunities({
                 key={option.key}
                 type="button"
                 onClick={() => setActiveView(option.key)}
-                className={`rounded-2xl border px-4 py-3 text-left transition ${
+                className={`rounded-2xl border px-4 py-3 text-left transition xl:min-h-full ${
                   activeView === option.key
                     ? "border-ink bg-ink text-white shadow-[0_14px_34px_rgba(7,20,24,0.16)]"
                     : "border-line/80 bg-white text-ink hover:border-pine/35"
@@ -1016,17 +1312,25 @@ export function DashboardOpportunities({
             ))}
           </div>
         </div>
+        <p className="mt-2 rounded-2xl border border-line/70 bg-white/68 px-4 py-2.5 text-xs font-semibold leading-5 text-ink/54">
+          This changes the list you are reviewing. It does not change SwingFi&apos;s
+          original ranking or turn any idea into a buy recommendation.
+          {skippedSymbols.size > 0 ? ` ${skippedSymbols.size} skipped ideas are hidden.` : ""}
+        </p>
       </div>
 
-      <div className="mt-7 flex flex-col gap-4">
+      <div className="mt-5 flex flex-col gap-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <p className="text-xs font-black uppercase tracking-normal text-pine">
-              Ranked opportunities
+              {activeViewCopy.eyebrow}
             </p>
             <h2 className="mt-2 text-2xl font-black tracking-normal text-ink">
-              Review the plan, then save, watch, or skip
+              {activeViewCopy.title}
             </h2>
+            <p className="mt-1 text-sm font-semibold leading-6 text-ink/58">
+              Showing {visiblePicks.length} ticker analyses. {activeViewCopy.note}
+            </p>
           </div>
           {skippedSymbols.size > 0 ? (
             <button
@@ -1038,7 +1342,7 @@ export function DashboardOpportunities({
             </button>
           ) : null}
         </div>
-        <div className="grid gap-5 xl:grid-cols-2">
+        <div className="grid gap-4 xl:grid-cols-2 2xl:grid-cols-3">
           {dailyPicks.length === 0 ? (
             <div className="rounded-3xl border border-line bg-panel p-6 shadow-soft xl:col-span-2">
               <p className="text-sm font-black uppercase tracking-normal text-pine">
@@ -1087,6 +1391,8 @@ export function DashboardOpportunities({
         </div>
       </div>
 
+      <TodayActionPlan customer={customer} dailyPicks={dailyPicks} />
+
       <div className="mt-5 grid gap-3 md:grid-cols-3">
         {[
           [
@@ -1112,48 +1418,78 @@ export function DashboardOpportunities({
         ))}
       </div>
 
-      {dailyPicks.length > 0 ? (
-        <div
-          className={`mt-7 grid gap-4 transition-opacity duration-200 sm:grid-cols-2 xl:grid-cols-5 ${
-            ready ? "opacity-100" : "opacity-70"
-          }`}
-        >
-          <SummaryTile
-            label="Cleaner setups"
-            value={summary.highQualityCount}
-            description="Picks scoring 75+ out of 100."
-            tone="positive"
-          />
-          <SummaryTile
-            label="Watchlist"
-            value={summary.watchlistCount}
-            description="Ideas that need disciplined entries."
-            tone="neutral"
-          />
-          <SummaryTile
-            label="Lower risk"
-            value={summary.lowerRiskCount}
-            description="Picks with risk scores below 45."
-            tone="positive"
-          />
-          <SummaryTile
-            label="Avg upside"
-            value={`+${summary.avgGain.toFixed(1)}%`}
-            description="Average upside to target."
-            tone="positive"
-          />
-          <SummaryTile
-            label="Avg downside"
-            value={`-${summary.avgLoss.toFixed(1)}%`}
-            description="Average planned downside."
-            tone="risk"
-          />
-        </div>
-      ) : null}
-
-      <div className="mt-7">
-        <ScoreGuide />
-      </div>
+      <section className="mt-8 border-y border-line/80 py-5">
+        <details>
+          <summary className="flex cursor-pointer list-none flex-col gap-3 rounded-2xl px-1 py-2 sm:flex-row sm:items-center sm:justify-between">
+            <span>
+              <span className="block text-xs font-black uppercase tracking-normal text-pine">
+                Deeper context
+              </span>
+              <span className="mt-1 block text-xl font-black text-ink">
+                Score guide, averages, and data used today
+              </span>
+              <span className="mt-1 block max-w-3xl text-sm font-semibold leading-6 text-ink/58">
+                Open this when you want to understand the list quality, data sources,
+                and what each score means.
+              </span>
+            </span>
+            <span className="w-fit rounded-full border border-line bg-white px-4 py-2 text-sm font-black text-ink/62">
+              View details
+            </span>
+          </summary>
+          <div className="pt-4">
+            <ValueStackPanel
+              customer={customer}
+              savedCount={savedSymbols.size}
+              trust={currentTrust}
+              watchedCount={watchedSymbols.size}
+            />
+            <FirstLoginWalkthrough customer={customer} />
+            {dailyPicks.length > 0 ? (
+              <div
+                className={`grid gap-4 transition-opacity duration-200 sm:grid-cols-2 xl:grid-cols-5 ${
+                  ready ? "opacity-100" : "opacity-70"
+                }`}
+              >
+                <SummaryTile
+                  label="Cleaner setups"
+                  value={summary.highQualityCount}
+                  description="Picks scoring 75+ out of 100."
+                  tone="positive"
+                />
+                <SummaryTile
+                  label="Watchlist"
+                  value={summary.watchlistCount}
+                  description="Ideas that need disciplined entries."
+                  tone="neutral"
+                />
+                <SummaryTile
+                  label="Lower risk"
+                  value={summary.lowerRiskCount}
+                  description="Picks with risk scores below 45."
+                  tone="positive"
+                />
+                <SummaryTile
+                  label="Avg upside"
+                  value={`+${summary.avgGain.toFixed(1)}%`}
+                  description="Average upside to target."
+                  tone="positive"
+                />
+                <SummaryTile
+                  label="Avg downside"
+                  value={`-${summary.avgLoss.toFixed(1)}%`}
+                  description="Average planned downside."
+                  tone="risk"
+                />
+              </div>
+            ) : null}
+            <DataTrustPanel dataSource={currentDataSource} trust={currentTrust} />
+            <div className="mt-5">
+              <ScoreGuide />
+            </div>
+          </div>
+        </details>
+      </section>
     </>
   );
 }

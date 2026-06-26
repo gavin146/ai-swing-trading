@@ -62,6 +62,10 @@ function mobileNavClass(isActive: boolean) {
   }`;
 }
 
+function contentMaxWidth(active: AppShellProps["active"]) {
+  return active === "dashboard" ? "max-w-[88rem]" : "max-w-7xl";
+}
+
 export function AppShell({ active, children, eyebrow, subtitle, title }: AppShellProps) {
   const [customer, setCustomer] = useState<CustomerProfile | null>(null);
   const [sessionLoaded, setSessionLoaded] = useState(false);
@@ -102,7 +106,7 @@ export function AppShell({ active, children, eyebrow, subtitle, title }: AppShel
     return (
       <main className="min-h-screen overflow-x-hidden bg-[linear-gradient(180deg,#f7fafb_0%,#eef4f6_46%,#f7fafb_100%)]">
         <header className="relative z-30 border-b border-line/70 bg-surface/88 backdrop-blur-2xl">
-          <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-4 sm:px-6 lg:px-8">
+          <div className={`mx-auto flex ${contentMaxWidth(active)} flex-col gap-4 px-4 py-4 sm:px-6 lg:px-8`}>
             <div className="flex items-center justify-between gap-4">
               <div className="min-w-0">
                 <div className="lg:hidden">
@@ -140,8 +144,8 @@ export function AppShell({ active, children, eyebrow, subtitle, title }: AppShel
           </div>
         </header>
 
-        <section className="mx-auto max-w-7xl px-4 py-7 sm:px-6 lg:px-8">
-          <div className="mb-6 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+        <section className={`mx-auto ${contentMaxWidth(active)} px-4 py-5 sm:px-6 lg:px-8`}>
+          <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
             <div>
               {eyebrow ? (
                 <p className="text-xs font-black uppercase tracking-normal text-pine">

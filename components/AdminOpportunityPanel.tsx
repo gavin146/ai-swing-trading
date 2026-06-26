@@ -130,6 +130,7 @@ export function AdminOpportunityPanel() {
       }
 
       await refreshFromServer();
+      window.dispatchEvent(new Event("swingfi-opportunities-updated"));
       setEditingId(null);
       setForm(emptyForm);
       event.currentTarget.reset();
@@ -163,6 +164,7 @@ export function AdminOpportunityPanel() {
       }
 
       await refreshFromServer();
+      window.dispatchEvent(new Event("swingfi-opportunities-updated"));
       if (editingId === row.id) {
         cancelEdit();
       }

@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="bg" x1="170" y1="90" x2="880" y2="930" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#061c1f"/>
+      <stop offset=".62" stop-color="#0b3d3f"/>
+      <stop offset="1" stop-color="#b7f34b"/>
+    </linearGradient>
+    <radialGradient id="shine" cx="24%" cy="16%" r="62%">
+      <stop offset="0" stop-color="#ffffff" stop-opacity=".42"/>
+      <stop offset=".44" stop-color="#ffffff" stop-opacity=".08"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="softShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="28" stdDeviation="30" flood-color="#061c1f" flood-opacity=".28"/>
+    </filter>
+  </defs>
+  <rect width="1024" height="1024" rx="224" fill="url(#bg)"/>
+  <rect width="1024" height="1024" rx="224" fill="url(#shine)"/>
+  <circle cx="512" cy="522" r="310" fill="#061c1f" fill-opacity=".34" stroke="#ffffff" stroke-opacity=".12" stroke-width="5"/>
+  <path d="M274 350c104-96 202-100 300-14 76 67 142 48 206-62" fill="none" stroke="#b7f34b" stroke-width="42" stroke-linecap="round" filter="url(#softShadow)"/>
+  <path d="M734 274h82v82" fill="none" stroke="#b7f34b" stroke-width="42" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="512" y="626" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="250" font-weight="900" fill="#ffffff" letter-spacing="-10">SF</text>
+</svg>

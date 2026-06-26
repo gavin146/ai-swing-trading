@@ -3,6 +3,7 @@ import { hydrateRuntimeCalibrationFromSupabase, runFmpDailyRankingAgent } from "
 import { getAdminUnauthorizedResponse, isAdminApiRequest } from "@/lib/auth/admin";
 import { sendAdminFailureAlert } from "@/lib/email";
 import { persistAgentRun, recordAppEvent, summarizeCalibration } from "@/lib/persistence";
+import { invalidateOpportunityListCache } from "@/lib/repositories/opportunities";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -51,6 +52,10 @@ export async function POST(request: NextRequest) {
     });
     const persistence = await persistAgentRun(result);
     const calibration = summarizeCalibration(result.rankings);
+
+    if (persistence.persisted) {
+      invalidateOpportunityListCache();
+    }
 
     if (!persistence.persisted) {
       await recordAppEvent({

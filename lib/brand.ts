@@ -8,7 +8,7 @@ export const brand = {
 
 export function getPublicAppUrl() {
   const configured = process.env.NEXT_PUBLIC_APP_URL ?? process.env.VERCEL_PROJECT_PRODUCTION_URL;
-  const fallback = "https://ai-swing-trading.vercel.app";
+  const fallback = "https://www.getswingfi.com";
   const url = configured
     ? configured.startsWith("http")
       ? configured

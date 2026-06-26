@@ -45,9 +45,9 @@ function MiniScore({
   tone?: string;
 }) {
   return (
-    <div className="rounded-2xl border border-line/80 bg-surface px-3 py-3">
+    <div className="rounded-2xl border border-line/80 bg-surface px-3 py-3 2xl:px-2.5 2xl:py-2.5">
       <p className="text-xs font-black uppercase tracking-normal text-ink/42">{label}</p>
-      <p className={`mt-1 text-2xl font-black ${tone}`}>
+      <p className={`mt-1 text-2xl font-black 2xl:text-xl ${tone}`}>
         {score}
         <span className="text-xs text-ink/38">/100</span>
       </p>
@@ -74,7 +74,7 @@ export function OpportunityCard({
       style={{ animationDelay: `${animationDelay}ms` }}
     >
       <div className="signal-line h-1.5" />
-      <div className={`flex flex-1 flex-col ${compact ? "p-4 sm:p-5" : "p-5 sm:p-6"}`}>
+      <div className={`flex flex-1 flex-col ${compact ? "p-4 2xl:p-4" : "p-5 sm:p-6"}`}>
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
@@ -88,16 +88,16 @@ export function OpportunityCard({
                 {opportunity.tradeQuality}
               </span>
             </div>
-            <h2 className={`mt-4 font-black tracking-normal text-ink ${compact ? "text-2xl" : "text-3xl"}`}>
+            <h2 className={`mt-4 font-black tracking-normal text-ink ${compact ? "text-2xl 2xl:text-xl" : "text-3xl"}`}>
               {opportunity.symbol}
             </h2>
             <p className="mt-1 text-sm font-semibold text-ink/55">{opportunity.name}</p>
           </div>
-          <div className="rounded-2xl border border-line bg-surface px-4 py-3 sm:min-w-32">
+          <div className="rounded-2xl border border-line bg-surface px-4 py-3 sm:min-w-32 2xl:min-w-28">
             <p className="text-xs font-black uppercase tracking-normal text-ink/42">
               Opportunity
             </p>
-            <p className={`mt-1 font-black text-pine ${compact ? "text-3xl" : "text-4xl"}`}>
+            <p className={`mt-1 font-black text-pine ${compact ? "text-3xl 2xl:text-2xl" : "text-4xl"}`}>
               {opportunity.opportunityScore}
             </p>
             <p className="mt-1 text-xs font-bold text-ink/52">{opportunity.scoreLabel}</p>
@@ -133,7 +133,7 @@ export function OpportunityCard({
         )}
 
         <p className={`mt-5 rounded-2xl border border-line/80 bg-surface text-sm font-medium leading-7 text-ink/68 ${
-          compact ? "p-3" : "p-4"
+          compact ? "p-3 2xl:mt-4 2xl:leading-6" : "p-4"
         }`}>
           {opportunity.rankingSummary}
         </p>
@@ -142,13 +142,13 @@ export function OpportunityCard({
           <p className="text-xs font-black uppercase tracking-normal text-pine/70">
             What this means
           </p>
-          <p className="mt-2 text-sm font-semibold leading-6 text-ink/68">
+          <p className="mt-2 text-sm font-semibold leading-6 text-ink/68 2xl:text-xs 2xl:leading-5">
             {nextStep(opportunity)}
           </p>
         </div>
 
-        <div className="mt-5 grid gap-3 sm:grid-cols-3">
-          <div className="rounded-2xl border border-line/80 bg-white p-4">
+        <div className="mt-5 grid gap-3 sm:grid-cols-3 2xl:mt-4 2xl:gap-2">
+          <div className="rounded-2xl border border-line/80 bg-white p-4 2xl:p-3">
             <p className="text-xs font-black uppercase tracking-normal text-ink/42">
               Entry range
             </p>
@@ -156,13 +156,13 @@ export function OpportunityCard({
               {opportunity.entryRange}
             </p>
           </div>
-          <div className="rounded-2xl border border-line/80 bg-white p-4">
+          <div className="rounded-2xl border border-line/80 bg-white p-4 2xl:p-3">
             <p className="text-xs font-black uppercase tracking-normal text-ink/42">
               Target
             </p>
             <p className="mt-2 text-sm font-black text-pine">{opportunity.targetPrice}</p>
           </div>
-          <div className="rounded-2xl border border-line/80 bg-white p-4">
+          <div className="rounded-2xl border border-line/80 bg-white p-4 2xl:p-3">
             <p className="text-xs font-black uppercase tracking-normal text-ink/42">
               Stop loss
             </p>
@@ -170,7 +170,7 @@ export function OpportunityCard({
           </div>
         </div>
 
-        <div className="mt-3 grid gap-3 sm:grid-cols-4">
+        <div className="mt-3 grid gap-3 sm:grid-cols-4 2xl:grid-cols-2 2xl:gap-2">
           <MetricPill
             label="Potential gain"
             value={opportunity.potentialGain}

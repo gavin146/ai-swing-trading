@@ -35,6 +35,120 @@ function statusMessage(dataSource: OpportunityDataSource, fallbackReason?: strin
   return null;
 }
 
+function percentNumber(value: string) {
+  return Number(value.replace("+", "").replace("%", "")) || 0;
+}
+
+function getRewardRisk(opportunity: Opportunity) {
+  const gain = percentNumber(opportunity.potentialGain);
+  const loss = Math.abs(percentNumber(opportunity.potentialLoss));
+
+  return loss > 0 ? gain / loss : gain;
+}
+
+function checklistTone(status: "pass" | "review" | "caution") {
+  if (status === "pass") return "border-pine/20 bg-mint text-pine";
+  if (status === "caution") return "border-coral/25 bg-coral/10 text-coral";
+  return "border-amber/30 bg-amber/12 text-ink";
+}
+
+function DecisionChecklist({
+  customer,
+  opportunity,
+}: {
+  customer: CustomerProfile | null;
+  opportunity: Opportunity;
+}) {
+  const rewardRisk = getRewardRisk(opportunity);
+  const confidenceFits = customer
+    ? opportunity.confidenceScore >= customer.minimumConfidence
+    : opportunity.confidenceScore >= 70;
+  const riskFits = customer
+    ? opportunity.riskScore <= customer.maxRiskScore
+    : opportunity.riskScore <= 65;
+  const rewardFits = rewardRisk >= 2;
+  const profileLabel = customer
+    ? `${customer.riskProfile} profile, ${customer.minimumConfidence}+ confidence, ${customer.maxRiskScore}/100 max risk`
+    : "Default balanced beginner profile";
+  const items = [
+    {
+      body: confidenceFits
+        ? "The data support is at or above your preferred confidence threshold."
+        : "The confidence score is below your preference, so treat this as a watchlist idea until signals improve.",
+      label: "Confidence fit",
+      status: confidenceFits ? "pass" : "review",
+      value: `${opportunity.confidenceScore}/100`,
+    },
+    {
+      body: riskFits
+        ? "The risk score fits your current comfort range."
+        : "This is riskier than your preference. Reduce position size or skip it if the stop feels uncomfortable.",
+      label: "Risk fit",
+      status: riskFits ? "pass" : "caution",
+      value: `${opportunity.riskScore}/100`,
+    },
+    {
+      body: rewardFits
+        ? "The planned upside is at least twice the planned downside."
+        : "Reward versus risk is tighter, so entry discipline matters more.",
+      label: "Reward/risk",
+      status: rewardFits ? "pass" : "review",
+      value: `${rewardRisk.toFixed(1)}R`,
+    },
+    {
+      body: "Only review the setup if price is near the entry range. Chasing above the planned range changes the trade math.",
+      label: "Entry discipline",
+      status: "review",
+      value: opportunity.entryRange,
+    },
+  ] satisfies Array<{
+    body: string;
+    label: string;
+    status: "pass" | "review" | "caution";
+    value: string;
+  }>;
+
+  return (
+    <section className="rounded-3xl border border-line bg-white p-6 shadow-[0_18px_60px_rgba(7,20,24,0.06)]">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <p className="text-xs font-black uppercase tracking-normal text-pine">
+            Decision checklist
+          </p>
+          <h2 className="mt-2 text-2xl font-black text-ink">
+            Does this fit your plan?
+          </h2>
+        </div>
+        <p className="max-w-sm text-sm font-bold leading-6 text-ink/54 sm:text-right">
+          {profileLabel}
+        </p>
+      </div>
+      <div className="mt-5 grid gap-3 md:grid-cols-2">
+        {items.map((item) => (
+          <div
+            key={item.label}
+            className={`rounded-2xl border p-4 ${checklistTone(item.status)}`}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <p className="text-xs font-black uppercase tracking-normal opacity-70">
+                {item.label}
+              </p>
+              <p className="text-sm font-black">{item.value}</p>
+            </div>
+            <p className="mt-3 text-sm font-semibold leading-6 text-ink/64">
+              {item.body}
+            </p>
+          </div>
+        ))}
+      </div>
+      <p className="mt-4 rounded-2xl border border-line bg-surface px-4 py-3 text-xs font-semibold leading-5 text-ink/56">
+        Use this as a research checklist. SwingFi does not place trades, manage
+        brokerage accounts, or guarantee returns.
+      </p>
+    </section>
+  );
+}
+
 export function OpportunityDetailView({
   dataSource,
   fallbackReason,
@@ -331,6 +445,8 @@ export function OpportunityDetailView({
               <MetricPill label="Estimated sell window" value={opportunity.estimatedSellWindow} tone="caution" />
             </div>
           </section>
+
+          <DecisionChecklist customer={customer} opportunity={opportunity} />
 
           <section className="rounded-3xl border border-line bg-white p-6 shadow-[0_18px_60px_rgba(7,20,24,0.06)]">
             <p className="text-xs font-black uppercase tracking-normal text-pine">
