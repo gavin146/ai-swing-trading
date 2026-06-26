@@ -25,7 +25,7 @@ function parseRange(value: unknown, fallback: number, min: number, max: number) 
 }
 
 export async function POST(request: NextRequest) {
-  if (!isAdminApiRequest(request)) {
+  if (!(await isAdminApiRequest(request))) {
     return NextResponse.json(getAdminUnauthorizedResponse(), { status: 403 });
   }
 

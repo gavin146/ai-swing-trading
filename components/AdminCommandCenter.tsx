@@ -190,9 +190,9 @@ export function AdminCommandCenter({ onNavigate }: AdminCommandCenterProps) {
       try {
         const [statusResponse, customerResponse, opportunityResponse, activityResponse] = await Promise.all([
           fetch("/api/admin/status"),
-          fetch("/api/admin/customers", { headers: getAdminHeaders() }),
+          fetch("/api/admin/customers", { headers: await getAdminHeaders() }),
           fetch("/api/opportunities"),
-          fetch("/api/admin/activity", { headers: getAdminHeaders() }),
+          fetch("/api/admin/activity", { headers: await getAdminHeaders() }),
         ]);
 
         const statusPayload = (await statusResponse.json()) as StatusPayload;

@@ -31,7 +31,7 @@ function isSmsSource(source: string | null | undefined) {
 }
 
 export async function GET(request: NextRequest) {
-  if (!isAdminApiRequest(request)) {
+  if (!(await isAdminApiRequest(request))) {
     return NextResponse.json(getAdminUnauthorizedResponse(), { status: 403 });
   }
 

@@ -19,7 +19,7 @@ function parseLimit(value: string | null, fallback: number, min: number, max: nu
 }
 
 export async function GET(request: NextRequest) {
-  if (!isAdminApiRequest(request)) {
+  if (!(await isAdminApiRequest(request))) {
     return NextResponse.json(getAdminUnauthorizedResponse(), { status: 403 });
   }
 
@@ -43,7 +43,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  if (!isAdminApiRequest(request)) {
+  if (!(await isAdminApiRequest(request))) {
     return NextResponse.json(getAdminUnauthorizedResponse(), { status: 403 });
   }
 

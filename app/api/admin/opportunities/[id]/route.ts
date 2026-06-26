@@ -16,7 +16,7 @@ type RouteContext = {
 };
 
 export async function PUT(request: NextRequest, context: RouteContext) {
-  if (!isAdminApiRequest(request)) {
+  if (!(await isAdminApiRequest(request))) {
     return NextResponse.json(getAdminUnauthorizedResponse(), { status: 403 });
   }
 
@@ -37,7 +37,7 @@ export async function PUT(request: NextRequest, context: RouteContext) {
 }
 
 export async function DELETE(request: NextRequest, context: RouteContext) {
-  if (!isAdminApiRequest(request)) {
+  if (!(await isAdminApiRequest(request))) {
     return NextResponse.json(getAdminUnauthorizedResponse(), { status: 403 });
   }
 

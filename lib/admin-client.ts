@@ -1,5 +1,7 @@
 "use client";
 
+import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
+
 const adminTokenKey = "swingfi-admin-api-token";
 const legacyAdminTokenKey = "tradepilot-admin-api-token";
 
@@ -36,12 +38,21 @@ export function setStoredAdminToken(token: string) {
   window.dispatchEvent(new Event("swingfi-admin-token-updated"));
 }
 
-export function getAdminHeaders(headers?: HeadersInit) {
+export async function getAdminHeaders(headers?: HeadersInit) {
   const nextHeaders = new Headers(headers);
   const token = getStoredAdminToken();
 
   if (token) {
     nextHeaders.set("authorization", `Bearer ${token}`);
+    return nextHeaders;
+  }
+
+  const supabase = createSupabaseBrowserClient();
+  const { data } = supabase ? await supabase.auth.getSession() : { data: { session: null } };
+  const accessToken = data.session?.access_token;
+
+  if (accessToken) {
+    nextHeaders.set("authorization", `Bearer ${accessToken}`);
   } else {
     nextHeaders.set("x-swingfi-admin", "true");
   }

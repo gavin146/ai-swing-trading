@@ -42,7 +42,7 @@ export function BacktestPanel() {
 
     try {
       const response = await fetch("/api/backtests/rolling?windows=5&intervalDays=21&limit=6", {
-        headers: getAdminHeaders(),
+        headers: await getAdminHeaders(),
       });
 
       if (!response.ok) {
@@ -77,7 +77,7 @@ export function BacktestPanel() {
 
         try {
           const response = await fetch("/api/backtests/rolling?windows=5&intervalDays=21&limit=6", {
-            headers: getAdminHeaders(),
+            headers: await getAdminHeaders(),
           });
 
           if (!response.ok) {

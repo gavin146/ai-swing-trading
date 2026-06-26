@@ -41,7 +41,7 @@ export function AdminCustomerPanel() {
     const refreshFromServer = async () => {
       try {
         const response = await fetch("/api/admin/customers", {
-          headers: getAdminHeaders(),
+          headers: await getAdminHeaders(),
         });
         const payload = (await response.json()) as {
           customers?: CustomerProfile[];

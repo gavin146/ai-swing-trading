@@ -150,7 +150,7 @@ export function AdminCronMonitor() {
 
     try {
       const response = await fetch("/api/admin/cron-status", {
-        headers: getAdminHeaders(),
+        headers: await getAdminHeaders(),
       });
       const nextPayload = (await response.json()) as CronStatusPayload & { error?: string };
 

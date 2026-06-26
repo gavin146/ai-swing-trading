@@ -70,7 +70,7 @@ export function AdminOpportunityPanel() {
   async function refreshFromServer() {
     try {
       const response = await fetch("/api/admin/opportunities", {
-        headers: getAdminHeaders(),
+        headers: await getAdminHeaders(),
       });
       const payload = (await response.json()) as {
         error?: string;
@@ -119,7 +119,7 @@ export function AdminOpportunityPanel() {
         editingId ? `/api/admin/opportunities/${editingId}` : "/api/admin/opportunities",
         {
           method: editingId ? "PUT" : "POST",
-          headers: getAdminHeaders({ "Content-Type": "application/json" }),
+          headers: await getAdminHeaders({ "Content-Type": "application/json" }),
           body: JSON.stringify(values),
         },
       );
@@ -155,7 +155,7 @@ export function AdminOpportunityPanel() {
     try {
       const response = await fetch(`/api/admin/opportunities/${row.id}`, {
         method: "DELETE",
-        headers: getAdminHeaders(),
+        headers: await getAdminHeaders(),
       });
       const payload = (await response.json().catch(() => ({}))) as { error?: string };
 

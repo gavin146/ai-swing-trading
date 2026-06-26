@@ -17,7 +17,7 @@ function parseNumber(value: string | null, fallback: number, min: number, max: n
 }
 
 export async function GET(request: NextRequest) {
-  if (!isAdminApiRequest(request)) {
+  if (!(await isAdminApiRequest(request))) {
     return NextResponse.json(getAdminUnauthorizedResponse(), { status: 403 });
   }
 

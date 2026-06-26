@@ -106,7 +106,7 @@ export function PredictionAccuracyPanel() {
 
     try {
       const response = await fetch("/api/admin/predictions", {
-        headers: getAdminHeaders(),
+        headers: await getAdminHeaders(),
         method,
       });
 
@@ -146,7 +146,7 @@ export function PredictionAccuracyPanel() {
 
         try {
           const response = await fetch("/api/admin/predictions", {
-            headers: getAdminHeaders(),
+            headers: await getAdminHeaders(),
             method: "GET",
           });
 

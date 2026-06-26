@@ -160,7 +160,7 @@ export function AdminCommunicationsPanel() {
     try {
       const response = await fetch("/api/admin/communications/test", {
         method: "POST",
-        headers: getAdminHeaders({ "Content-Type": "application/json" }),
+        headers: await getAdminHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify(
           channel === "email"
             ? {
@@ -203,7 +203,7 @@ export function AdminCommunicationsPanel() {
     try {
       const response = await fetch("/api/admin/communications/test", {
         method: "POST",
-        headers: getAdminHeaders({ "Content-Type": "application/json" }),
+        headers: await getAdminHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify({
           channel: "email",
           email: testEmail,

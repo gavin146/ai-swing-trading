@@ -33,7 +33,7 @@ export function AdminAccessPanel() {
     setLoading(true);
     try {
       const response = await fetch("/api/admin/access", {
-        headers: getAdminHeaders(),
+        headers: await getAdminHeaders(),
       });
       const payload = (await response.json()) as {
         error?: string;
@@ -76,7 +76,7 @@ export function AdminAccessPanel() {
       const current = getCurrentCustomer();
       const response = await fetch("/api/admin/access", {
         method: "POST",
-        headers: getAdminHeaders({ "Content-Type": "application/json" }),
+        headers: await getAdminHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify({
           createdByEmail: current?.email,
           email,
@@ -116,7 +116,7 @@ export function AdminAccessPanel() {
     try {
       const response = await fetch(`/api/admin/access?email=${encodeURIComponent(email)}`, {
         method: "DELETE",
-        headers: getAdminHeaders(),
+        headers: await getAdminHeaders(),
       });
       const payload = (await response.json()) as {
         error?: string;
