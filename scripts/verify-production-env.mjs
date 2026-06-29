@@ -92,7 +92,10 @@ if (checkoutEnabled) {
   requireEnv("STRIPE_STARTER_PRICE_ID", "Required for the Starter checkout option.");
   requireEnv("STRIPE_PRO_PRICE_ID", "Required for the Pro checkout option.");
   requireEnv("STRIPE_PREMIUM_PRICE_ID", "Required for the Premium checkout option.");
-  requireEnv("STRIPE_PORTAL_CONFIGURATION_ID", "Required for customer billing self-service.");
+  requireEnv(
+    "STRIPE_PORTAL_CONFIGURATION_ID",
+    "Required for deterministic customer billing self-service. Run `npm run stripe:verify` to find an active portal configuration ID.",
+  );
 } else {
   addCheck(
     "STRIPE_CHECKOUT_ENABLED",
