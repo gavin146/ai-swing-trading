@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { BrandMark } from "@/components/BrandMark";
 import { brand, getPublicAppUrl } from "@/lib/brand";
@@ -46,6 +47,26 @@ const trustProof = [
   ["Filings and events", "SEC filings, earnings, and corporate event checks."],
   ["Calibration", "Backtesting feedback used to pressure-test ranking quality."],
 ];
+
+export const metadata: Metadata = {
+  alternates: {
+    canonical: "/",
+  },
+  description:
+    "SwingFi gives beginner and intermediate traders AI-ranked swing trade research with scores, entry ranges, targets, stop losses, risk context, and daily morning plans.",
+  openGraph: {
+    description:
+      "AI-ranked swing trade research with beginner-friendly trade plans, risk context, and daily rankings.",
+    title: "SwingFi | AI-Ranked Swing Trade Research",
+    url: "/",
+  },
+  title: "AI-Ranked Swing Trade Research",
+  twitter: {
+    description:
+      "Review daily swing trade rankings with plain-English scores, risk, entry, target, and stop-loss context.",
+    title: "SwingFi | AI-Ranked Swing Trade Research",
+  },
+};
 
 export default async function LandingPage() {
   const latest = await listLatestOpportunities(3);

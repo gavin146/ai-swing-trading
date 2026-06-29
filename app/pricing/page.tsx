@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { BillingCheckoutButton } from "@/components/BillingCheckoutButton";
 import { BrandMark } from "@/components/BrandMark";
@@ -35,6 +36,26 @@ const faqs = [
     "Yes. Every card explains score, confidence, risk, entry, target, stop loss, and estimated trade window in plain English.",
   ],
 ];
+
+export const metadata: Metadata = {
+  alternates: {
+    canonical: "/pricing",
+  },
+  description:
+    "Compare SwingFi plans, start a 30-day free trial, and unlock daily AI-ranked swing trade research with beginner-friendly trade plans.",
+  openGraph: {
+    description:
+      "Start SwingFi with a 30-day free trial and choose a daily swing trade research plan.",
+    title: "SwingFi Pricing",
+    url: "/pricing",
+  },
+  title: "Pricing",
+  twitter: {
+    description:
+      "Start SwingFi with a 30-day free trial and unlock daily AI-ranked swing trade research.",
+    title: "SwingFi Pricing",
+  },
+};
 
 export default function PricingPage() {
   const checkoutConfigured = isStripeCheckoutConfigured();

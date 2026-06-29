@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { LegalSection, LegalShell } from "@/components/LegalShell";
 
@@ -25,6 +26,15 @@ const launchRules = [
   "Do not trade money you cannot afford to lose.",
   "Past results, backtests, and AI explanations do not guarantee future returns.",
 ];
+
+export const metadata: Metadata = {
+  alternates: {
+    canonical: "/legal",
+  },
+  description:
+    "SwingFi legal center with risk notices, privacy policy, terms of use, and customer safety rules for AI-ranked swing trade research.",
+  title: "Legal Center",
+};
 
 export default function LegalPage() {
   return (

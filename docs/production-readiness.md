@@ -70,6 +70,8 @@ Optional:
 6. Test `/api/admin/status` on the deployed URL with an approved admin session
    or `ADMIN_API_SECRET` bearer token.
 7. Trigger `/api/cron/daily-rankings` manually with the `CRON_SECRET` bearer token.
+8. Run `npm run production:surface` against the live domain, or set
+   `VERIFY_APP_URL=https://your-preview-url` to verify a preview deployment.
 
 ## What Is Now Persisted When Supabase Is Configured
 
@@ -103,6 +105,9 @@ Optional:
 - Auth endpoint hardening: account-status no longer reveals whether an email
   exists, and signup/password-reset/verification helper endpoints include
   lightweight abuse throttling.
+- Public SEO hardening: sitemap only lists public pages, app/customer/admin
+  surfaces are noindexed, and canonical URLs are page-specific for launch
+  pages.
 
 ## Still Required Before Charging Customers
 

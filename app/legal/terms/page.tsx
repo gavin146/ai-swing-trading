@@ -1,4 +1,14 @@
+import type { Metadata } from "next";
 import { LegalSection, LegalShell } from "@/components/LegalShell";
+
+export const metadata: Metadata = {
+  alternates: {
+    canonical: "/legal/terms",
+  },
+  description:
+    "SwingFi terms of use for AI-ranked swing trade research, alerts, subscriptions, data limitations, and customer responsibilities.",
+  title: "Terms of Use",
+};
 
 export default function TermsPage() {
   return (

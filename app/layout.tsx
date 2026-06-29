@@ -15,9 +15,6 @@ const googleVerificationTokens = [
 export const metadata: Metadata = {
   metadataBase: new URL(appUrl),
   applicationName: brand.appName,
-  alternates: {
-    canonical: appUrl,
-  },
   title: {
     default: brand.appName,
     template: `%s | ${brand.appName}`,

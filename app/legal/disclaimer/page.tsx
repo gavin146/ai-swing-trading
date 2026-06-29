@@ -1,4 +1,14 @@
+import type { Metadata } from "next";
 import { LegalSection, LegalShell } from "@/components/LegalShell";
+
+export const metadata: Metadata = {
+  alternates: {
+    canonical: "/legal/disclaimer",
+  },
+  description:
+    "Important SwingFi risk notice: rankings, alerts, AI explanations, backtests, and trade plans are research software, not financial advice.",
+  title: "Not Financial Advice",
+};
 
 export default function DisclaimerPage() {
   return (

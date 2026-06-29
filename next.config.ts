@@ -46,6 +46,15 @@ const nextConfig: NextConfig = {
             value: "noindex, nofollow",
           },
         ],
+        source: "/agent",
+      },
+      {
+        headers: [
+          {
+            key: "X-Robots-Tag",
+            value: "noindex, nofollow",
+          },
+        ],
         source: "/admin",
       },
       {
@@ -64,7 +73,25 @@ const nextConfig: NextConfig = {
             value: "noindex, nofollow",
           },
         ],
+        source: "/billing/:path*",
+      },
+      {
+        headers: [
+          {
+            key: "X-Robots-Tag",
+            value: "noindex, nofollow",
+          },
+        ],
         source: "/dashboard",
+      },
+      {
+        headers: [
+          {
+            key: "X-Robots-Tag",
+            value: "noindex, nofollow",
+          },
+        ],
+        source: "/e/:path*",
       },
       {
         headers: [
@@ -100,7 +127,43 @@ const nextConfig: NextConfig = {
             value: "noindex, nofollow",
           },
         ],
+        source: "/reset-password",
+      },
+      {
+        headers: [
+          {
+            key: "X-Robots-Tag",
+            value: "noindex, nofollow",
+          },
+        ],
         source: "/settings",
+      },
+      {
+        headers: [
+          {
+            key: "X-Robots-Tag",
+            value: "noindex, nofollow",
+          },
+        ],
+        source: "/themes",
+      },
+      {
+        headers: [
+          {
+            key: "X-Robots-Tag",
+            value: "noindex, nofollow",
+          },
+        ],
+        source: "/unsubscribe",
+      },
+      {
+        headers: [
+          {
+            key: "X-Robots-Tag",
+            value: "noindex, nofollow",
+          },
+        ],
+        source: "/verify-email",
       },
     ];
   },

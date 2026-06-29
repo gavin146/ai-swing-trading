@@ -1,4 +1,14 @@
+import type { Metadata } from "next";
 import { LegalSection, LegalShell } from "@/components/LegalShell";
+
+export const metadata: Metadata = {
+  alternates: {
+    canonical: "/legal/privacy",
+  },
+  description:
+    "How SwingFi handles customer account data, alert preferences, analytics, market analysis records, and vendors.",
+  title: "Privacy Policy",
+};
 
 export default function PrivacyPage() {
   return (

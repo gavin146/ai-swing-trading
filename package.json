@@ -9,6 +9,7 @@
     "lint": "eslint .",
     "stripe:setup": "node scripts/setup-stripe-products.mjs",
     "stripe:verify": "node scripts/verify-stripe-readiness.mjs",
+    "production:surface": "node scripts/verify-production-surface.mjs",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
