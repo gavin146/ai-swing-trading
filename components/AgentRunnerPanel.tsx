@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { AgentRunResult } from "@/lib/agent";
+import { getAdminHeaders } from "@/lib/admin-client";
 import {
   getCurrentCustomer,
   isAdminCustomer,
@@ -58,9 +59,13 @@ export function AgentRunnerPanel() {
         method === "GET"
           ? `/api/agent/daily-rankings?source=${nextSource}&limit=90`
           : "/api/agent/daily-rankings";
+      const adminHeaders = await getAdminHeaders();
       const response = await fetch(url, {
         method,
-        headers: method === "POST" ? { "Content-Type": "application/json" } : undefined,
+        headers:
+          method === "POST"
+            ? { ...adminHeaders, "Content-Type": "application/json" }
+            : adminHeaders,
         body: method === "POST" ? JSON.stringify({ limit: 90, source: nextSource }) : undefined,
       });
 
@@ -104,7 +109,9 @@ export function AgentRunnerPanel() {
         setMessage("Analyzing live FMP candles, fundamentals, and ranking inputs...");
 
         try {
-          const response = await fetch("/api/agent/daily-rankings?source=fmp&limit=90");
+          const response = await fetch("/api/agent/daily-rankings?source=fmp&limit=90", {
+            headers: await getAdminHeaders(),
+          });
 
           if (!response.ok) {
             const payload = (await response.json().catch(() => ({}))) as { error?: string };
@@ -155,7 +162,7 @@ export function AgentRunnerPanel() {
     try {
       const response = await fetch("/api/agent/explain", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { ...(await getAdminHeaders()), "Content-Type": "application/json" },
         body: JSON.stringify({
           symbol,
           source: result.dataSource,

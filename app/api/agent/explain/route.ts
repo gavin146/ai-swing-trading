@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { hydrateRuntimeCalibrationFromSupabase, runFmpDailyRankingAgent } from "@/lib/agent";
+import { getAdminUnauthorizedResponse, isAdminApiRequest } from "@/lib/auth/admin";
 import { sendAdminFailureAlert } from "@/lib/email";
 import { generateOpenAiText, hasOpenAiApiKey } from "@/lib/openai";
 import { recordAppEvent } from "@/lib/persistence";
@@ -25,7 +26,11 @@ async function runConfiguredAgent() {
   await hydrateRuntimeCalibrationFromSupabase();
   return runFmpDailyRankingAgent({ limit: 30 });
 }
-export async function GET() {
+export async function GET(request: NextRequest) {
+  if (!(await isAdminApiRequest(request))) {
+    return NextResponse.json(getAdminUnauthorizedResponse(), { status: 403 });
+  }
+
   return NextResponse.json({
     configured: hasOpenAiApiKey(),
     model: process.env.OPENAI_MODEL ?? "gpt-4.1-mini",
@@ -33,6 +38,10 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
+  if (!(await isAdminApiRequest(request))) {
+    return NextResponse.json(getAdminUnauthorizedResponse(), { status: 403 });
+  }
+
   const body = (await request.json().catch(() => ({}))) as ExplainRequest;
   const symbol = body.symbol?.trim().toUpperCase();
   let result;

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { buildMorningEmailAlert } from "@/lib/alerts";
 import { runFmpDailyRankingAgent } from "@/lib/agent";
+import { getAdminUnauthorizedResponse, isAdminApiRequest } from "@/lib/auth/admin";
 import { sendEmail } from "@/lib/email";
 import { persistAgentRun, persistAlertLog } from "@/lib/persistence";
 
@@ -21,6 +22,10 @@ async function runConfiguredAgent() {
 }
 
 export async function POST(request: NextRequest) {
+  if (!(await isAdminApiRequest(request))) {
+    return NextResponse.json(getAdminUnauthorizedResponse(), { status: 403 });
+  }
+
   const body = (await request.json().catch(() => ({}))) as EmailAlertRequest;
   const email = body.email?.trim();
 

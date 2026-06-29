@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { runFmpDailyRankingAgent } from "@/lib/agent";
+import { getAdminUnauthorizedResponse, isAdminApiRequest } from "@/lib/auth/admin";
 
 export const dynamic = "force-dynamic";
 
@@ -48,6 +49,10 @@ async function runAgent(args: {
 }
 
 export async function GET(request: NextRequest) {
+  if (!(await isAdminApiRequest(request))) {
+    return NextResponse.json(getAdminUnauthorizedResponse(), { status: 403 });
+  }
+
   const limit = parseLimit(request.nextUrl.searchParams.get("limit"));
   const source = "fmp";
   const universeLimit = parseRange(
@@ -78,6 +83,10 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  if (!(await isAdminApiRequest(request))) {
+    return NextResponse.json(getAdminUnauthorizedResponse(), { status: 403 });
+  }
+
   const body = (await request.json().catch(() => ({}))) as {
     detailedLimit?: number;
     limit?: number;
