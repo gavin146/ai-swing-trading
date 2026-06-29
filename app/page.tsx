@@ -48,6 +48,13 @@ const trustProof = [
   ["Calibration", "Backtesting feedback used to pressure-test ranking quality."],
 ];
 
+const signupJourney = [
+  ["1", "Choose a plan", "Starter keeps the list simple. Pro is the best default. Premium gives the widest daily scan."],
+  ["2", "Answer risk questions", "Tell SwingFi how cautious, balanced, or aggressive you want the dashboard to feel."],
+  ["3", "Review the morning list", "Start with Best fit, then compare score, confidence, risk, entry, target, and stop."],
+  ["4", "Track what you act on", "If you make a trade, save it to Portfolio so the plan stays visible after rankings refresh."],
+];
+
 export const metadata: Metadata = {
   alternates: {
     canonical: "/",
@@ -168,10 +175,10 @@ export default async function LandingPage() {
             </p>
             <div className="mt-7 flex flex-col gap-3 sm:flex-row">
               <Link
-                href="/signup"
+                href="/pricing"
                 className="rounded-lg bg-ink px-5 py-3 text-center text-sm font-black text-white shadow-[0_18px_42px_rgba(7,20,24,0.2)] hover:bg-pine"
               >
-                Start 30-day free trial
+                Choose a free trial plan
               </Link>
               <Link
                 href="#how-it-works"
@@ -215,7 +222,7 @@ export default async function LandingPage() {
                 </p>
               </div>
               <div className="rounded-lg bg-lime px-3 py-2 text-sm font-black text-ink">
-                90 ranked
+                Up to 90 ranked
               </div>
             </div>
             <div className="mt-4 grid gap-4">
@@ -305,6 +312,35 @@ export default async function LandingPage() {
               <p className="mt-2 text-xs font-semibold leading-5 text-ink/58">{text}</p>
             </div>
           ))}
+        </div>
+      </section>
+
+      <section className="border-b border-line bg-panel/55">
+        <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
+          <div className="max-w-3xl">
+            <p className="text-sm font-bold uppercase tracking-normal text-pine">
+              The customer path
+            </p>
+            <h2 className="mt-3 text-3xl font-bold text-ink">
+              From signup to a calmer daily review
+            </h2>
+            <p className="mt-3 text-sm leading-7 text-ink/65">
+              SwingFi is designed to slow the process down: choose the amount of
+              research you want, set your risk comfort, review the list in order, then
+              track only the trades you actually decide to make.
+            </p>
+          </div>
+          <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            {signupJourney.map(([step, title, text]) => (
+              <div key={step} className="rounded-2xl border border-line bg-white p-5 shadow-soft">
+                <span className="grid h-9 w-9 place-items-center rounded-full bg-ink text-sm font-black text-white">
+                  {step}
+                </span>
+                <h3 className="mt-4 text-lg font-black text-ink">{title}</h3>
+                <p className="mt-3 text-sm font-semibold leading-6 text-ink/62">{text}</p>
+              </div>
+            ))}
+          </div>
         </div>
       </section>
 
@@ -479,10 +515,10 @@ export default async function LandingPage() {
           </div>
           <div className="flex flex-col gap-3 sm:flex-row">
             <Link
-              href="/signup"
+              href="/pricing"
               className="rounded-lg bg-lime px-5 py-3 text-center text-sm font-black text-ink hover:bg-white"
             >
-              Sign up
+              Choose plan
             </Link>
             <Link
               href="/login"

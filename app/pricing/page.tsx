@@ -101,10 +101,10 @@ export default function PricingPage() {
           </p>
           <div className="mt-6 flex flex-col gap-3 sm:flex-row">
             <Link
-              href="/signup"
+              href="#plans"
               className="rounded-lg bg-ink px-4 py-3 text-center text-sm font-black text-white shadow-[0_14px_34px_rgba(7,20,24,0.16)] hover:bg-pine"
             >
-              Start free trial
+              Choose a plan
             </Link>
             <Link
               href="/login"
@@ -149,7 +149,7 @@ export default function PricingPage() {
           </p>
         </div>
 
-        <div className="mt-8 grid gap-5 lg:grid-cols-3">
+        <div id="plans" className="mt-8 grid scroll-mt-8 gap-5 lg:grid-cols-3">
           {billingPlans.map((plan) => (
             <article
               key={plan.key}
@@ -169,7 +169,7 @@ export default function PricingPage() {
                 <p className="mt-2 text-sm leading-6 text-ink/60">{plan.description}</p>
                 <p className="mt-5 text-4xl font-black text-ink">{plan.priceLabel}</p>
                 <p className="mt-1 text-xs font-semibold text-ink/50">
-                  Launch price
+                  After {trialDays}-day free trial
                 </p>
                 <div className="mt-4 rounded-2xl border border-line bg-surface p-4">
                   <p className="text-xs font-black uppercase tracking-normal text-ink/45">
@@ -190,7 +190,7 @@ export default function PricingPage() {
                   {checkoutReady ? (
                     <BillingCheckoutButton
                       planKey={plan.key}
-                      label={`Start ${trialDays}-day trial`}
+                      label={`Start ${plan.name} trial`}
                       highlighted={plan.highlighted}
                     />
                   ) : (
@@ -206,7 +206,7 @@ export default function PricingPage() {
                         Start free account
                       </Link>
                       <p className="mt-3 text-xs font-semibold leading-5 text-ink/52">
-                        Paid checkout opens after live Stripe billing is verified.
+                        No payment today. Paid checkout opens after live Stripe billing is verified.
                       </p>
                     </div>
                   )}

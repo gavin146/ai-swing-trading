@@ -63,9 +63,9 @@ function OpportunitySessionReconnect({ symbol }: { symbol: string }) {
           <p className="mt-6 text-xs font-black uppercase tracking-normal text-pine">
             Secure research session
           </p>
-          <h1 className="mt-3 text-3xl font-black text-ink">
+          <h2 className="mt-3 text-3xl font-black text-ink">
             Log in again to open {symbol.toUpperCase()}
-          </h1>
+          </h2>
           <p className="mt-3 max-w-2xl leading-7 text-ink/65">
             Your local SwingFi profile is still saved, but the full stock analysis
             requires a verified account session before we can show protected research,
@@ -511,13 +511,13 @@ export function OpportunityDetailView({
             <p className="mt-6 text-xs font-black uppercase tracking-normal text-pine">
               Analysis access
             </p>
-            <h1 className="mt-3 text-3xl font-black text-ink">
+            <h2 className="mt-3 text-3xl font-black text-ink">
               {needsEmailVerification
                 ? "Confirm your email to unlock this stock analysis"
                 : customer
                   ? "Subscribe to unlock this stock analysis"
                   : "Start your free month to unlock analysis"}
-            </h1>
+            </h2>
             <p className="mt-3 max-w-2xl leading-7 text-ink/65">
               {needsEmailVerification
                 ? "Open the branded SwingFi confirmation email, then return here to review the full trade plan."
@@ -579,9 +579,9 @@ export function OpportunityDetailView({
             <p className="mt-6 text-xs font-black uppercase tracking-normal text-pine">
               Plan access
             </p>
-            <h1 className="mt-3 text-3xl font-black text-ink">
+            <h2 className="mt-3 text-3xl font-black text-ink">
               This analysis is outside your current daily view
-            </h1>
+            </h2>
             <p className="mt-3 max-w-2xl leading-7 text-ink/65">
               Your {planLabel.toLowerCase()} shows the ranked opportunities included in
               your daily plan. Upgrade to review a wider scan, or return to your dashboard
@@ -640,7 +640,7 @@ export function OpportunityDetailView({
         >
           Back to dashboard
         </Link>
-        <h1 className="mt-6 text-3xl font-black text-ink">Opportunity not found</h1>
+        <h2 className="mt-6 text-3xl font-black text-ink">Opportunity not found</h2>
         <p className="mt-3 leading-7 text-ink/65">
           No saved opportunity is available for {symbol.toUpperCase()}.
           {currentFallbackReason ? ` ${currentFallbackReason}` : ""}
