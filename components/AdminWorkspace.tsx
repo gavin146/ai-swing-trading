@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { AdminAccessPanel } from "@/components/AdminAccessPanel";
 import { AdminCommandCenter } from "@/components/AdminCommandCenter";
 import { AdminCommunicationsPanel } from "@/components/AdminCommunicationsPanel";
@@ -99,13 +99,35 @@ const adminTabGroups: Array<{
 ];
 
 const adminTabs = adminTabGroups.flatMap((group) => group.tabs);
+const adminTabKeys = new Set<AdminTab>(adminTabs.map((tab) => tab.key));
+
+function getUrlTab(): AdminTab | null {
+  if (typeof window === "undefined") return null;
+
+  const tab = new URLSearchParams(window.location.search).get("tab") as AdminTab | null;
+  return tab && adminTabKeys.has(tab) ? tab : null;
+}
 
 export function AdminWorkspace() {
   const [customer, setCustomer] = useState<CustomerProfile | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [activeTab, setActiveTab] = useState<AdminTab>("overview");
 
+  const selectTab = useCallback((tab: AdminTab) => {
+    setActiveTab(tab);
+
+    if (typeof window !== "undefined") {
+      const nextUrl = tab === "overview" ? "/admin" : `/admin?tab=${tab}`;
+      window.history.replaceState(null, "", nextUrl);
+    }
+  }, []);
+
   useEffect(() => {
+    const urlTab = getUrlTab();
+    if (urlTab) {
+      setActiveTab(urlTab);
+    }
+
     const refresh = async () => {
       const current = getCurrentCustomer();
       if (current) setCustomer(current);
@@ -129,7 +151,7 @@ export function AdminWorkspace() {
   }, []);
 
   const activePanel = useMemo(() => {
-    if (activeTab === "overview") return <AdminCommandCenter onNavigate={setActiveTab} />;
+    if (activeTab === "overview") return <AdminCommandCenter onNavigate={selectTab} />;
     if (activeTab === "backtesting") return <BacktestPanel />;
     if (activeTab === "accuracy") return <PredictionAccuracyPanel />;
     if (activeTab === "access") return <AdminAccessPanel />;
@@ -137,7 +159,7 @@ export function AdminWorkspace() {
     if (activeTab === "customers") return <AdminCustomerPanel />;
     if (activeTab === "opportunities") return <AdminOpportunityPanel />;
     return <AdminOperationsPanel />;
-  }, [activeTab]);
+  }, [activeTab, selectTab]);
 
   if (!loaded) {
     return (
@@ -258,7 +280,7 @@ export function AdminWorkspace() {
               <button
                 key={tab.key}
                 type="button"
-                onClick={() => setActiveTab(tab.key)}
+                onClick={() => selectTab(tab.key)}
                 className={`min-h-11 rounded-2xl border px-3 py-2.5 text-left text-sm font-black transition ${
                   isActive
                     ? "border-pine bg-mint text-ink shadow-soft"
@@ -285,7 +307,7 @@ export function AdminWorkspace() {
                     <button
                       key={tab.key}
                       type="button"
-                      onClick={() => setActiveTab(tab.key)}
+                      onClick={() => selectTab(tab.key)}
                       className={`min-h-[74px] rounded-2xl border px-4 py-3 text-left transition ${
                         isActive
                           ? "border-pine bg-mint text-ink shadow-soft"

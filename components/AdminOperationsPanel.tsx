@@ -149,7 +149,7 @@ export function AdminOperationsPanel() {
             {runningAgent ? "Running..." : "Run agent"}
           </button>
           <Link
-            href="/backtests"
+            href="/admin?tab=backtesting"
             className="rounded-2xl border border-line bg-surface px-4 py-3 text-center text-sm font-bold text-ink hover:border-pine"
           >
             View backtests

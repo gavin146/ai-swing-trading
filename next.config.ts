@@ -174,6 +174,16 @@ const nextConfig: NextConfig = {
         permanent: false,
         source: "/agent",
       },
+      {
+        destination: "/admin?tab=backtesting",
+        permanent: false,
+        source: "/backtests",
+      },
+      {
+        destination: "/dashboard",
+        permanent: false,
+        source: "/themes",
+      },
     ];
   },
   reactStrictMode: true,
