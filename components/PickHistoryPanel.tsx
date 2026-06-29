@@ -8,6 +8,7 @@ import {
   restoreAuthenticatedCustomerSession,
   type CustomerProfile,
 } from "@/lib/customer-store";
+import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 
 type PickHistoryItem = {
   id: string;
@@ -160,10 +161,14 @@ export function PickHistoryPanel() {
         return;
       }
 
-      const params = new URLSearchParams({ email: current.email, limit: "90" });
+      const supabase = createSupabaseBrowserClient();
+      const { data } = supabase ? await supabase.auth.getSession() : { data: { session: null } };
+      const token = data.session?.access_token;
+      const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
+      const params = new URLSearchParams({ limit: "90" });
       Promise.all([
-        fetch(`/api/daily-picks?${params.toString()}`),
-        fetch(`/api/performance?${params.toString()}`),
+        fetch(`/api/daily-picks?${params.toString()}`, { headers }),
+        fetch(`/api/performance?${params.toString()}`, { headers }),
       ])
         .then(async (response) => {
           const [dailyPicksResponse, performanceResponse] = response;

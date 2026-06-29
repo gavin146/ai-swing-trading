@@ -1,11 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
+import { resolveCustomerSession } from "@/lib/auth/customer-session";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 export async function GET(request: NextRequest) {
-  const email = request.nextUrl.searchParams.get("email")?.trim().toLowerCase();
+  const session = await resolveCustomerSession(request);
+  if (session.error) {
+    return NextResponse.json({ error: session.error, picks: [] }, { status: session.status });
+  }
+
   const limit = Math.max(1, Math.min(90, Number(request.nextUrl.searchParams.get("limit") ?? 30)));
   const supabase = createSupabaseAdminClient();
 
@@ -16,22 +21,7 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  if (!email || !email.includes("@")) {
-    return NextResponse.json({ error: "A customer email is required.", picks: [] }, { status: 400 });
-  }
-
-  const { data: user, error: userError } = await supabase
-    .from("users")
-    .select("id,email")
-    .eq("email", email)
-    .maybeSingle();
-
-  if (userError || !user) {
-    return NextResponse.json({
-      error: userError?.message ?? "Customer profile was not found.",
-      picks: [],
-    });
-  }
+  const user = session.user!;
 
   const { data, error } = await supabase
     .from("daily_picks")

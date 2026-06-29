@@ -88,6 +88,9 @@ Optional:
 - Session-bound Stripe checkout and billing portal requests, so production
   billing actions resolve the logged-in Supabase user instead of trusting
   browser-supplied customer identifiers.
+- Session-bound customer pick history and performance endpoints, so saved
+  daily picks are resolved from the authenticated Supabase user instead of an
+  email query string.
 
 ## Still Required Before Charging Customers
 

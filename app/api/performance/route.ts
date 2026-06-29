@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import type { PredictionOutcomeRow } from "@/lib/database.types";
+import { resolveCustomerSession } from "@/lib/auth/customer-session";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -63,7 +64,14 @@ function isEvaluated(status: PredictionOutcomeRow["status"]) {
 }
 
 export async function GET(request: NextRequest) {
-  const email = request.nextUrl.searchParams.get("email")?.trim().toLowerCase();
+  const session = await resolveCustomerSession(request);
+  if (session.error) {
+    return NextResponse.json(
+      { error: session.error, source: "empty" },
+      { status: session.status },
+    );
+  }
+
   const limit = Math.max(1, Math.min(300, Number(request.nextUrl.searchParams.get("limit") ?? 180)));
   const supabase = createSupabaseAdminClient();
 
@@ -77,22 +85,7 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  if (!email || !email.includes("@")) {
-    return NextResponse.json({ error: "A customer email is required.", source: "empty" }, { status: 400 });
-  }
-
-  const { data: user, error: userError } = await supabase
-    .from("users")
-    .select("id,email")
-    .eq("email", email)
-    .maybeSingle();
-
-  if (userError || !user) {
-    return NextResponse.json({
-      error: userError?.message ?? "Customer profile was not found.",
-      source: "empty",
-    });
-  }
+  const user = session.user!;
 
   const { data: picks, error: picksError } = await supabase
     .from("daily_picks")
