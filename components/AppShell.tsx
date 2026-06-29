@@ -12,7 +12,7 @@ import {
 } from "@/lib/customer-store";
 
 type AppShellProps = {
-  active?: "admin" | "agent" | "dashboard" | "history" | "settings";
+  active?: "admin" | "dashboard" | "history" | "portfolio" | "settings";
   children: React.ReactNode;
   eyebrow?: string;
   subtitle?: string;
@@ -21,13 +21,13 @@ type AppShellProps = {
 
 const customerLinks = [
   { href: "/dashboard", key: "dashboard", label: "Dashboard", symbol: "D" },
+  { href: "/portfolio", key: "portfolio", label: "Portfolio", symbol: "P" },
   { href: "/history", key: "history", label: "History", symbol: "H" },
   { href: "/settings", key: "settings", label: "Settings", symbol: "S" },
 ] as const;
 
 const adminLinks = [
   { href: "/admin", key: "admin", label: "Admin", symbol: "A" },
-  { href: "/agent", key: "agent", label: "Agent", symbol: "R" },
 ] as const;
 
 function navClass(isActive: boolean) {
@@ -55,7 +55,7 @@ function topNavClass(isActive: boolean) {
 }
 
 function mobileNavClass(isActive: boolean) {
-  return `rounded-xl px-3 py-2 text-center text-[13px] font-black transition ${
+  return `shrink-0 rounded-xl px-3 py-2 text-center text-[13px] font-black transition ${
     isActive
       ? "bg-ink text-white shadow-[0_10px_24px_rgba(7,20,24,0.16)]"
       : "bg-surface text-ink/64 hover:bg-white hover:text-ink"
@@ -70,7 +70,7 @@ export function AppShell({ active, children, eyebrow, subtitle, title }: AppShel
   const [customer, setCustomer] = useState<CustomerProfile | null>(null);
   const [sessionLoaded, setSessionLoaded] = useState(false);
   const isAdmin = isAdminCustomer(customer);
-  const isOperationsPage = active === "admin" || active === "agent";
+  const isOperationsPage = active === "admin";
   const visibleLinks = [...customerLinks, ...(isAdmin ? adminLinks : [])];
   const shellLinks = isOperationsPage
     ? isAdmin
@@ -129,7 +129,7 @@ export function AppShell({ active, children, eyebrow, subtitle, title }: AppShel
             </div>
 
             <nav className="rounded-2xl border border-line/70 bg-white/74 p-1.5 shadow-[0_10px_28px_rgba(7,20,24,0.05)] md:hidden">
-              <div className="grid grid-cols-3 gap-1.5">
+              <div className="flex gap-1.5 overflow-x-auto pb-0.5">
                 {shellLinks.map((item) => (
                   <Link
                     key={item.href}
@@ -234,7 +234,7 @@ export function AppShell({ active, children, eyebrow, subtitle, title }: AppShel
               <CustomerStatus />
             </div>
             <nav className="rounded-2xl border border-line/70 bg-white/74 p-1.5 shadow-[0_10px_28px_rgba(7,20,24,0.05)] lg:hidden">
-              <div className="grid grid-cols-3 gap-1.5">
+              <div className="flex gap-1.5 overflow-x-auto pb-0.5">
                 {shellLinks.map((item) => (
                   <Link
                     key={item.href}

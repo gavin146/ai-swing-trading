@@ -7,7 +7,7 @@ import { BrandMark } from "./BrandMark";
 import { CustomerStatus } from "./CustomerStatus";
 
 type AppHeaderProps = {
-  active?: "admin" | "agent" | "dashboard" | "history" | "settings" | "themes";
+  active?: "admin" | "dashboard" | "history" | "settings" | "themes";
 };
 
 export function AppHeader({ active }: AppHeaderProps) {
@@ -59,20 +59,12 @@ export function AppHeader({ active }: AppHeaderProps) {
             History
           </Link>
           {isAdmin ? (
-            <>
-              <Link
-                href="/admin"
-                className={navClass("admin")}
-              >
-                Admin
-              </Link>
-              <Link
-                href="/agent"
-                className={navClass("agent")}
-              >
-                Agent
-              </Link>
-            </>
+            <Link
+              href="/admin"
+              className={navClass("admin")}
+            >
+              Admin
+            </Link>
           ) : null}
           <CustomerStatus />
         </nav>

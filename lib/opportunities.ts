@@ -13,6 +13,7 @@ import { mockOpportunities } from "./mock-data";
 export type AssetType = "US Stock" | "ETF" | "Crypto";
 
 export type Opportunity = {
+  id: string;
   symbol: string;
   name: string;
   assetType: AssetType;
@@ -25,9 +26,14 @@ export type Opportunity = {
   riskLabel: string;
   rankingSummary: string;
   entryRange: string;
+  entryLow: number;
+  entryHigh: number;
   targetPrice: string;
+  targetPriceValue: number;
   stopLoss: string;
+  stopLossValue: number;
   currentPrice: string;
+  holdingPeriodDays: number;
   timeHorizon: string;
   estimatedBuyWindow: string;
   estimatedSellWindow: string;
@@ -37,7 +43,9 @@ export type Opportunity = {
   sector: SectorName;
   thesis: string;
   potentialGain: string;
+  expectedGainValue: number;
   potentialLoss: string;
+  expectedLossValue: number;
   scoreMovement: ReturnType<typeof getScoreMovement>;
   beginnerLesson: ReturnType<typeof getBeginnerLesson>;
   aiExplanation: string;
@@ -321,6 +329,7 @@ function getSellWindow(row: OpportunityRow) {
 
 export function opportunityFromRow(row: OpportunityRow): Opportunity {
   const base = {
+    id: row.id,
     symbol: row.symbol,
     name: symbolNames[row.symbol] ?? row.symbol,
     assetType: assetTypeLabels[row.asset_type],
@@ -332,9 +341,14 @@ export function opportunityFromRow(row: OpportunityRow): Opportunity {
     riskLabel: getRiskLabel(row.risk_score),
     rankingSummary: getRankingSummary(row),
     entryRange: `${formatCurrency(row.entry_low)} - ${formatCurrency(row.entry_high)}`,
+    entryLow: row.entry_low,
+    entryHigh: row.entry_high,
     targetPrice: formatCurrency(row.target_price),
+    targetPriceValue: row.target_price,
     stopLoss: formatCurrency(row.stop_loss),
+    stopLossValue: row.stop_loss,
     currentPrice: formatCurrency((row.entry_low + row.entry_high) / 2),
+    holdingPeriodDays: row.holding_period_days,
     timeHorizon: `${row.holding_period_days} days`,
     estimatedBuyWindow: getBuyWindow(row),
     estimatedSellWindow: getSellWindow(row),
@@ -342,7 +356,9 @@ export function opportunityFromRow(row: OpportunityRow): Opportunity {
     setup: getSetup(row),
     thesis: getThesis(row),
     potentialGain: formatPercent(row.expected_gain),
+    expectedGainValue: row.expected_gain,
     potentialLoss: `-${row.expected_loss.toFixed(1)}%`,
+    expectedLossValue: row.expected_loss,
     aiExplanation: row.explanation,
     analysisProfile: getAnalysisProfile(row),
     historicalPerformance: getHistoricalPerformance(row),

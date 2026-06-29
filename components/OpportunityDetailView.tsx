@@ -46,6 +46,21 @@ function getRewardRisk(opportunity: Opportunity) {
   return loss > 0 ? gain / loss : gain;
 }
 
+function portfolioHref(opportunity: Opportunity) {
+  const params = new URLSearchParams({
+    assetType: opportunity.assetType === "ETF" ? "etf" : opportunity.assetType === "Crypto" ? "crypto" : "stock",
+    entryHigh: String(opportunity.entryHigh),
+    entryLow: String(opportunity.entryLow),
+    holdingPeriodDays: String(opportunity.holdingPeriodDays),
+    opportunityId: opportunity.id,
+    stopLoss: String(opportunity.stopLossValue),
+    symbol: opportunity.symbol,
+    targetPrice: String(opportunity.targetPriceValue),
+  });
+
+  return `/portfolio?${params.toString()}`;
+}
+
 function checklistTone(status: "pass" | "review" | "caution") {
   if (status === "pass") return "border-pine/20 bg-mint text-pine";
   if (status === "caution") return "border-coral/25 bg-coral/10 text-coral";
@@ -460,6 +475,8 @@ export function OpportunityDetailView({
     );
   }
 
+  const trackTradeHref = portfolioHref(opportunity);
+
   return (
     <section className="grid gap-6">
       <Link
@@ -649,6 +666,23 @@ export function OpportunityDetailView({
               Scores help compare setups, but they do not remove market risk. Confirm
               news, earnings, liquidity, and position size before placing any trade.
             </p>
+          </section>
+
+          <section className="rounded-3xl border border-line bg-white p-5 shadow-[0_18px_60px_rgba(7,20,24,0.06)]">
+            <p className="text-xs font-black uppercase tracking-normal text-pine">
+              Took this trade?
+            </p>
+            <h2 className="mt-2 text-xl font-black text-ink">Save it to your Swing Portfolio</h2>
+            <p className="mt-3 text-sm font-medium leading-7 text-ink/64">
+              If you decide to buy, save the entry price and rough time so this plan stays
+              visible after tomorrow's rankings refresh.
+            </p>
+            <Link
+              href={trackTradeHref}
+              className="mt-4 inline-flex w-full justify-center rounded-2xl bg-ink px-4 py-3 text-sm font-black text-white shadow-[0_16px_36px_rgba(7,20,24,0.18)] hover:bg-pine"
+            >
+              Add to Swing Portfolio
+            </Link>
           </section>
 
           <BrokerageLaunchPanel

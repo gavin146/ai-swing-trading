@@ -200,7 +200,7 @@ export function AgentRunnerPanel() {
           <p className="text-sm font-bold uppercase tracking-normal text-coral">
             Admin only
           </p>
-          <h1 className="mt-3 text-4xl font-bold text-ink">Agent controls are restricted</h1>
+          <h2 className="mt-3 text-4xl font-bold text-ink">Agent controls are restricted</h2>
           <p className="mt-3 max-w-3xl text-base leading-7 text-ink/65">
             Customers receive the morning brief automatically by email. Manual agent runs
             are reserved for admins so customers have a simple daily-picks experience.
@@ -210,24 +210,28 @@ export function AgentRunnerPanel() {
 
       {!checkedAccess || !adminAllowed ? null : (
         <>
-      <section className="min-w-0 rounded-lg border border-line bg-panel p-6 shadow-soft">
+      <section className="premium-panel min-w-0 rounded-3xl p-5 shadow-[0_18px_60px_rgba(7,20,24,0.06)] sm:p-6">
         <div className="grid gap-5 lg:grid-cols-[1fr_auto] lg:items-start">
           <div>
-            <p className="text-sm font-bold uppercase tracking-normal text-pine">
+            <div className="signal-line mb-5 h-1.5 max-w-52 rounded-full" />
+            <p className="text-xs font-black uppercase tracking-normal text-pine">
               Morning AI ranking agent
             </p>
-            <h1 className="mt-3 text-4xl font-bold text-ink">Top 30 stock selector</h1>
-            <p className="mt-3 max-w-3xl text-base leading-7 text-ink/65">
+            <h2 className="mt-3 text-3xl font-black tracking-normal text-ink sm:text-4xl">
+              Top 90 candidate market scan
+            </h2>
+            <p className="mt-3 max-w-3xl text-sm font-semibold leading-7 text-ink/62">
               The system should run before the market opens, around 8:30 AM Eastern,
-              then send customers an email linking to the daily analysis. Manual runs
-              stay admin-only for testing, support, and operations.
+              scan a broad liquid universe, save the ranked list, then email customers
+              a link to the daily analysis. Manual runs stay admin-only for testing,
+              support, and operations.
             </p>
           </div>
           <div className="flex flex-col gap-3 sm:flex-row lg:flex-col">
             <button
               type="button"
               onClick={() => void runAgent("POST", "fmp")}
-              className="rounded-md bg-pine px-4 py-3 text-sm font-bold text-white transition hover:bg-ink disabled:cursor-not-allowed disabled:opacity-60"
+              className="rounded-2xl bg-ink px-4 py-3 text-sm font-black text-white shadow-[0_14px_34px_rgba(7,20,24,0.16)] transition hover:bg-pine disabled:cursor-not-allowed disabled:opacity-60"
               disabled={status === "loading"}
             >
               Run live FMP
@@ -235,7 +239,7 @@ export function AgentRunnerPanel() {
             <button
               type="button"
               onClick={() => void generateExplanation()}
-              className="rounded-md border border-line bg-surface px-4 py-3 text-sm font-bold text-ink transition hover:border-pine disabled:cursor-not-allowed disabled:opacity-60"
+              className="rounded-2xl border border-line bg-surface px-4 py-3 text-sm font-black text-ink transition hover:border-pine disabled:cursor-not-allowed disabled:opacity-60"
               disabled={!result || explanation.status === "loading"}
             >
               Explain top pick
@@ -244,36 +248,36 @@ export function AgentRunnerPanel() {
         </div>
 
         <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <div className="rounded-lg border border-line bg-surface p-4">
-            <p className="text-xs font-bold uppercase tracking-normal text-ink/55">
+          <div className="rounded-2xl border border-line bg-surface p-4">
+            <p className="text-xs font-black uppercase tracking-normal text-ink/55">
               Status
             </p>
-            <p className="mt-2 text-xl font-bold text-ink">{message}</p>
+            <p className="mt-2 text-xl font-black text-ink">{message}</p>
             <p className="mt-2 text-xs font-semibold uppercase tracking-normal text-ink/45">
               Source: {result?.dataSource ?? source}
             </p>
           </div>
-          <div className="rounded-lg border border-line bg-surface p-4">
-            <p className="text-xs font-bold uppercase tracking-normal text-ink/55">
+          <div className="rounded-2xl border border-line bg-surface p-4">
+            <p className="text-xs font-black uppercase tracking-normal text-ink/55">
               Universe
             </p>
-            <p className="mt-2 text-xl font-bold text-pine">
+            <p className="mt-2 text-xl font-black text-pine">
               {result ? result.universeCount : "--"} stocks
             </p>
           </div>
-          <div className="rounded-lg border border-line bg-surface p-4">
-            <p className="text-xs font-bold uppercase tracking-normal text-ink/55">
+          <div className="rounded-2xl border border-line bg-surface p-4">
+            <p className="text-xs font-black uppercase tracking-normal text-ink/55">
               Selected
             </p>
-            <p className="mt-2 text-xl font-bold text-pine">
+            <p className="mt-2 text-xl font-black text-pine">
               {result ? result.selectedCount : "--"}
             </p>
           </div>
-          <div className="rounded-lg border border-line bg-surface p-4">
-            <p className="text-xs font-bold uppercase tracking-normal text-ink/55">
+          <div className="rounded-2xl border border-line bg-surface p-4">
+            <p className="text-xs font-black uppercase tracking-normal text-ink/55">
               Market regime
             </p>
-            <p className="mt-2 text-xl font-bold capitalize text-pine">
+            <p className="mt-2 text-xl font-black capitalize text-pine">
               {result ? result.marketRegime : "--"}
             </p>
           </div>
