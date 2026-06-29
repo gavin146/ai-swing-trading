@@ -187,13 +187,29 @@ export default function PricingPage() {
                   ))}
                 </ul>
                 <div className="mt-auto pt-6">
-                  <BillingCheckoutButton
-                    planKey={plan.key}
-                    disabled={!checkoutReady}
-                    disabledMessage={billingReadiness.publicReason}
-                    label={checkoutReady ? `Start ${trialDays}-day trial` : "Create account first"}
-                    highlighted={plan.highlighted}
-                  />
+                  {checkoutReady ? (
+                    <BillingCheckoutButton
+                      planKey={plan.key}
+                      label={`Start ${trialDays}-day trial`}
+                      highlighted={plan.highlighted}
+                    />
+                  ) : (
+                    <div>
+                      <Link
+                        href={`/signup?plan=${plan.key}`}
+                        className={
+                          plan.highlighted
+                            ? "block w-full rounded-lg bg-ink px-4 py-3 text-center text-sm font-black text-white shadow-[0_14px_34px_rgba(7,20,24,0.16)] hover:bg-pine"
+                            : "block w-full rounded-lg border border-line bg-surface px-4 py-3 text-center text-sm font-bold text-ink hover:border-pine"
+                        }
+                      >
+                        Start free account
+                      </Link>
+                      <p className="mt-3 text-xs font-semibold leading-5 text-ink/52">
+                        Paid checkout opens after live Stripe billing is verified.
+                      </p>
+                    </div>
+                  )}
                 </div>
               </div>
             </article>

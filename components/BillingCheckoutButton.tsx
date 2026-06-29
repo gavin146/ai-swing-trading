@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { ToastNotice, type ToastTone } from "@/components/ToastNotice";
 import { trackAnalyticsEvent } from "@/lib/client-analytics";
@@ -22,7 +23,11 @@ export function BillingCheckoutButton({
   label,
   highlighted = false,
 }: BillingCheckoutButtonProps) {
-  const [notice, setNotice] = useState<{ message: string; tone: ToastTone } | null>(null);
+  const [notice, setNotice] = useState<{
+    message: string;
+    showAccountLinks?: boolean;
+    tone: ToastTone;
+  } | null>(null);
   const [loading, setLoading] = useState(false);
 
   async function startCheckout() {
@@ -37,7 +42,11 @@ export function BillingCheckoutButton({
     try {
       const customer = getCurrentCustomer();
       if (!customer) {
-        setNotice({ message: "Create an account or log in before starting your free trial.", tone: "info" });
+        setNotice({
+          message: "Create an account or log in before starting your free trial.",
+          showAccountLinks: true,
+          tone: "info",
+        });
         return;
       }
 
@@ -105,7 +114,23 @@ export function BillingCheckoutButton({
       </button>
       {notice ? (
         <ToastNotice className="mt-3" tone={notice.tone}>
-          {notice.message}
+          <span>{notice.message}</span>
+          {notice.showAccountLinks ? (
+            <span className="mt-3 flex flex-col gap-2 sm:flex-row">
+              <Link
+                href={`/signup?plan=${planKey}`}
+                className="rounded-xl bg-ink px-3 py-2 text-center text-xs font-black text-white hover:bg-pine"
+              >
+                Create account
+              </Link>
+              <Link
+                href="/login"
+                className="rounded-xl border border-line bg-white/70 px-3 py-2 text-center text-xs font-black text-ink hover:border-pine"
+              >
+                Log in
+              </Link>
+            </span>
+          ) : null}
         </ToastNotice>
       ) : null}
     </div>
