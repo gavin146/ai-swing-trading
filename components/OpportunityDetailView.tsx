@@ -17,6 +17,7 @@ import { getPersonalizedDailyPicks } from "@/lib/customer-picks";
 import type { OpportunityRow } from "@/lib/database.types";
 import { opportunityFromRow, type Opportunity } from "@/lib/opportunities";
 import type { OpportunityDataSource } from "@/lib/repositories/opportunities";
+import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 
 type OpportunityDetailViewProps = {
   dataSource: OpportunityDataSource;
@@ -61,6 +62,14 @@ function portfolioHref(opportunity: Opportunity) {
   });
 
   return `/portfolio?${params.toString()}`;
+}
+
+async function getCustomerAuthHeaders() {
+  const supabase = createSupabaseBrowserClient();
+  const { data } = supabase ? await supabase.auth.getSession() : { data: { session: null } };
+  const token = data.session?.access_token;
+
+  return token ? { Authorization: `Bearer ${token}` } : undefined;
 }
 
 function checklistTone(status: "pass" | "review" | "caution") {
@@ -336,8 +345,10 @@ export function OpportunityDetailView({
       setPlanLimitExceeded(false);
 
       try {
+        const authHeaders = await getCustomerAuthHeaders();
         const response = await fetch(`/api/opportunities/${encodeURIComponent(symbol)}`, {
           cache: "no-store",
+          headers: authHeaders,
         });
         const payload = (await response.json().catch(() => null)) as {
           reason?: string;
@@ -357,7 +368,10 @@ export function OpportunityDetailView({
         const loadedOpportunity = opportunityFromRow(payload.rows[0]);
 
         if (customer && !access.isAdmin) {
-          const planResponse = await fetch("/api/opportunities", { cache: "no-store" });
+          const planResponse = await fetch("/api/opportunities", {
+            cache: "no-store",
+            headers: authHeaders,
+          });
           const planPayload = (await planResponse.json().catch(() => null)) as {
             rows?: OpportunityRow[];
           } | null;

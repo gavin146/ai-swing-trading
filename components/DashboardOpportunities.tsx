@@ -26,6 +26,7 @@ import type {
   OpportunityTrustPanel,
   OpportunityTrustStatus,
 } from "@/lib/repositories/opportunities";
+import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 
 type DashboardOpportunitiesProps = {
   dataSource: OpportunityDataSource;
@@ -86,10 +87,19 @@ function writeDashboardOpportunityCache(payload: DashboardOpportunitiesPayload) 
   }
 }
 
-async function fetchDashboardOpportunities() {
+async function getCustomerAuthHeaders() {
+  const supabase = createSupabaseBrowserClient();
+  const { data } = supabase ? await supabase.auth.getSession() : { data: { session: null } };
+  const token = data.session?.access_token;
+
+  return token ? { Authorization: `Bearer ${token}` } : undefined;
+}
+
+async function fetchDashboardOpportunities(headers?: HeadersInit) {
   if (!dashboardOpportunitiesRequest) {
     dashboardOpportunitiesRequest = fetch("/api/opportunities", {
       cache: "no-store",
+      headers,
     })
       .then(async (response) => {
         const payload = (await response.json().catch(() => null)) as
@@ -1062,8 +1072,9 @@ export function DashboardOpportunities({
       });
 
       try {
+        const authHeaders = await getCustomerAuthHeaders();
         const payload = await Promise.race([
-          fetchDashboardOpportunities(),
+          fetchDashboardOpportunities(authHeaders),
           timeoutPromise,
         ]);
 

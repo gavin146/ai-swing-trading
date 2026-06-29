@@ -91,6 +91,9 @@ Optional:
 - Session-bound customer pick history and performance endpoints, so saved
   daily picks are resolved from the authenticated Supabase user instead of an
   email query string.
+- Server-side research access checks for opportunity list/detail APIs. Research
+  data now requires admin access, an active/trialing subscription, or a verified
+  customer inside the 30-day trial.
 
 ## Still Required Before Charging Customers
 

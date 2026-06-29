@@ -69,7 +69,9 @@ export function AdminCommunicationsPanel() {
   useEffect(() => {
     async function loadOpportunities() {
       try {
-        const response = await fetch("/api/opportunities");
+        const response = await fetch("/api/opportunities", {
+          headers: await getAdminHeaders(),
+        });
         const payload = (await response.json()) as {
           reason?: string;
           rows?: OpportunityRow[];
