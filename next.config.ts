@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 const appRoot = dirname(fileURLToPath(import.meta.url));
 
 const nextConfig: NextConfig = {
+  allowedDevOrigins: ["localhost", "localhost:3000", "127.0.0.1", "127.0.0.1:3000"],
   eslint: {
     ignoreDuringBuilds: true,
   },
