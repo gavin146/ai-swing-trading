@@ -294,9 +294,9 @@ export function LoginForm() {
         <p className="text-xs font-black uppercase tracking-normal text-pine">
           {recoveryMode ? "Password recovery" : "Secure sign in"}
         </p>
-        <h1 className="mt-3 text-3xl font-black text-ink">
+        <h2 className="mt-3 text-3xl font-black text-ink">
           {recoveryMode ? "Choose a new password" : "Welcome back"}
-        </h1>
+        </h2>
         <p className="mt-2 text-sm leading-6 text-ink/60">
           {recoveryMode
             ? recoveryReady

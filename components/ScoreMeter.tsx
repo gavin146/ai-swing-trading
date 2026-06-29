@@ -11,6 +11,12 @@ function meterColor(tone: ScoreMeterProps["tone"]) {
   return "#b7f34b";
 }
 
+function scoreDirection(tone: ScoreMeterProps["tone"]) {
+  if (tone === "risk") return "Lower is better";
+  if (tone === "confidence") return "Higher is cleaner";
+  return "Higher is stronger";
+}
+
 export function ScoreMeter({ label, score, sublabel, tone = "opportunity" }: ScoreMeterProps) {
   const value = Math.max(0, Math.min(100, score));
   const color = meterColor(tone);
@@ -32,6 +38,9 @@ export function ScoreMeter({ label, score, sublabel, tone = "opportunity" }: Sco
         {sublabel ? (
           <p className="mt-1 text-sm font-bold leading-5 text-ink">{sublabel}</p>
         ) : null}
+        <p className="mt-1 text-[11px] font-black uppercase tracking-normal text-ink/38">
+          {scoreDirection(tone)}
+        </p>
       </div>
     </div>
   );

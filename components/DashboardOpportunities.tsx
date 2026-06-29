@@ -363,6 +363,61 @@ function TodayActionPlan({
   );
 }
 
+function ReviewRoutinePanel() {
+  const steps = [
+    {
+      body: "Open Best fit first. These are filtered to keep the starting point calmer and more relevant to your profile.",
+      label: "1",
+      title: "Start with the list",
+    },
+    {
+      body: "A strong score means review first, not buy. Compare score, confidence, and risk before opening the full analysis.",
+      label: "2",
+      title: "Read the three scores",
+    },
+    {
+      body: "Only consider deeper research if price is near the entry range and the stop loss is a risk you can accept.",
+      label: "3",
+      title: "Check entry and stop",
+    },
+    {
+      body: "Save, watch, or skip. If you make the trade, add it to Portfolio so the target and stop stay visible after rankings refresh.",
+      label: "4",
+      title: "Choose your next action",
+    },
+  ];
+
+  return (
+    <section className="mt-4 rounded-3xl border border-line/80 bg-white p-4 shadow-[0_18px_54px_rgba(7,20,24,0.06)] sm:p-5">
+      <div className="flex flex-col gap-2 lg:flex-row lg:items-end lg:justify-between">
+        <div>
+          <p className="text-xs font-black uppercase tracking-normal text-pine">
+            Beginner review routine
+          </p>
+          <h2 className="mt-2 text-2xl font-black text-ink">
+            Read each pick in this order
+          </h2>
+        </div>
+        <p className="max-w-lg text-sm font-semibold leading-6 text-ink/58 lg:text-right">
+          This keeps the dashboard from turning into a noisy scanner. The goal is a
+          repeatable research routine, not more trades.
+        </p>
+      </div>
+      <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        {steps.map((step) => (
+          <div key={step.label} className="rounded-2xl border border-line bg-surface p-4">
+            <span className="grid h-8 w-8 place-items-center rounded-full bg-ink text-sm font-black text-white">
+              {step.label}
+            </span>
+            <h3 className="mt-3 text-base font-black text-ink">{step.title}</h3>
+            <p className="mt-2 text-sm font-semibold leading-6 text-ink/60">{step.body}</p>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function MarketRegimeBanner({
   regime,
 }: {
@@ -1556,6 +1611,8 @@ export function DashboardOpportunities({
       </div>
 
       <FirstLoginWalkthrough customer={customer} />
+
+      <ReviewRoutinePanel />
 
       <TodayActionPlan customer={customer} dailyPicks={dailyPicks} />
 
