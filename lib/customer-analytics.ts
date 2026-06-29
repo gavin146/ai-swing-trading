@@ -31,61 +31,32 @@ function monthKey(date = new Date()) {
   return date.toISOString().slice(0, 7);
 }
 
-function demoEvents(): EmailLinkEvent[] {
-  const now = new Date();
-  const month = monthKey(now);
-
-  return [
-    {
-      id: `${month}-demo-1`,
-      customerId: "demo-customer",
-      symbol: "NVDA",
-      trackingId: "demo-nvda",
-      source: "morning_email",
-      clickedAt: new Date(now.getFullYear(), now.getMonth(), 3, 8, 44).toISOString(),
-    },
-    {
-      id: `${month}-demo-2`,
-      customerId: "demo-customer",
-      symbol: "MSFT",
-      trackingId: "demo-msft",
-      source: "morning_email",
-      clickedAt: new Date(now.getFullYear(), now.getMonth(), 7, 8, 51).toISOString(),
-    },
-    {
-      id: `${month}-demo-3`,
-      customerId: "demo-customer",
-      symbol: "AMD",
-      trackingId: "demo-amd",
-      source: "morning_email",
-      clickedAt: new Date(now.getFullYear(), now.getMonth(), 12, 9, 6).toISOString(),
-    },
-  ];
+function isProductionEvent(event: EmailLinkEvent) {
+  return event.customerId !== "demo-customer" && !event.trackingId.startsWith("demo-");
 }
 
 export function getEmailLinkEvents() {
   if (typeof window === "undefined") {
-    return demoEvents();
+    return [];
   }
 
   const stored =
     window.localStorage.getItem(eventsKey) ?? window.localStorage.getItem(legacyEventsKey);
 
   if (!stored) {
-    const seeded = demoEvents();
-    window.localStorage.setItem(eventsKey, JSON.stringify(seeded));
-    return seeded;
+    window.localStorage.removeItem(legacyEventsKey);
+    return [];
   }
 
   try {
-    const parsed = JSON.parse(stored) as EmailLinkEvent[];
+    const parsed = (JSON.parse(stored) as EmailLinkEvent[]).filter(isProductionEvent);
     window.localStorage.setItem(eventsKey, JSON.stringify(parsed));
     window.localStorage.removeItem(legacyEventsKey);
     return parsed;
   } catch {
-    const seeded = demoEvents();
-    window.localStorage.setItem(eventsKey, JSON.stringify(seeded));
-    return seeded;
+    window.localStorage.removeItem(eventsKey);
+    window.localStorage.removeItem(legacyEventsKey);
+    return [];
   }
 }
 
