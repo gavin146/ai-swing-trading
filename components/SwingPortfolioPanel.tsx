@@ -186,6 +186,52 @@ function statusTone(status: string) {
   return "border-amber/25 bg-amber/15 text-ink";
 }
 
+function PortfolioSessionReconnect() {
+  return (
+    <section className="overflow-hidden rounded-3xl border border-line/80 bg-white shadow-[0_24px_80px_rgba(7,20,24,0.08)]">
+      <div className="grid lg:grid-cols-[1fr_360px]">
+        <div className="p-6 sm:p-8">
+          <p className="text-xs font-black uppercase tracking-normal text-pine">
+            Secure portfolio session
+          </p>
+          <h2 className="mt-3 text-3xl font-black text-ink">
+            Log in again to save and track trades
+          </h2>
+          <p className="mt-3 max-w-2xl text-sm font-semibold leading-7 text-ink/62">
+            Your SwingFi profile is still saved in this browser, but portfolio
+            tracking needs a verified account session before we can load, save,
+            close, or update your trade plans.
+          </p>
+          <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+            <Link
+              href="/login"
+              className="rounded-2xl bg-ink px-5 py-3 text-center text-sm font-black text-white hover:bg-pine"
+            >
+              Log in again
+            </Link>
+            <Link
+              href="/dashboard"
+              className="rounded-2xl border border-line bg-surface px-5 py-3 text-center text-sm font-bold text-ink hover:border-pine"
+            >
+              Review dashboard
+            </Link>
+          </div>
+        </div>
+        <div className="border-t border-line bg-[linear-gradient(145deg,#071418,#0b3d3f)] p-6 text-white lg:border-l lg:border-t-0">
+          <p className="text-xs font-black uppercase tracking-normal text-lime">
+            Why this matters
+          </p>
+          <p className="mt-4 text-sm font-semibold leading-7 text-white/68">
+            Portfolio entries can include position size, notes, targets, stops,
+            and outcomes. Re-authentication keeps that information private and
+            tied to the right account.
+          </p>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function getSessionToken() {
   const supabase = createSupabaseBrowserClient();
   if (!supabase) return Promise.resolve("");
@@ -198,6 +244,7 @@ export function SwingPortfolioPanel({ initialTrade }: { initialTrade?: InitialTr
   const [form, setForm] = useState<FormState>(() => formFromInitialTrade(initialTrade));
   const [trades, setTrades] = useState<PortfolioTrade[]>([]);
   const [loading, setLoading] = useState(true);
+  const [requiresSessionReconnect, setRequiresSessionReconnect] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ tone: "error" | "success" | "info"; text: string } | null>(
     initialTrade?.symbol
@@ -268,10 +315,12 @@ export function SwingPortfolioPanel({ initialTrade }: { initialTrade?: InitialTr
 
       if (!token) {
         setTrades([]);
-        setMessage({ tone: "error", text: "Log in to save and track your SwingFi trades." });
+        setMessage(null);
+        setRequiresSessionReconnect(true);
         return;
       }
 
+      setRequiresSessionReconnect(false);
       const response = await fetch("/api/portfolio", {
         cache: "no-store",
         headers: { Authorization: `Bearer ${token}` },
@@ -312,7 +361,8 @@ export function SwingPortfolioPanel({ initialTrade }: { initialTrade?: InitialTr
     try {
       const token = await getSessionToken();
       if (!token) {
-        setMessage({ tone: "error", text: "Log in before saving a trade." });
+        setRequiresSessionReconnect(true);
+        setMessage(null);
         return;
       }
 
@@ -370,7 +420,8 @@ export function SwingPortfolioPanel({ initialTrade }: { initialTrade?: InitialTr
     const token = await getSessionToken();
 
     if (!token) {
-      setMessage({ tone: "error", text: "Log in before updating a trade." });
+      setRequiresSessionReconnect(true);
+      setMessage(null);
       return;
     }
 
@@ -443,6 +494,10 @@ export function SwingPortfolioPanel({ initialTrade }: { initialTrade?: InitialTr
         </div>
       </section>
     );
+  }
+
+  if (requiresSessionReconnect) {
+    return <PortfolioSessionReconnect />;
   }
 
   return (
