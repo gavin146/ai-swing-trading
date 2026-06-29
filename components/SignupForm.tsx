@@ -22,6 +22,7 @@ type SignupValues = {
   firstName: string;
   investingExperience: InvestingExperience;
   lastName: string;
+  legalAccepted: boolean;
   password: string;
   phone: string;
   positionSizePreference: PositionSizePreference;
@@ -61,6 +62,7 @@ const initialValues: SignupValues = {
   firstName: "",
   investingExperience: "beginner",
   lastName: "",
+  legalAccepted: false,
   password: "",
   phone: "",
   positionSizePreference: "small",
@@ -234,6 +236,10 @@ export function SignupForm() {
       return "Create a password with at least 8 characters.";
     }
 
+    if (step === 5 && !values.legalAccepted) {
+      return "Accept the SwingFi terms and risk notice before creating your account.";
+    }
+
     return "";
   }
 
@@ -285,6 +291,8 @@ export function SignupForm() {
         body: JSON.stringify({
           ...values,
           fullName,
+          riskAcknowledged: values.legalAccepted,
+          termsAccepted: values.legalAccepted,
           timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
         }),
       });
@@ -527,6 +535,30 @@ export function SignupForm() {
                   Admin tools unlock for {SWINGFI_ADMIN_EMAIL} and emails approved by an
                   existing admin. Admins keep full access when subscriptions are enabled.
                 </p>
+                <label className="flex gap-3 rounded-3xl border border-line bg-panel p-4 text-sm font-semibold leading-6 text-ink/68">
+                  <input
+                    type="checkbox"
+                    checked={values.legalAccepted}
+                    onChange={(event) => update("legalAccepted", event.target.checked)}
+                    className="mt-1 h-4 w-4 shrink-0 accent-pine"
+                  />
+                  <span>
+                    I understand SwingFi is research software, not financial advice, a
+                    broker, or a guarantee of returns. I agree to the{" "}
+                    <Link href="/legal/terms" className="font-black text-pine">
+                      Terms
+                    </Link>
+                    ,{" "}
+                    <Link href="/legal/privacy" className="font-black text-pine">
+                      Privacy Policy
+                    </Link>
+                    , and{" "}
+                    <Link href="/legal/disclaimer" className="font-black text-pine">
+                      Risk Notice
+                    </Link>
+                    .
+                  </span>
+                </label>
               </div>
             ) : null}
           </div>

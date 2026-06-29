@@ -82,13 +82,31 @@ Optional:
 - Active calibration rules
 - App event logs
 - Stripe subscription records
+- Customer profile preferences
+- Terms/risk acceptance timestamps
 
 ## Still Required Before Charging Customers
 
-- Replace mock localStorage auth with Supabase Auth forms and session handling.
-- Enforce admin roles from Supabase sessions in UI and APIs.
-- Verify sender domain in Resend.
-- Create Stripe products/prices, configure webhook endpoint, and switch `STRIPE_CHECKOUT_ENABLED=true` only after testing.
-- Add customer-facing billing, cancellation, and receipt emails if subscriptions are added.
-- Have privacy, terms, and financial disclaimer reviewed by counsel.
-- Add external monitoring/alerting for failed morning runs.
+- Verify the branded sender domain in Resend and send a production test email.
+- Confirm Stripe live-mode products/prices for Starter, Pro, and Premium.
+- Confirm the Stripe live webhook endpoint receives subscription created,
+  updated, deleted, and checkout completed events.
+- Have privacy, terms, and financial disclaimer reviewed by securities counsel
+  before broad paid launch.
+- Decide whether the product must register, qualify for an exemption, or change
+  language before charging for securities research.
+- Add external monitoring/alerting outside the app for failed morning runs.
+- Run several real market-day prediction cycles and review outcome accuracy
+  before making stronger marketing claims.
+
+## Customer-Facing Compliance Rules
+
+- Say "AI-ranked swing trade research" or "ranked opportunities."
+- Do not say "guaranteed winners", "best stocks to buy", or "we predict the
+  market."
+- Keep risk language near performance language.
+- Use "review", "watch", "skip", and "research further" instead of direct trade
+  instructions.
+- Keep broker handoff as a convenience link only; SwingFi must not place trades,
+  prefill orders, custody assets, or manage brokerage accounts without a major
+  legal and compliance review.

@@ -14,6 +14,11 @@ export function ScoreGuide() {
             checklist: review the rank, check the entry range, confirm the downside,
             then decide whether to watch, skip, or research further.
           </p>
+          <div className="mt-4 rounded-2xl border border-amber/30 bg-amber/10 p-4 text-sm font-bold leading-6 text-ink/68">
+            A high score is not a buy signal. It means “review this first.” The setup
+            still needs the right price, acceptable risk, fresh data, and your own
+            decision before any trade.
+          </div>
           <div className="mt-5 grid gap-2 text-sm font-semibold text-ink/70">
             {[
               ["80-100", "High-priority review. Only consider it if the price is still near the entry range and the stop fits your risk."],

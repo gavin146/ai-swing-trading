@@ -90,6 +90,7 @@ export async function POST(request: NextRequest) {
   const createdAt = body?.createdAt ? new Date(String(body.createdAt)) : null;
   const emailVerifiedAt = body?.emailVerifiedAt ? new Date(String(body.emailVerifiedAt)) : null;
   const lastLoginAt = body?.lastLoginAt ? new Date(String(body.lastLoginAt)) : null;
+  const termsAcceptedAt = body?.termsAcceptedAt ? new Date(String(body.termsAcceptedAt)) : null;
   const authUserId = cleanText(body?.authUserId);
   const payload = {
     account_budget: accountBudget,
@@ -114,13 +115,16 @@ export async function POST(request: NextRequest) {
     risk_profile: riskProfile,
     role,
     setup_preference: setupPreference,
+    ...(termsAcceptedAt && !Number.isNaN(termsAcceptedAt.getTime())
+      ? { terms_accepted_at: termsAcceptedAt.toISOString() }
+      : {}),
     timezone: cleanText(body?.timezone, "America/Chicago") || "America/Chicago",
   };
 
   let { data, error } = await supabase
     .from("users")
     .upsert(payload, { onConflict: "email" })
-    .select("id,email,role,email_verified_at")
+    .select("id,email,role,email_verified_at,terms_accepted_at")
     .single();
 
   if (isMissingPreferredBrokerageColumn(error)) {
@@ -129,7 +133,7 @@ export async function POST(request: NextRequest) {
     const retry = await supabase
       .from("users")
       .upsert(legacyPayload, { onConflict: "email" })
-      .select("id,email,role,email_verified_at")
+      .select("id,email,role,email_verified_at,terms_accepted_at")
       .single();
 
     data = retry.data;
@@ -162,6 +166,7 @@ export async function POST(request: NextRequest) {
       role: data.role,
       subscriptionPlanKey: subscription?.plan_key ?? null,
       subscriptionStatus: subscription?.status ?? null,
+      termsAcceptedAt: data.terms_accepted_at ?? null,
     },
     synced: true,
   });

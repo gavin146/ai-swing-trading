@@ -2,7 +2,7 @@ export const brand = {
   appName: "SwingFi",
   badge: "AI",
   contactEmail: "tradestockswithai@gmail.com",
-  legalLastUpdated: "June 23, 2026",
+  legalLastUpdated: "June 29, 2026",
   tagline: "Daily swing trade intelligence",
 };
 

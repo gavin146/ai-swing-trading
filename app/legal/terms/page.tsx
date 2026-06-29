@@ -29,6 +29,12 @@ export default function TermsPage() {
           management, tax, legal, or accounting services. SwingFi does not recommend that
           any specific customer buy, sell, or hold any security or crypto asset.
         </p>
+        <p>
+          The service is designed as impersonal research software. Profile settings such
+          as risk comfort, budget range, confidence preference, and setup style are used
+          to organize research output; they are not a full suitability review or
+          individualized investment recommendation.
+        </p>
       </LegalSection>
 
       <LegalSection title="Data And Availability">
@@ -42,6 +48,20 @@ export default function TermsPage() {
           SwingFi may be unavailable due to maintenance, provider outages, API limits,
           deployment failures, market-data issues, or other circumstances outside our
           control.
+        </p>
+      </LegalSection>
+
+      <LegalSection title="Performance And Marketing Claims">
+        <p>
+          You agree that rankings, alerts, backtests, score bands, win rates, target-hit
+          rates, and AI explanations are estimates for research and education. They are
+          not guarantees, promises, or assurances of profit, market outperformance, or
+          loss avoidance.
+        </p>
+        <p>
+          If SwingFi shows potential gain, potential loss, or historical results, those
+          figures must be read together with the related risks, assumptions, data
+          freshness, and stop-loss context.
         </p>
       </LegalSection>
 

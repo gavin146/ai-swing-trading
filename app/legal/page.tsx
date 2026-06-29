@@ -19,6 +19,13 @@ const legalLinks = [
   },
 ];
 
+const launchRules = [
+  "Use SwingFi as research software, not an order instruction.",
+  "Review risk, entry range, target, stop loss, data freshness, and event risk together.",
+  "Do not trade money you cannot afford to lose.",
+  "Past results, backtests, and AI explanations do not guarantee future returns.",
+];
+
 export default function LegalPage() {
   return (
     <LegalShell eyebrow="Legal center" title="SwingFi Legal">
@@ -28,6 +35,16 @@ export default function LegalPage() {
           broker, investment adviser, trading signal guarantee, or substitute for your own
           risk review.
         </p>
+      </LegalSection>
+
+      <LegalSection title="Customer Safety Rules">
+        <div className="grid gap-2">
+          {launchRules.map((rule) => (
+            <p key={rule} className="rounded-xl border border-line bg-surface px-4 py-3 font-semibold">
+              {rule}
+            </p>
+          ))}
+        </div>
       </LegalSection>
 
       <div className="grid gap-4 sm:grid-cols-3">

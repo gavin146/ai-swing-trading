@@ -16,6 +16,20 @@ export default function DisclaimerPage() {
         </p>
       </LegalSection>
 
+      <LegalSection title="No Individualized Recommendation">
+        <p>
+          SwingFi rankings are generated from market data, model rules, and broad profile
+          preferences. They are not tailored to your full financial situation, net worth,
+          income, tax status, investment objectives, time horizon, liquidity needs, or
+          ability to bear losses.
+        </p>
+        <p>
+          Any ticker shown in SwingFi should be treated as a research candidate. You must
+          decide whether to watch, skip, or research it further. Do not treat a score,
+          alert, email, or opportunity page as a recommendation or instruction to trade.
+        </p>
+      </LegalSection>
+
       <LegalSection title="Trading Risk">
         <p>
           Stocks, ETFs, and cryptocurrencies can lose value quickly. Swing trading can be
@@ -49,6 +63,15 @@ export default function DisclaimerPage() {
           context, or overstate the importance of a signal. Use the explanations as a
           starting point for review, not as a substitute for your own judgment or a
           qualified professional.
+        </p>
+      </LegalSection>
+
+      <LegalSection title="No Performance Guarantee">
+        <p>
+          SwingFi does not guarantee that any ranked opportunity will enter its entry
+          range, hit a target, avoid a stop loss, outperform a benchmark, or generate a
+          profit. Forward tests, backtests, and outcome tracking are tools for measuring
+          model quality, not promises of future results.
         </p>
       </LegalSection>
     </LegalShell>

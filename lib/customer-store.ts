@@ -34,6 +34,7 @@ export type CustomerProfile = {
   emailVerifiedAt?: string | null;
   lastLoginAt: string | null;
   createdAt: string;
+  termsAcceptedAt?: string | null;
   subscriptionPlanKey?: CustomerPlanKey | null;
   subscriptionStatus?: SubscriptionStatus | null;
 };
@@ -187,6 +188,7 @@ function withoutPassword(customer: StoredCustomer): CustomerProfile {
     emailVerifiedAt: customer.emailVerifiedAt ?? null,
     lastLoginAt: customer.lastLoginAt ?? null,
     createdAt: customer.createdAt,
+    termsAcceptedAt: customer.termsAcceptedAt ?? null,
     subscriptionPlanKey: normalizePlanKey(customer.subscriptionPlanKey),
     subscriptionStatus: customer.subscriptionStatus ?? null,
   };
@@ -225,6 +227,7 @@ function normalizeCustomer(customer: StoredCustomer): StoredCustomer {
         : customer.emailVerifiedAt,
     lastLoginAt: customer.lastLoginAt ?? null,
     createdAt: customer.createdAt ?? new Date().toISOString(),
+    termsAcceptedAt: customer.termsAcceptedAt ?? null,
     subscriptionPlanKey: normalizePlanKey(customer.subscriptionPlanKey),
     subscriptionStatus: customer.subscriptionStatus ?? null,
   };
@@ -349,14 +352,24 @@ function applySyncedProfile(
     subscriptionPlanKey?: CustomerPlanKey | null;
     role?: CustomerRole;
     subscriptionStatus?: SubscriptionStatus | null;
+    termsAcceptedAt?: string | null;
   },
 ) {
   const hasRole = updates.role === "admin" || updates.role === "customer";
   const hasEmailVerifiedAt = updates.emailVerifiedAt !== undefined;
   const hasSubscriptionPlanKey = updates.subscriptionPlanKey !== undefined;
   const hasSubscriptionStatus = updates.subscriptionStatus !== undefined;
+  const hasTermsAcceptedAt = updates.termsAcceptedAt !== undefined;
 
-  if (!hasRole && !hasEmailVerifiedAt && !hasSubscriptionPlanKey && !hasSubscriptionStatus) return;
+  if (
+    !hasRole &&
+    !hasEmailVerifiedAt &&
+    !hasSubscriptionPlanKey &&
+    !hasSubscriptionStatus &&
+    !hasTermsAcceptedAt
+  ) {
+    return;
+  }
 
   const customers = readCustomers();
   const nextCustomers = customers.map((customer) =>
@@ -367,6 +380,7 @@ function applySyncedProfile(
           ...(hasEmailVerifiedAt ? { emailVerifiedAt: updates.emailVerifiedAt } : {}),
           ...(hasSubscriptionPlanKey ? { subscriptionPlanKey: normalizePlanKey(updates.subscriptionPlanKey) } : {}),
           ...(hasSubscriptionStatus ? { subscriptionStatus: updates.subscriptionStatus } : {}),
+          ...(hasTermsAcceptedAt ? { termsAcceptedAt: updates.termsAcceptedAt } : {}),
         }
       : customer,
   );
@@ -400,6 +414,7 @@ function syncCustomerProfile(customer: CustomerProfile | null) {
     riskProfile: customer.riskProfile,
     role: customer.role,
     setupPreference: customer.setupPreference,
+    termsAcceptedAt: customer.termsAcceptedAt ?? null,
     subscriptionPlanKey: customer.subscriptionPlanKey ?? null,
     subscriptionStatus: customer.subscriptionStatus ?? null,
     timezone: customer.timezone,
@@ -425,6 +440,7 @@ function syncCustomerProfile(customer: CustomerProfile | null) {
           subscriptionPlanKey?: CustomerPlanKey | null;
           role?: CustomerRole;
           subscriptionStatus?: SubscriptionStatus | null;
+          termsAcceptedAt?: string | null;
         };
       } | null;
 
@@ -436,6 +452,7 @@ function syncCustomerProfile(customer: CustomerProfile | null) {
             ? undefined
             : normalizePlanKey(payload.customer.subscriptionPlanKey),
         subscriptionStatus: payload?.customer?.subscriptionStatus,
+        termsAcceptedAt: payload?.customer?.termsAcceptedAt,
       });
       lastCustomerSyncSignature = signature;
     })
@@ -597,6 +614,7 @@ export function rememberAuthenticatedCustomer(values: {
   role?: CustomerRole;
   setupPreference?: SetupPreference;
   createdAt?: string | null;
+  termsAcceptedAt?: string | null;
   subscriptionStatus?: SubscriptionStatus | null;
   subscriptionPlanKey?: CustomerPlanKey | null;
   timezone?: string | null;
@@ -648,6 +666,7 @@ export function rememberAuthenticatedCustomer(values: {
         : "America/Chicago"),
     lastLoginAt: values.lastLoginAt ?? existing?.lastLoginAt ?? new Date().toISOString(),
     createdAt: existing?.createdAt ?? values.createdAt ?? new Date().toISOString(),
+    termsAcceptedAt: values.termsAcceptedAt ?? existing?.termsAcceptedAt ?? null,
     emailVerifiedAt:
       values.emailVerifiedAt !== undefined
         ? values.emailVerifiedAt

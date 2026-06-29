@@ -73,6 +73,13 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "First and last name are required." }, { status: 400 });
   }
 
+  if (body?.termsAccepted !== true || body?.riskAcknowledged !== true) {
+    return NextResponse.json(
+      { error: "You must accept the SwingFi terms and risk notice before creating an account." },
+      { status: 400 },
+    );
+  }
+
   const riskProfile = riskProfiles.has(body?.riskProfile as RiskProfile)
     ? (body?.riskProfile as RiskProfile)
     : "balanced";
@@ -143,6 +150,7 @@ export async function POST(request: NextRequest) {
         risk_profile: riskProfile,
         role,
         setup_preference: setupPreference,
+        terms_accepted_at: now,
         timezone: cleanText(body?.timezone, "America/Chicago") || "America/Chicago",
       },
       { onConflict: "email" },
@@ -200,6 +208,7 @@ export async function POST(request: NextRequest) {
         setupPreference,
         subscriptionPlanKey: null,
         subscriptionStatus: null,
+        termsAcceptedAt: now,
         timezone: cleanText(body?.timezone, "America/Chicago") || "America/Chicago",
       },
       verificationEmailSent: true,

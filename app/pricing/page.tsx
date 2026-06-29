@@ -198,6 +198,27 @@ export default function PricingPage() {
 
         <section className="mt-8 rounded-3xl border border-line bg-panel p-6 shadow-soft">
           <p className="text-sm font-black uppercase tracking-normal text-pine">
+            What you still control
+          </p>
+          <h2 className="mt-2 text-2xl font-black text-ink">
+            SwingFi organizes research. You decide whether a trade fits.
+          </h2>
+          <div className="mt-5 grid gap-3 md:grid-cols-2">
+            {[
+              "Confirm price is still near the entry range before acting.",
+              "Choose position size based on what you can afford to lose at the stop.",
+              "Check new earnings, filings, news, and market events before placing an order.",
+              "Treat scores, alerts, and backtests as research tools, not guarantees.",
+            ].map((item) => (
+              <p key={item} className="rounded-2xl border border-line bg-surface p-4 text-sm font-bold leading-6 text-ink/66">
+                {item}
+              </p>
+            ))}
+          </div>
+        </section>
+
+        <section className="mt-8 rounded-3xl border border-line bg-panel p-6 shadow-soft">
+          <p className="text-sm font-black uppercase tracking-normal text-pine">
             Why this pricing
           </p>
           <h2 className="mt-2 text-2xl font-black text-ink">
