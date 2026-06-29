@@ -5,6 +5,7 @@ import { ToastNotice, type ToastTone } from "@/components/ToastNotice";
 import { trackAnalyticsEvent } from "@/lib/client-analytics";
 import type { BillingPlanKey } from "@/lib/stripe/config";
 import { getCurrentCustomer } from "@/lib/customer-store";
+import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 
 type BillingCheckoutButtonProps = {
   planKey: BillingPlanKey;
@@ -31,9 +32,16 @@ export function BillingCheckoutButton({
         return;
       }
 
+      const supabase = createSupabaseBrowserClient();
+      const { data } = supabase ? await supabase.auth.getSession() : { data: { session: null } };
+      const token = data.session?.access_token;
+
       const response = await fetch("/api/billing/checkout", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify({
           planKey,
           customerId: customer.id,

@@ -85,6 +85,9 @@ Optional:
 - Customer profile preferences
 - Terms/risk acceptance timestamps
 - Stripe customer IDs for secure billing portal access
+- Session-bound Stripe checkout and billing portal requests, so production
+  billing actions resolve the logged-in Supabase user instead of trusting
+  browser-supplied customer identifiers.
 
 ## Still Required Before Charging Customers
 
