@@ -34,7 +34,7 @@ export default function PrivacyPage() {
         <p>
           We do not sell customer personal information. We may share data with service
           providers that help operate the product, including hosting, database,
-          authentication, email delivery, payment processing when enabled, analytics,
+          authentication, email delivery, payment processing, analytics,
           monitoring, market-data providers, and AI infrastructure.
         </p>
       </LegalSection>
@@ -44,7 +44,7 @@ export default function PrivacyPage() {
           The current production stack may use Vercel for hosting, Supabase for database
           and authentication, Resend for email, OpenAI for AI-assisted explanations,
           Financial Modeling Prep and public government data sources for market inputs,
-          and Stripe for billing when payments are enabled.
+          and Stripe for billing.
         </p>
       </LegalSection>
 

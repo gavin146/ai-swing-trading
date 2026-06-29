@@ -67,11 +67,17 @@ export default function TermsPage() {
         </p>
       </LegalSection>
 
-      <LegalSection title="Payments Later">
+      <LegalSection title="Trials, Subscriptions, And Billing">
         <p>
-          SwingFi is currently open while the product is being validated. If paid plans
-          are enabled later, billing, cancellation, refund, renewal, and subscription
-          terms will be presented before checkout and should be reviewed before purchase.
+          SwingFi may offer free trials, monthly subscriptions, coupons, or launch
+          pricing. Plan limits, trial length, included features, renewal price, and
+          billing timing are shown before checkout. Unless canceled before the trial ends,
+          a trial subscription may renew automatically at the selected plan price.
+        </p>
+        <p>
+          Billing is processed by Stripe. You are responsible for keeping payment details
+          current and canceling before renewal if you do not want continued access. Refunds
+          are not guaranteed and may be reviewed case by case unless required by law.
         </p>
       </LegalSection>
 

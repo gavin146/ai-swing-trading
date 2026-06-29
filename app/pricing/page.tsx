@@ -9,10 +9,16 @@ import {
 } from "@/lib/stripe/config";
 
 const trustSignals = [
-  "Daily ranking workflow",
+  "Daily pre-market workflow",
   "Plain-English trade plans",
   "Entry, target, and stop loss",
-  "Backtest-aware calibration",
+  "Portfolio tracking",
+];
+
+const competitorContext = [
+  ["Heavy scanner tools", "$80-$180+/mo", "Powerful, but often crowded for newer traders."],
+  ["General research sites", "$25-$40+/mo", "Broad research, but not focused on swing-trade plans."],
+  ["SwingFi launch pricing", "$19-$79/mo", "Focused daily rankings, clear risk context, and beginner-friendly plans."],
 ];
 
 const faqs = [
@@ -69,6 +75,10 @@ export default function PricingPage() {
             New accounts unlock stock rankings, opportunity details, saved picks, and
             morning email links for {trialDays} days. After the trial, analysis requires
             an active subscription. Admin accounts always keep full access.
+          </p>
+          <p className="mt-4 max-w-2xl text-sm font-semibold leading-7 text-ink/58">
+            Launch recommendation: start with Pro. It gives enough ranked opportunities
+            to compare setups without turning the dashboard into a crowded scanner.
           </p>
           <div className="mt-6 flex flex-col gap-3 sm:flex-row">
             <Link
@@ -139,8 +149,16 @@ export default function PricingPage() {
                 <p className="mt-2 text-sm leading-6 text-ink/60">{plan.description}</p>
                 <p className="mt-5 text-4xl font-black text-ink">{plan.priceLabel}</p>
                 <p className="mt-1 text-xs font-semibold text-ink/50">
-                  Recommended starting price
+                  Launch price
                 </p>
+                <div className="mt-4 rounded-2xl border border-line bg-surface p-4">
+                  <p className="text-xs font-black uppercase tracking-normal text-ink/45">
+                    Daily access
+                  </p>
+                  <p className="mt-1 text-lg font-black text-pine">
+                    Top {plan.dailyPickLimit} ranked opportunities
+                  </p>
+                </div>
                 <ul className="mt-6 grid gap-3 text-sm leading-6 text-ink/70">
                   {plan.features.map((feature) => (
                     <li key={feature} className="border-t border-line pt-3">
@@ -176,6 +194,29 @@ export default function PricingPage() {
               backtest context, and priority alert features as SwingFi grows.
             </p>
           </div>
+        </section>
+
+        <section className="mt-8 rounded-3xl border border-line bg-panel p-6 shadow-soft">
+          <p className="text-sm font-black uppercase tracking-normal text-pine">
+            Why this pricing
+          </p>
+          <h2 className="mt-2 text-2xl font-black text-ink">
+            Built below pro scanner pricing, focused on daily clarity
+          </h2>
+          <div className="mt-5 grid gap-3 lg:grid-cols-3">
+            {competitorContext.map(([label, price, note]) => (
+              <div key={label} className="rounded-2xl border border-line bg-surface p-4">
+                <p className="text-sm font-black text-ink">{label}</p>
+                <p className="mt-2 text-2xl font-black text-pine">{price}</p>
+                <p className="mt-2 text-sm font-semibold leading-6 text-ink/58">{note}</p>
+              </div>
+            ))}
+          </div>
+          <p className="mt-5 text-sm font-semibold leading-7 text-ink/60">
+            SwingFi is research software, not a broker or investment adviser. Pricing is
+            designed around helping beginner and intermediate traders review ranked ideas
+            more calmly, track their own decisions, and learn from outcomes.
+          </p>
         </section>
 
         <section className="mt-8 grid gap-4 lg:grid-cols-3">

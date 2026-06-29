@@ -10,6 +10,7 @@ export type AccountBudget = "not_set" | "under_1000" | "1000_5000" | "5000_25000
 export type InvestingExperience = "beginner" | "intermediate" | "advanced";
 export type PositionSizePreference = "small" | "moderate" | "aggressive";
 export type SetupPreference = "steady" | "balanced" | "momentum";
+export type CustomerPlanKey = "starter" | "pro" | "premium";
 
 export type CustomerProfile = {
   id: string;
@@ -33,6 +34,7 @@ export type CustomerProfile = {
   emailVerifiedAt?: string | null;
   lastLoginAt: string | null;
   createdAt: string;
+  subscriptionPlanKey?: CustomerPlanKey | null;
   subscriptionStatus?: SubscriptionStatus | null;
 };
 
@@ -64,6 +66,11 @@ const legacyDemoEmail = "avery@example.com";
 const trialLengthDays = 30;
 const sessionLengthDays = 14;
 const activeSubscriptionStatuses = new Set<SubscriptionStatus>(["active", "trialing"]);
+const planPickLimits: Record<CustomerPlanKey, number> = {
+  starter: 10,
+  pro: 30,
+  premium: 90,
+};
 let lastCustomerSyncSignature = "";
 let inFlightCustomerSyncSignature = "";
 let inFlightSessionRestore: Promise<CustomerProfile | null> | null = null;
@@ -72,6 +79,10 @@ export const SWINGFI_ADMIN_EMAIL = "gavin@onefear.co";
 
 function normalizeEmail(email: string) {
   return email.trim().toLowerCase();
+}
+
+function normalizePlanKey(value: unknown): CustomerPlanKey | null {
+  return value === "starter" || value === "pro" || value === "premium" ? value : null;
 }
 
 function readStorageValue(key: string, legacyKey: string) {
@@ -176,6 +187,7 @@ function withoutPassword(customer: StoredCustomer): CustomerProfile {
     emailVerifiedAt: customer.emailVerifiedAt ?? null,
     lastLoginAt: customer.lastLoginAt ?? null,
     createdAt: customer.createdAt,
+    subscriptionPlanKey: normalizePlanKey(customer.subscriptionPlanKey),
     subscriptionStatus: customer.subscriptionStatus ?? null,
   };
 
@@ -213,6 +225,7 @@ function normalizeCustomer(customer: StoredCustomer): StoredCustomer {
         : customer.emailVerifiedAt,
     lastLoginAt: customer.lastLoginAt ?? null,
     createdAt: customer.createdAt ?? new Date().toISOString(),
+    subscriptionPlanKey: normalizePlanKey(customer.subscriptionPlanKey),
     subscriptionStatus: customer.subscriptionStatus ?? null,
   };
 }
@@ -242,6 +255,8 @@ export function getAccessState(customer: CustomerProfile | null | undefined) {
       isEmailVerified: false,
       isTrialActive: false,
       isSubscriptionActive: false,
+      planKey: null as CustomerPlanKey | null,
+      planLabel: "No plan",
       trialDaysRemaining: 0,
       trialEndsAt: null,
     };
@@ -256,6 +271,7 @@ export function getAccessState(customer: CustomerProfile | null | undefined) {
   const isSubscriptionActive = customer.subscriptionStatus
     ? activeSubscriptionStatuses.has(customer.subscriptionStatus)
     : false;
+  const planKey = getCustomerPlanKey(customer);
 
   return {
     canViewAnalysis: isAdmin || (isEmailVerified && (isTrialActive || isSubscriptionActive)),
@@ -263,6 +279,8 @@ export function getAccessState(customer: CustomerProfile | null | undefined) {
     isEmailVerified,
     isTrialActive,
     isSubscriptionActive,
+    planKey,
+    planLabel: getCustomerPlanLabel(customer),
     trialDaysRemaining: Math.max(0, Math.ceil(trialMsRemaining / 86_400_000)),
     trialEndsAt,
   };
@@ -328,15 +346,17 @@ function applySyncedProfile(
   customerId: string,
   updates: {
     emailVerifiedAt?: string | null;
+    subscriptionPlanKey?: CustomerPlanKey | null;
     role?: CustomerRole;
     subscriptionStatus?: SubscriptionStatus | null;
   },
 ) {
   const hasRole = updates.role === "admin" || updates.role === "customer";
   const hasEmailVerifiedAt = updates.emailVerifiedAt !== undefined;
+  const hasSubscriptionPlanKey = updates.subscriptionPlanKey !== undefined;
   const hasSubscriptionStatus = updates.subscriptionStatus !== undefined;
 
-  if (!hasRole && !hasEmailVerifiedAt && !hasSubscriptionStatus) return;
+  if (!hasRole && !hasEmailVerifiedAt && !hasSubscriptionPlanKey && !hasSubscriptionStatus) return;
 
   const customers = readCustomers();
   const nextCustomers = customers.map((customer) =>
@@ -345,6 +365,7 @@ function applySyncedProfile(
           ...customer,
           ...(hasRole ? { role: updates.role } : {}),
           ...(hasEmailVerifiedAt ? { emailVerifiedAt: updates.emailVerifiedAt } : {}),
+          ...(hasSubscriptionPlanKey ? { subscriptionPlanKey: normalizePlanKey(updates.subscriptionPlanKey) } : {}),
           ...(hasSubscriptionStatus ? { subscriptionStatus: updates.subscriptionStatus } : {}),
         }
       : customer,
@@ -379,6 +400,7 @@ function syncCustomerProfile(customer: CustomerProfile | null) {
     riskProfile: customer.riskProfile,
     role: customer.role,
     setupPreference: customer.setupPreference,
+    subscriptionPlanKey: customer.subscriptionPlanKey ?? null,
     subscriptionStatus: customer.subscriptionStatus ?? null,
     timezone: customer.timezone,
   });
@@ -400,6 +422,7 @@ function syncCustomerProfile(customer: CustomerProfile | null) {
       const payload = (await response.json().catch(() => null)) as {
         customer?: {
           emailVerifiedAt?: string | null;
+          subscriptionPlanKey?: CustomerPlanKey | null;
           role?: CustomerRole;
           subscriptionStatus?: SubscriptionStatus | null;
         };
@@ -408,6 +431,10 @@ function syncCustomerProfile(customer: CustomerProfile | null) {
       applySyncedProfile(customer.id, {
         emailVerifiedAt: payload?.customer?.emailVerifiedAt,
         role: payload?.customer?.role,
+        subscriptionPlanKey:
+          payload?.customer?.subscriptionPlanKey === undefined
+            ? undefined
+            : normalizePlanKey(payload.customer.subscriptionPlanKey),
         subscriptionStatus: payload?.customer?.subscriptionStatus,
       });
       lastCustomerSyncSignature = signature;
@@ -571,6 +598,7 @@ export function rememberAuthenticatedCustomer(values: {
   setupPreference?: SetupPreference;
   createdAt?: string | null;
   subscriptionStatus?: SubscriptionStatus | null;
+  subscriptionPlanKey?: CustomerPlanKey | null;
   timezone?: string | null;
 }) {
   const customers = readCustomers();
@@ -625,6 +653,7 @@ export function rememberAuthenticatedCustomer(values: {
         ? values.emailVerifiedAt
         : existing?.emailVerifiedAt ?? null,
     password: values.password ?? existing?.password ?? "",
+    subscriptionPlanKey: normalizePlanKey(values.subscriptionPlanKey ?? existing?.subscriptionPlanKey),
     subscriptionStatus: values.subscriptionStatus ?? existing?.subscriptionStatus ?? null,
   });
   const nextCustomers =
@@ -817,7 +846,46 @@ export function hasFullProductAccess(customer: CustomerProfile | null | undefine
   return getAccessState(customer).canViewAnalysis;
 }
 
+export function getCustomerPlanKey(customer: CustomerProfile | null | undefined): CustomerPlanKey | null {
+  if (!customer) return null;
+  if (isAdminCustomer(customer)) return "premium";
+
+  const explicitPlan = normalizePlanKey(customer.subscriptionPlanKey);
+  const isSubscriptionActive = customer.subscriptionStatus
+    ? activeSubscriptionStatuses.has(customer.subscriptionStatus)
+    : false;
+  if (explicitPlan && isSubscriptionActive) return explicitPlan;
+
+  const access = (() => {
+    const trialEndsAt = getTrialEndsAt(customer);
+    const trialEndDate = dateFromIso(trialEndsAt);
+    const isTrialActive = trialEndDate ? trialEndDate.getTime() > Date.now() : false;
+    return isTrialActive ? "pro" : null;
+  })();
+
+  return access;
+}
+
+export function getCustomerPlanLabel(customer: CustomerProfile | null | undefined) {
+  const planKey = getCustomerPlanKey(customer);
+  if (!customer) return "No plan";
+  if (isAdminCustomer(customer)) return "Admin full access";
+  if (!planKey) return "No active plan";
+  const trialEndsAt = getTrialEndsAt(customer);
+  const trialEndDate = dateFromIso(trialEndsAt);
+  const isTrialActive = trialEndDate ? trialEndDate.getTime() > Date.now() : false;
+  if (!customer.subscriptionPlanKey && isTrialActive) return "Pro trial";
+  if (planKey === "starter") return "Starter";
+  if (planKey === "premium") return "Premium";
+  return "Pro";
+}
+
 export function getCustomerDailyPickLimit(customer: CustomerProfile) {
+  if (isAdminCustomer(customer)) return planPickLimits.premium;
+
+  const planKey = getCustomerPlanKey(customer);
+  if (planKey) return planPickLimits[planKey];
+
   const riskLimit =
     customer.riskProfile === "conservative"
       ? 12

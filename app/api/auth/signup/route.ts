@@ -198,6 +198,7 @@ export async function POST(request: NextRequest) {
         riskProfile,
         role,
         setupPreference,
+        subscriptionPlanKey: null,
         subscriptionStatus: null,
         timezone: cleanText(body?.timezone, "America/Chicago") || "America/Chicago",
       },

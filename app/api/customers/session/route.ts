@@ -62,7 +62,10 @@ async function resolveRole(email: string): Promise<UserRole> {
   return data?.email ? "admin" : "customer";
 }
 
-function toCustomer(row: Record<string, unknown>, subscriptionStatus: SubscriptionStatus | null) {
+function toCustomer(
+  row: Record<string, unknown>,
+  subscription: { plan_key?: string | null; status?: SubscriptionStatus | null } | null,
+) {
   const riskProfile = fallbackRiskProfile(row.risk_profile);
 
   return {
@@ -86,7 +89,8 @@ function toCustomer(row: Record<string, unknown>, subscriptionStatus: Subscripti
     riskProfile,
     role: (row.role ?? "customer") as UserRole,
     setupPreference: (row.setup_preference ?? "balanced") as SetupPreference,
-    subscriptionStatus,
+    subscriptionPlanKey: subscription?.plan_key ?? null,
+    subscriptionStatus: subscription?.status ?? null,
     timezone: cleanText(row.timezone, "America/Chicago") || "America/Chicago",
   };
 }
@@ -274,7 +278,7 @@ export async function POST(request: NextRequest) {
 
   const { data: subscription } = await supabase
     .from("subscriptions")
-    .select("status,updated_at")
+    .select("plan_key,status,updated_at")
     .eq("user_id", cleanText(userRow.id))
     .in("status", ["active", "trialing"])
     .order("updated_at", { ascending: false })
@@ -284,7 +288,7 @@ export async function POST(request: NextRequest) {
   return NextResponse.json({
     customer: toCustomer(
       userRow as Record<string, unknown>,
-      (subscription?.status as SubscriptionStatus | undefined) ?? null,
+      (subscription as { plan_key?: string | null; status?: SubscriptionStatus | null } | null) ?? null,
     ),
   });
 }

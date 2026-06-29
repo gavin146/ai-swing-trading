@@ -48,14 +48,9 @@ export default async function BillingSuccessPage({ searchParams }: BillingSucces
             title={syncResult.persisted ? "Subscription synced" : "Sync pending"}
           >
             {syncResult.persisted
-              ? "Subscription synced successfully."
+              ? "Your trial and plan access are ready."
               : `Subscription sync is pending${pendingDetail ? `: ${pendingDetail}` : "."}`}
           </ToastNotice>
-        ) : null}
-        {params.session_id ? (
-          <p className="mt-4 break-all rounded-md bg-surface px-3 py-2 text-xs font-semibold text-ink/60">
-            Session: {params.session_id}
-          </p>
         ) : null}
         <div className="mt-8 flex flex-col gap-3 sm:flex-row">
           <Link href="/dashboard" className="rounded-lg bg-ink px-4 py-3 text-center text-sm font-black text-white">

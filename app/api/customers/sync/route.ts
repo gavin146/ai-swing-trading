@@ -146,7 +146,7 @@ export async function POST(request: NextRequest) {
 
   const { data: subscription } = await supabase
     .from("subscriptions")
-    .select("status,current_period_end,trial_end,updated_at")
+    .select("plan_key,status,current_period_end,trial_end,updated_at")
     .eq("user_id", data.id)
     .in("status", Array.from(activeSubscriptionStatuses))
     .order("updated_at", { ascending: false })
@@ -160,6 +160,7 @@ export async function POST(request: NextRequest) {
       id: data.id,
       preferredBrokerage: normalizePreferredBrokerage(body?.preferredBrokerage),
       role: data.role,
+      subscriptionPlanKey: subscription?.plan_key ?? null,
       subscriptionStatus: subscription?.status ?? null,
     },
     synced: true,

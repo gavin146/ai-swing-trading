@@ -9,9 +9,11 @@ import { TradeStatGrid } from "@/components/TradeStatGrid";
 import {
   getAccessState,
   getCurrentCustomer,
+  getCustomerPlanLabel,
   restoreAuthenticatedCustomerSession,
   type CustomerProfile,
 } from "@/lib/customer-store";
+import { getPersonalizedDailyPicks } from "@/lib/customer-picks";
 import type { OpportunityRow } from "@/lib/database.types";
 import { opportunityFromRow, type Opportunity } from "@/lib/opportunities";
 import type { OpportunityDataSource } from "@/lib/repositories/opportunities";
@@ -299,6 +301,7 @@ export function OpportunityDetailView({
   const [currentDataSource, setCurrentDataSource] = useState<OpportunityDataSource>(dataSource);
   const [currentFallbackReason, setCurrentFallbackReason] = useState(fallbackReason);
   const [loadingOpportunity, setLoadingOpportunity] = useState(false);
+  const [planLimitExceeded, setPlanLimitExceeded] = useState(false);
   const message = statusMessage(currentDataSource, currentFallbackReason);
 
   useEffect(() => {
@@ -330,6 +333,7 @@ export function OpportunityDetailView({
 
     async function loadOpportunity() {
       setLoadingOpportunity(true);
+      setPlanLimitExceeded(false);
 
       try {
         const response = await fetch(`/api/opportunities/${encodeURIComponent(symbol)}`, {
@@ -350,7 +354,34 @@ export function OpportunityDetailView({
           return;
         }
 
-        setOpportunity(opportunityFromRow(payload.rows[0]));
+        const loadedOpportunity = opportunityFromRow(payload.rows[0]);
+
+        if (customer && !access.isAdmin) {
+          const planResponse = await fetch("/api/opportunities", { cache: "no-store" });
+          const planPayload = (await planResponse.json().catch(() => null)) as {
+            rows?: OpportunityRow[];
+          } | null;
+
+          if (!active) return;
+
+          const dailyPicks = getPersonalizedDailyPicks(
+            customer,
+            (planPayload?.rows ?? []).map(opportunityFromRow),
+          ).dailyPicks;
+          const allowed = dailyPicks.some(
+            (item) => item.symbol.toUpperCase() === loadedOpportunity.symbol.toUpperCase(),
+          );
+
+          if (!allowed) {
+            setOpportunity(loadedOpportunity);
+            setPlanLimitExceeded(true);
+            setCurrentDataSource(payload.source ?? "supabase");
+            setCurrentFallbackReason(payload.reason);
+            return;
+          }
+        }
+
+        setOpportunity(loadedOpportunity);
         setCurrentDataSource(payload.source ?? "supabase");
         setCurrentFallbackReason(payload.reason);
       } catch {
@@ -368,7 +399,7 @@ export function OpportunityDetailView({
     return () => {
       active = false;
     };
-  }, [access.canViewAnalysis, ready, symbol]);
+  }, [access.canViewAnalysis, access.isAdmin, customer, ready, symbol]);
 
   if (!ready) {
     return (
@@ -440,6 +471,60 @@ export function OpportunityDetailView({
             <p className="mt-3 text-sm font-semibold leading-7 text-white/62">
               Unlock the full trade plan, explanation, risk score, target, stop loss,
               and swing-trade time frame.
+            </p>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  if (ready && planLimitExceeded) {
+    const planLabel = getCustomerPlanLabel(customer);
+
+    return (
+      <section className="overflow-hidden rounded-3xl border border-line/80 bg-white shadow-[0_24px_80px_rgba(7,20,24,0.08)]">
+        <div className="grid lg:grid-cols-[1fr_340px]">
+          <div className="p-6 sm:p-8">
+            <Link
+              href="/dashboard"
+              className="inline-flex rounded-xl border border-line bg-surface px-3 py-2 text-sm font-bold text-ink hover:border-pine hover:shadow-soft"
+            >
+              Back to today&apos;s picks
+            </Link>
+            <p className="mt-6 text-xs font-black uppercase tracking-normal text-pine">
+              Plan access
+            </p>
+            <h1 className="mt-3 text-3xl font-black text-ink">
+              This analysis is outside your current daily view
+            </h1>
+            <p className="mt-3 max-w-2xl leading-7 text-ink/65">
+              Your {planLabel.toLowerCase()} shows the ranked opportunities included in
+              your daily plan. Upgrade to review a wider scan, or return to your dashboard
+              to focus on the picks already matched to your risk and confidence settings.
+            </p>
+            <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+              <Link
+                href="/pricing"
+                className="rounded-2xl bg-ink px-5 py-3 text-center text-sm font-black text-white hover:bg-pine"
+              >
+                Compare plans
+              </Link>
+              <Link
+                href="/dashboard"
+                className="rounded-2xl border border-line bg-surface px-5 py-3 text-center text-sm font-bold text-ink hover:border-pine"
+              >
+                Review my picks
+              </Link>
+            </div>
+          </div>
+          <div className="border-t border-line bg-[linear-gradient(145deg,#071418,#0b3d3f)] p-6 text-white lg:border-l lg:border-t-0">
+            <p className="text-xs font-black uppercase tracking-normal text-lime">
+              Current plan
+            </p>
+            <p className="mt-4 text-4xl font-black">{planLabel}</p>
+            <p className="mt-3 text-sm font-semibold leading-7 text-white/62">
+              Plan limits keep the dashboard calmer for beginners while still preserving
+              upgrade paths for users who want a wider scan.
             </p>
           </div>
         </div>

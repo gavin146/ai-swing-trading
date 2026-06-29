@@ -7,6 +7,7 @@ export type BillingPlan = {
   priceLabel: string;
   description: string;
   features: string[];
+  dailyPickLimit: number;
   stripePriceEnv: string;
   highlighted?: boolean;
 };
@@ -17,12 +18,14 @@ export const billingPlans: BillingPlan[] = [
     name: "Starter",
     recommendedPrice: 19,
     priceLabel: "$19/mo",
-    description: "For beginners who want a simple morning watchlist.",
+    description: "For beginners who want a simple, lower-noise morning watchlist.",
+    dailyPickLimit: 10,
     features: [
-      "Daily top 10 opportunities",
+      "Daily top 10 personalized opportunities",
       "Plain-English stock explanations",
       "Email morning brief",
-      "Basic watchlist",
+      "Swing Portfolio trade tracking",
+      "Beginner score guide",
     ],
     stripePriceEnv: "STRIPE_STARTER_PRICE_ID",
   },
@@ -31,13 +34,15 @@ export const billingPlans: BillingPlan[] = [
     name: "Pro",
     recommendedPrice: 39,
     priceLabel: "$39/mo",
-    description: "Best starting paid plan for serious swing-trading research.",
+    description: "Best launch plan for users who want the full daily research workflow.",
+    dailyPickLimit: 30,
     features: [
-      "Daily top 30 opportunities",
+      "Daily top 30 personalized opportunities",
       "Full trade plans with entry, target, and stop",
       "Confidence, risk, and calibration notes",
       "Historical outcome tracking",
-      "Email alerts and analysis links",
+      "Morning email alerts and analysis links",
+      "Portfolio review status for trades you save",
     ],
     stripePriceEnv: "STRIPE_PRO_PRICE_ID",
     highlighted: true,
@@ -47,9 +52,11 @@ export const billingPlans: BillingPlan[] = [
     name: "Premium",
     recommendedPrice: 79,
     priceLabel: "$79/mo",
-    description: "For active users who want deeper tracking and priority features.",
+    description: "For active users who want the widest scan view and early power features.",
+    dailyPickLimit: 90,
     features: [
       "Everything in Pro",
+      "Daily top 90 ranked opportunities",
       "Expanded ranking history",
       "Advanced backtest insights",
       "Priority email alerts",

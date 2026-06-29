@@ -5,6 +5,7 @@ import { FormEvent, useEffect, useState } from "react";
 import {
   getAccessState,
   getCurrentCustomer,
+  getCustomerPlanLabel,
   restoreAuthenticatedCustomerSession,
   updateCurrentCustomer,
   type AccountBudget,
@@ -320,6 +321,7 @@ export function SettingsForm() {
 
   const access = getAccessState(customer);
   const activeChoices = choices ?? getChoicesFromCustomer(customer);
+  const planLabel = getCustomerPlanLabel(customer);
 
   return (
     <form onSubmit={handleSubmit} className="grid gap-5">
@@ -332,15 +334,17 @@ export function SettingsForm() {
             ? "Admin account with full access"
             : !access.isEmailVerified
               ? "Email confirmation required"
-            : access.canViewAnalysis
-              ? `${access.trialDaysRemaining} trial days remaining`
+            : access.isTrialActive
+              ? `${planLabel}: ${access.trialDaysRemaining} days remaining`
+            : access.isSubscriptionActive
+              ? `${planLabel} active`
               : "Trial ended"}
         </h2>
         <p className="mt-2 max-w-2xl text-sm leading-6 text-ink/60">
           {!access.isEmailVerified
             ? "Confirm your email address to unlock stock rankings, opportunity details, saved picks, and morning research links."
             : access.canViewAnalysis
-            ? "Your account can access stock rankings, opportunity details, saved picks, and morning email links."
+            ? `Your ${planLabel.toLowerCase()} can access stock rankings, opportunity details, saved picks, portfolio tracking, and morning email links.`
             : "Stock analysis is locked until a subscription is active. Your profile and settings are still saved."}
         </p>
         {!access.isEmailVerified ? (
