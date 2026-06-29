@@ -138,19 +138,93 @@ async function findOrCreateWebhookEndpoint() {
   };
 }
 
+async function findOrCreatePortalConfiguration(planRecords) {
+  if (!appUrl) return null;
+
+  const configurations = await stripe.billingPortal.configurations.list({ limit: 100 });
+  const existing = configurations.data.find(
+    (configuration) => configuration.metadata?.app === "swingfi" && configuration.active,
+  );
+
+  if (existing) {
+    return {
+      configuration: existing,
+      created: false,
+    };
+  }
+
+  const configuration = await stripe.billingPortal.configurations.create({
+    business_profile: {
+      headline: "Manage your SwingFi billing, invoices, and subscription.",
+      privacy_policy_url: `${appUrl}/legal/privacy`,
+      terms_of_service_url: `${appUrl}/legal/terms`,
+    },
+    default_return_url: `${appUrl}/settings`,
+    features: {
+      customer_update: {
+        allowed_updates: ["email", "name", "phone", "address"],
+        enabled: true,
+      },
+      invoice_history: {
+        enabled: true,
+      },
+      payment_method_update: {
+        enabled: true,
+      },
+      subscription_cancel: {
+        cancellation_reason: {
+          enabled: true,
+          options: ["too_expensive", "missing_features", "unused", "other"],
+        },
+        enabled: true,
+        mode: "at_period_end",
+      },
+      subscription_update: {
+        default_allowed_updates: ["price"],
+        enabled: true,
+        products: planRecords.map((record) => ({
+          product: record.product.id,
+          prices: [record.price.id],
+        })),
+        proration_behavior: "none",
+        trial_update_behavior: "continue_trial",
+      },
+    },
+    login_page: {
+      enabled: false,
+    },
+    metadata: {
+      app: "swingfi",
+    },
+    name: "SwingFi customer billing portal",
+  });
+
+  return {
+    configuration,
+    created: true,
+  };
+}
+
 const envLines = [];
+const planRecords = [];
 
 for (const plan of plans) {
   const product = await findOrCreateProduct(plan);
   const price = await findOrCreatePrice(plan, product.id);
 
+  planRecords.push({ plan, price, product });
   envLines.push(`${plan.env}=${price.id}`);
 }
 
 const webhook = await findOrCreateWebhookEndpoint();
+const portal = await findOrCreatePortalConfiguration(planRecords);
 
 if (webhook?.created && webhook.endpoint.secret) {
   envLines.push(`STRIPE_WEBHOOK_SECRET=${webhook.endpoint.secret}`);
+}
+
+if (portal?.configuration.id) {
+  envLines.push(`STRIPE_PORTAL_CONFIGURATION_ID=${portal.configuration.id}`);
 }
 
 envLines.push("STRIPE_TRIAL_DAYS=30");
@@ -168,5 +242,15 @@ if (webhook && !webhook.created) {
 if (!webhook) {
   console.log(
     "\nWebhook endpoint was not created because NEXT_PUBLIC_APP_URL or APP_URL was not provided.",
+  );
+}
+
+if (portal && !portal.created) {
+  console.log("\nBilling portal configuration already exists and is active.");
+}
+
+if (!portal) {
+  console.log(
+    "\nBilling portal configuration was not created because NEXT_PUBLIC_APP_URL or APP_URL was not provided.",
   );
 }

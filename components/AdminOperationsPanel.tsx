@@ -18,6 +18,7 @@ type StatusPayload = {
   openAiReady: boolean;
   stripeReady: boolean;
   stripeCheckoutEnabled: boolean;
+  stripePortalConfigured: boolean;
   twilioReady: boolean;
   supabaseReady: boolean;
   supabaseAdminReady: boolean;
@@ -59,6 +60,7 @@ const statusLabels: Array<[keyof StatusPayload, string]> = [
   ["openAiReady", "OpenAI"],
   ["stripeReady", "Stripe keys"],
   ["stripeCheckoutEnabled", "Checkout flag"],
+  ["stripePortalConfigured", "Billing portal"],
   ["supabaseReady", "Supabase auth"],
   ["supabaseAdminReady", "Supabase writes"],
   ["livePersistenceReady", "Live database"],
@@ -77,7 +79,8 @@ export function AdminOperationsPanel() {
 
   useEffect(() => {
     setAdminToken(getStoredAdminToken());
-    fetch("/api/admin/status")
+    getAdminHeaders()
+      .then((headers) => fetch("/api/admin/status", { headers }))
       .then((response) => response.json())
       .then((payload: StatusPayload) => setStatus(payload))
       .catch(() => setStatus(null));

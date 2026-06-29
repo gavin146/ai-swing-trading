@@ -83,6 +83,25 @@ for (const envName of priceEnvNames) {
 const webhookUrl = `${appUrl}/api/stripe/webhook`;
 const endpoints = await stripe.webhookEndpoints.list({ limit: 100 });
 const webhook = endpoints.data.find((endpoint) => endpoint.url === webhookUrl);
+const portalConfigurationId = process.env.STRIPE_PORTAL_CONFIGURATION_ID;
+const portalConfiguration = portalConfigurationId
+  ? await stripe.billingPortal.configurations.retrieve(portalConfigurationId)
+  : null;
+const activePortalConfigurations = portalConfiguration
+  ? [portalConfiguration]
+  : (await stripe.billingPortal.configurations.list({ limit: 100 })).data.filter(
+      (configuration) => configuration.active,
+    );
+const portalCandidate = activePortalConfigurations.find((configuration) => {
+  const features = configuration.features;
+
+  return (
+    configuration.active &&
+    features.invoice_history.enabled &&
+    features.payment_method_update.enabled &&
+    features.subscription_cancel.enabled
+  );
+});
 
 const trialDays = Number(process.env.STRIPE_TRIAL_DAYS ?? 30);
 const checkoutEnabled = process.env.STRIPE_CHECKOUT_ENABLED === "true";
@@ -110,6 +129,28 @@ const session = await stripe.checkout.sessions.create({
 
 await stripe.checkout.sessions.expire(session.id);
 
+let portalSession = null;
+let portalError = null;
+const portalCustomer = await stripe.customers.create({
+  email: `portal-readiness-${Date.now()}@example.com`,
+  metadata: {
+    app: "swingfi",
+    purpose: "portal-readiness-check",
+  },
+});
+
+try {
+  portalSession = await stripe.billingPortal.sessions.create({
+    ...(portalConfigurationId ? { configuration: portalConfigurationId } : {}),
+    customer: portalCustomer.id,
+    return_url: `${appUrl}/settings`,
+  });
+} catch (error) {
+  portalError = error instanceof Error ? error.message : String(error);
+} finally {
+  await stripe.customers.del(portalCustomer.id).catch(() => null);
+}
+
 console.log(
   JSON.stringify(
     {
@@ -121,6 +162,19 @@ console.log(
         createdAndExpired: true,
         mode: session.mode,
         status: "expired",
+      },
+      readinessPortal: {
+        configurationId: portalConfigurationId ?? portalCandidate?.id ?? null,
+        createdSession: Boolean(portalSession?.url),
+        error: portalError,
+        features: portalCandidate
+          ? {
+              invoiceHistory: portalCandidate.features.invoice_history.enabled,
+              paymentMethodUpdate: portalCandidate.features.payment_method_update.enabled,
+              subscriptionCancel: portalCandidate.features.subscription_cancel.enabled,
+              subscriptionUpdate: portalCandidate.features.subscription_update.enabled,
+            }
+          : null,
       },
       webhook: webhook
         ? {
@@ -139,6 +193,12 @@ if (mode !== "live") {
   process.exitCode = 2;
 }
 
-if (!checkoutEnabled || !webhook || webhook.status !== "enabled") {
+if (
+  !checkoutEnabled ||
+  !webhook ||
+  webhook.status !== "enabled" ||
+  !portalCandidate ||
+  !portalSession?.url
+) {
   process.exitCode = 1;
 }

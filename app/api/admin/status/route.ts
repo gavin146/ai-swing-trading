@@ -1,11 +1,17 @@
 import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
+import { getAdminUnauthorizedResponse, isAdminApiRequest } from "@/lib/auth/admin";
 import { getEmailDeliveryStatus } from "@/lib/email";
 import { hasSupabaseAdminConfig, hasSupabasePublicConfig } from "@/lib/supabase/server";
 import { isStripeCheckoutConfigured, isStripeCheckoutEnabled } from "@/lib/stripe/config";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  if (!(await isAdminApiRequest(request))) {
+    return NextResponse.json(getAdminUnauthorizedResponse(), { status: 403 });
+  }
+
   const email = getEmailDeliveryStatus();
 
   return NextResponse.json({
@@ -23,6 +29,7 @@ export async function GET() {
     openAiReady: Boolean(process.env.OPENAI_API_KEY),
     stripeReady: isStripeCheckoutConfigured(),
     stripeCheckoutEnabled: isStripeCheckoutEnabled(),
+    stripePortalConfigured: Boolean(process.env.STRIPE_PORTAL_CONFIGURATION_ID),
     twilioReady: Boolean(
       process.env.TWILIO_ACCOUNT_SID &&
         process.env.TWILIO_AUTH_TOKEN &&

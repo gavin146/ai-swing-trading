@@ -32,6 +32,7 @@ customer profiles.
 - `STRIPE_SECRET_KEY`
 - `STRIPE_WEBHOOK_SECRET`
 - `STRIPE_PRO_PRICE_ID`
+- `STRIPE_PORTAL_CONFIGURATION_ID`
 - `STRIPE_CHECKOUT_ENABLED=false`
 
 Optional:
@@ -66,7 +67,8 @@ Optional:
 3. Confirm `vercel.json` is included in the deployment.
 4. Deploy from the production branch.
 5. In Vercel, confirm both Cron Jobs are listed under Project Settings.
-6. Test `/api/admin/status` on the deployed URL.
+6. Test `/api/admin/status` on the deployed URL with an approved admin session
+   or `ADMIN_API_SECRET` bearer token.
 7. Trigger `/api/cron/daily-rankings` manually with the `CRON_SECRET` bearer token.
 
 ## What Is Now Persisted When Supabase Is Configured
@@ -103,6 +105,8 @@ Optional:
   updated, deleted, and checkout completed events.
 - Configure the Stripe Customer Portal in live mode so customers can manage
   payment methods, invoices, cancellations, and renewals from Settings.
+- Run `node scripts/verify-stripe-readiness.mjs` with live Stripe env vars and
+  confirm checkout, webhook, and billing portal checks pass.
 - Have privacy, terms, and financial disclaimer reviewed by securities counsel
   before broad paid launch.
 - Decide whether the product must register, qualify for an exemption, or change

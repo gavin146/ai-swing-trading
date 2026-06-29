@@ -28,6 +28,7 @@ type StatusPayload = {
   openAiReady: boolean;
   stripeReady: boolean;
   stripeCheckoutEnabled: boolean;
+  stripePortalConfigured: boolean;
   twilioReady: boolean;
   supabaseReady: boolean;
   supabaseAdminReady: boolean;
@@ -190,7 +191,7 @@ export function AdminCommandCenter({ onNavigate }: AdminCommandCenterProps) {
       try {
         const adminHeaders = await getAdminHeaders();
         const [statusResponse, customerResponse, opportunityResponse, activityResponse] = await Promise.all([
-          fetch("/api/admin/status"),
+          fetch("/api/admin/status", { headers: adminHeaders }),
           fetch("/api/admin/customers", { headers: adminHeaders }),
           fetch("/api/opportunities", { headers: adminHeaders }),
           fetch("/api/admin/activity", { headers: adminHeaders }),

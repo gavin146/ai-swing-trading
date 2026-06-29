@@ -100,7 +100,9 @@ export function AdminCommunicationsPanel() {
 
     async function loadEmailStatus() {
       try {
-        const response = await fetch("/api/admin/status");
+        const response = await fetch("/api/admin/status", {
+          headers: await getAdminHeaders(),
+        });
         const payload = (await response.json()) as {
           emailFrom?: string;
           emailProvider?: string;
