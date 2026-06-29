@@ -6,6 +6,7 @@ const appRoot = dirname(fileURLToPath(import.meta.url));
 
 const nextConfig: NextConfig = {
   outputFileTracingRoot: appRoot,
+  poweredByHeader: false,
   async headers() {
     return [
       {
