@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   getAccessState,
   getCurrentCustomer,
@@ -80,6 +80,13 @@ type PerformancePayload = {
   summary?: PerformanceSummary;
 };
 
+type HistoryGate = {
+  actionHref?: string;
+  actionLabel?: string;
+  message: string;
+  title: string;
+};
+
 function currency(value: number) {
   return `$${Number(value).toLocaleString(undefined, {
     maximumFractionDigits: Number(value) >= 1000 ? 0 : 2,
@@ -142,22 +149,50 @@ function opportunityFor(item: PickHistoryItem) {
 
 export function PickHistoryPanel() {
   const [customer, setCustomer] = useState<CustomerProfile | null>(null);
+  const [gate, setGate] = useState<HistoryGate | null>(null);
   const [performance, setPerformance] = useState<PerformancePayload | null>(null);
+  const [performanceWarning, setPerformanceWarning] = useState("");
   const [picks, setPicks] = useState<PickHistoryItem[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [status, setStatus] = useState("Loading saved picks...");
 
-  useEffect(() => {
-    async function load() {
+  const loadHistory = useCallback(async () => {
+    setIsLoading(true);
+    setGate(null);
+    setPerformanceWarning("");
+    setStatus("Loading saved picks...");
+
+    try {
       const current = (await restoreAuthenticatedCustomerSession().catch(() => null)) ?? getCurrentCustomer();
       setCustomer(current);
 
       if (!current) {
+        setPicks([]);
+        setPerformance(null);
         setStatus("Create an account or log in to see your saved daily picks.");
+        setGate({
+          actionHref: "/login",
+          actionLabel: "Log in",
+          message:
+            "History is tied to your SwingFi account so saved picks, outcomes, and portfolio notes stay private.",
+          title: "Log in to view saved history",
+        });
+        setIsLoading(false);
         return;
       }
 
       if (!getAccessState(current).canViewAnalysis) {
+        setPicks([]);
+        setPerformance(null);
         setStatus("Your free trial has ended. Subscribe to unlock saved stock analysis history.");
+        setGate({
+          actionHref: "/pricing",
+          actionLabel: "Compare plans",
+          message:
+            "Start or renew access to keep saved daily picks, outcome tracking, and benchmark context available.",
+          title: "Analysis access is paused",
+        });
+        setIsLoading(false);
         return;
       }
 
@@ -166,44 +201,70 @@ export function PickHistoryPanel() {
       const token = data.session?.access_token;
       const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
       const params = new URLSearchParams({ limit: "90" });
-      Promise.all([
+
+      const [dailyPicksResult, performanceResult] = await Promise.allSettled([
         fetch(`/api/daily-picks?${params.toString()}`, { headers }),
         fetch(`/api/performance?${params.toString()}`, { headers }),
-      ])
-        .then(async (response) => {
-          const [dailyPicksResponse, performanceResponse] = response;
-          const payload = (await dailyPicksResponse.json()) as {
-            error?: string;
-            picks?: PickHistoryItem[];
-          };
-          const performancePayload = (await performanceResponse.json().catch(() => null)) as
-            | (PerformancePayload & { error?: string })
-            | null;
+      ]);
 
-          if (!dailyPicksResponse.ok || payload.error) {
-            throw new Error(payload.error ?? "Could not load saved picks.");
-          }
+      if (dailyPicksResult.status === "rejected") {
+        throw new Error("Could not load saved picks. Try refreshing this page.");
+      }
 
-          setPicks(payload.picks ?? []);
-          if (performanceResponse.ok && performancePayload && !performancePayload.error) {
-            setPerformance(performancePayload);
-          } else {
-            setPerformance(null);
-          }
-          setStatus(
-            payload.picks?.length
-              ? "Showing personalized picks saved from morning agent runs."
-              : "No saved daily picks are available yet.",
+      const payload = (await dailyPicksResult.value.json().catch(() => ({}))) as {
+        error?: string;
+        picks?: PickHistoryItem[];
+      };
+
+      if (!dailyPicksResult.value.ok || payload.error) {
+        throw new Error(payload.error ?? "Could not load saved picks.");
+      }
+
+      setPicks(payload.picks ?? []);
+      setStatus(
+        payload.picks?.length
+          ? "Showing personalized picks saved from morning agent runs."
+          : "No saved daily picks are available yet.",
+      );
+
+      if (performanceResult.status === "fulfilled") {
+        const performancePayload = (await performanceResult.value.json().catch(() => null)) as
+          | (PerformancePayload & { error?: string })
+          | null;
+
+        if (performanceResult.value.ok && performancePayload && !performancePayload.error) {
+          setPerformance(performancePayload);
+        } else {
+          setPerformance(null);
+          setPerformanceWarning(
+            performancePayload?.error ??
+              "Outcome tracking could not be loaded, but saved picks are still available.",
           );
-        })
-        .catch((error) => {
-          setPicks([]);
-          setStatus(error instanceof Error ? error.message : "Could not load saved picks.");
-        });
+        }
+      } else {
+        setPerformance(null);
+        setPerformanceWarning("Outcome tracking could not be loaded, but saved picks are still available.");
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Could not load saved picks.";
+      setPicks([]);
+      setPerformance(null);
+      setStatus(message);
+      setGate({
+        actionHref: message.toLowerCase().includes("login session") ? "/login" : undefined,
+        actionLabel: message.toLowerCase().includes("login session") ? "Log in again" : undefined,
+        message:
+          "SwingFi could not verify the saved-picks connection for this session. Refresh the page, or log in again if your session expired.",
+        title: "Saved history could not load",
+      });
+    } finally {
+      setIsLoading(false);
     }
-
-    load();
   }, []);
+
+  useEffect(() => {
+    void loadHistory();
+  }, [loadHistory]);
 
   const performanceSummary = performance?.summary;
   const recentOutcomes = performance?.outcomes?.filter((item) => item.tracked).slice(0, 8) ?? [];
@@ -236,14 +297,63 @@ export function PickHistoryPanel() {
             </h2>
             <p className="mt-2 text-sm font-medium leading-6 text-ink/60">{status}</p>
           </div>
-          <Link
-            href="/dashboard"
-            className="rounded-2xl border border-line bg-surface px-4 py-3 text-center text-sm font-bold text-ink hover:border-pine"
-          >
-            Today&apos;s dashboard
-          </Link>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <button
+              type="button"
+              onClick={() => void loadHistory()}
+              disabled={isLoading}
+              className="rounded-2xl border border-line bg-white px-4 py-3 text-center text-sm font-black text-ink hover:border-pine disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {isLoading ? "Refreshing..." : "Refresh history"}
+            </button>
+            <Link
+              href="/dashboard"
+              className="rounded-2xl border border-line bg-surface px-4 py-3 text-center text-sm font-bold text-ink hover:border-pine"
+            >
+              Today&apos;s dashboard
+            </Link>
+          </div>
         </div>
       </div>
+
+      {performanceWarning ? (
+        <div className="rounded-3xl border border-amber/30 bg-amber/[0.14] p-4 text-sm font-bold leading-6 text-ink/68">
+          {performanceWarning}
+        </div>
+      ) : null}
+
+      {gate ? (
+        <div className="rounded-3xl border border-line bg-white p-6 shadow-soft">
+          <p className="text-xs font-black uppercase tracking-normal text-pine">
+            Account check
+          </p>
+          <h3 className="mt-2 text-2xl font-black text-ink">{gate.title}</h3>
+          <p className="mt-3 max-w-2xl text-sm font-semibold leading-6 text-ink/60">
+            {gate.message}
+          </p>
+          <div className="mt-5 flex flex-col gap-2 sm:flex-row">
+            <button
+              type="button"
+              onClick={() => void loadHistory()}
+              disabled={isLoading}
+              className="rounded-2xl border border-line bg-surface px-4 py-3 text-center text-sm font-black text-ink hover:border-pine disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {isLoading ? "Refreshing..." : "Try again"}
+            </button>
+            {gate.actionHref && gate.actionLabel ? (
+              <Link
+                href={gate.actionHref}
+                className="rounded-2xl bg-ink px-4 py-3 text-center text-sm font-black text-white hover:bg-pine"
+              >
+                {gate.actionLabel}
+              </Link>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
+
+      {gate ? null : (
+        <>
 
       <section className="overflow-hidden rounded-3xl border border-line/80 bg-white shadow-[0_20px_70px_rgba(7,20,24,0.07)]">
         <div className="grid gap-0 xl:grid-cols-[340px_1fr]">
@@ -526,6 +636,8 @@ export function PickHistoryPanel() {
             The next successful morning agent run will save personalized picks here.
           </p>
         </div>
+      )}
+        </>
       )}
     </section>
   );
