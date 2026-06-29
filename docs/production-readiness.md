@@ -84,6 +84,7 @@ Optional:
 - Stripe subscription records
 - Customer profile preferences
 - Terms/risk acceptance timestamps
+- Stripe customer IDs for secure billing portal access
 
 ## Still Required Before Charging Customers
 
@@ -91,6 +92,8 @@ Optional:
 - Confirm Stripe live-mode products/prices for Starter, Pro, and Premium.
 - Confirm the Stripe live webhook endpoint receives subscription created,
   updated, deleted, and checkout completed events.
+- Configure the Stripe Customer Portal in live mode so customers can manage
+  payment methods, invoices, cancellations, and renewals from Settings.
 - Have privacy, terms, and financial disclaimer reviewed by securities counsel
   before broad paid launch.
 - Decide whether the product must register, qualify for an exemption, or change

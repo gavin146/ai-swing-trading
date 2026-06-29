@@ -35,6 +35,7 @@ export type CustomerProfile = {
   lastLoginAt: string | null;
   createdAt: string;
   termsAcceptedAt?: string | null;
+  stripeCustomerId?: string | null;
   subscriptionPlanKey?: CustomerPlanKey | null;
   subscriptionStatus?: SubscriptionStatus | null;
 };
@@ -189,6 +190,7 @@ function withoutPassword(customer: StoredCustomer): CustomerProfile {
     lastLoginAt: customer.lastLoginAt ?? null,
     createdAt: customer.createdAt,
     termsAcceptedAt: customer.termsAcceptedAt ?? null,
+    stripeCustomerId: customer.stripeCustomerId ?? null,
     subscriptionPlanKey: normalizePlanKey(customer.subscriptionPlanKey),
     subscriptionStatus: customer.subscriptionStatus ?? null,
   };
@@ -228,6 +230,7 @@ function normalizeCustomer(customer: StoredCustomer): StoredCustomer {
     lastLoginAt: customer.lastLoginAt ?? null,
     createdAt: customer.createdAt ?? new Date().toISOString(),
     termsAcceptedAt: customer.termsAcceptedAt ?? null,
+    stripeCustomerId: customer.stripeCustomerId ?? null,
     subscriptionPlanKey: normalizePlanKey(customer.subscriptionPlanKey),
     subscriptionStatus: customer.subscriptionStatus ?? null,
   };
@@ -351,12 +354,14 @@ function applySyncedProfile(
     emailVerifiedAt?: string | null;
     subscriptionPlanKey?: CustomerPlanKey | null;
     role?: CustomerRole;
+    stripeCustomerId?: string | null;
     subscriptionStatus?: SubscriptionStatus | null;
     termsAcceptedAt?: string | null;
   },
 ) {
   const hasRole = updates.role === "admin" || updates.role === "customer";
   const hasEmailVerifiedAt = updates.emailVerifiedAt !== undefined;
+  const hasStripeCustomerId = updates.stripeCustomerId !== undefined;
   const hasSubscriptionPlanKey = updates.subscriptionPlanKey !== undefined;
   const hasSubscriptionStatus = updates.subscriptionStatus !== undefined;
   const hasTermsAcceptedAt = updates.termsAcceptedAt !== undefined;
@@ -364,6 +369,7 @@ function applySyncedProfile(
   if (
     !hasRole &&
     !hasEmailVerifiedAt &&
+    !hasStripeCustomerId &&
     !hasSubscriptionPlanKey &&
     !hasSubscriptionStatus &&
     !hasTermsAcceptedAt
@@ -378,6 +384,7 @@ function applySyncedProfile(
           ...customer,
           ...(hasRole ? { role: updates.role } : {}),
           ...(hasEmailVerifiedAt ? { emailVerifiedAt: updates.emailVerifiedAt } : {}),
+          ...(hasStripeCustomerId ? { stripeCustomerId: updates.stripeCustomerId } : {}),
           ...(hasSubscriptionPlanKey ? { subscriptionPlanKey: normalizePlanKey(updates.subscriptionPlanKey) } : {}),
           ...(hasSubscriptionStatus ? { subscriptionStatus: updates.subscriptionStatus } : {}),
           ...(hasTermsAcceptedAt ? { termsAcceptedAt: updates.termsAcceptedAt } : {}),
@@ -413,6 +420,7 @@ function syncCustomerProfile(customer: CustomerProfile | null) {
     positionSizePreference: customer.positionSizePreference,
     riskProfile: customer.riskProfile,
     role: customer.role,
+    stripeCustomerId: customer.stripeCustomerId ?? null,
     setupPreference: customer.setupPreference,
     termsAcceptedAt: customer.termsAcceptedAt ?? null,
     subscriptionPlanKey: customer.subscriptionPlanKey ?? null,
@@ -441,6 +449,7 @@ function syncCustomerProfile(customer: CustomerProfile | null) {
           role?: CustomerRole;
           subscriptionStatus?: SubscriptionStatus | null;
           termsAcceptedAt?: string | null;
+          stripeCustomerId?: string | null;
         };
       } | null;
 
@@ -453,6 +462,7 @@ function syncCustomerProfile(customer: CustomerProfile | null) {
             : normalizePlanKey(payload.customer.subscriptionPlanKey),
         subscriptionStatus: payload?.customer?.subscriptionStatus,
         termsAcceptedAt: payload?.customer?.termsAcceptedAt,
+        stripeCustomerId: payload?.customer?.stripeCustomerId,
       });
       lastCustomerSyncSignature = signature;
     })
@@ -615,6 +625,7 @@ export function rememberAuthenticatedCustomer(values: {
   setupPreference?: SetupPreference;
   createdAt?: string | null;
   termsAcceptedAt?: string | null;
+  stripeCustomerId?: string | null;
   subscriptionStatus?: SubscriptionStatus | null;
   subscriptionPlanKey?: CustomerPlanKey | null;
   timezone?: string | null;
@@ -667,6 +678,7 @@ export function rememberAuthenticatedCustomer(values: {
     lastLoginAt: values.lastLoginAt ?? existing?.lastLoginAt ?? new Date().toISOString(),
     createdAt: existing?.createdAt ?? values.createdAt ?? new Date().toISOString(),
     termsAcceptedAt: values.termsAcceptedAt ?? existing?.termsAcceptedAt ?? null,
+    stripeCustomerId: values.stripeCustomerId ?? existing?.stripeCustomerId ?? null,
     emailVerifiedAt:
       values.emailVerifiedAt !== undefined
         ? values.emailVerifiedAt

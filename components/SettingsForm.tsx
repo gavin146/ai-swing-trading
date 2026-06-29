@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
+import { BillingPortalButton } from "@/components/BillingPortalButton";
 import {
   getAccessState,
   getCurrentCustomer,
@@ -355,6 +356,46 @@ export function SettingsForm() {
             Confirm or resend email
           </Link>
         ) : null}
+      </section>
+      <section className="rounded-3xl border border-line/80 bg-white p-6 shadow-[0_20px_70px_rgba(7,20,24,0.07)]">
+        <p className="text-sm font-bold uppercase tracking-normal text-pine">
+          Billing
+        </p>
+        <h2 className="mt-3 text-2xl font-black text-ink">
+          {access.isAdmin
+            ? "Admin accounts have full access"
+            : access.isSubscriptionActive
+              ? `${planLabel} subscription`
+              : access.isTrialActive
+                ? "Free trial access"
+                : "Choose a plan to unlock analysis"}
+        </h2>
+        <p className="mt-2 max-w-3xl text-sm font-semibold leading-6 text-ink/60">
+          {access.isAdmin
+            ? "Admins bypass subscription limits for operations, QA, and customer support."
+            : access.isSubscriptionActive
+              ? "Manage payment method, invoices, cancellation, and renewal details through Stripe's secure customer portal."
+              : access.isTrialActive
+                ? "Your free trial is active. You can compare plans anytime before paid billing begins."
+                : "Your profile is saved, but stock analysis requires an active plan after the free trial."}
+        </p>
+        <div className="mt-5 flex flex-col gap-3 sm:flex-row">
+          {access.isSubscriptionActive ? (
+            <BillingPortalButton stripeCustomerId={customer.stripeCustomerId} />
+          ) : null}
+          {!access.isAdmin ? (
+            <Link
+              href="/pricing"
+              className="rounded-2xl bg-ink px-4 py-3 text-center text-sm font-black text-white transition hover:bg-pine"
+            >
+              Compare plans
+            </Link>
+          ) : null}
+        </div>
+        <p className="mt-4 rounded-2xl border border-line bg-surface px-4 py-3 text-xs font-semibold leading-5 text-ink/56">
+          Subscription checkout and billing are handled by Stripe. SwingFi never stores
+          card numbers.
+        </p>
       </section>
       <section className="rounded-3xl border border-line/80 bg-white p-6 shadow-[0_20px_70px_rgba(7,20,24,0.07)]">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">

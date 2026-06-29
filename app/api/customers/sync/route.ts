@@ -124,7 +124,7 @@ export async function POST(request: NextRequest) {
   let { data, error } = await supabase
     .from("users")
     .upsert(payload, { onConflict: "email" })
-    .select("id,email,role,email_verified_at,terms_accepted_at")
+    .select("id,email,role,email_verified_at,terms_accepted_at,stripe_customer_id")
     .single();
 
   if (isMissingPreferredBrokerageColumn(error)) {
@@ -133,7 +133,7 @@ export async function POST(request: NextRequest) {
     const retry = await supabase
       .from("users")
       .upsert(legacyPayload, { onConflict: "email" })
-      .select("id,email,role,email_verified_at,terms_accepted_at")
+      .select("id,email,role,email_verified_at,terms_accepted_at,stripe_customer_id")
       .single();
 
     data = retry.data;
@@ -164,6 +164,7 @@ export async function POST(request: NextRequest) {
       id: data.id,
       preferredBrokerage: normalizePreferredBrokerage(body?.preferredBrokerage),
       role: data.role,
+      stripeCustomerId: data.stripe_customer_id ?? null,
       subscriptionPlanKey: subscription?.plan_key ?? null,
       subscriptionStatus: subscription?.status ?? null,
       termsAcceptedAt: data.terms_accepted_at ?? null,

@@ -17,7 +17,7 @@ export const runtime = "nodejs";
 
 const ownerAdminEmail = "gavin@onefear.co";
 const userSelectBase =
-  "id,email,full_name,role,auth_user_id,phone,risk_profile,account_budget,investing_experience,position_size_preference,setup_preference,minimum_confidence,max_risk_score,morning_alerts_enabled,alert_channel,alert_time,timezone,email_verified_at,terms_accepted_at,last_login_at,created_at";
+  "id,email,full_name,role,auth_user_id,stripe_customer_id,phone,risk_profile,account_budget,investing_experience,position_size_preference,setup_preference,minimum_confidence,max_risk_score,morning_alerts_enabled,alert_channel,alert_time,timezone,email_verified_at,terms_accepted_at,last_login_at,created_at";
 const userSelectWithBrokerage = `${userSelectBase},preferred_brokerage`;
 
 function isMissingPreferredBrokerageColumn(error: { message?: string } | null | undefined) {
@@ -89,6 +89,7 @@ function toCustomer(
     riskProfile,
     role: (row.role ?? "customer") as UserRole,
     setupPreference: (row.setup_preference ?? "balanced") as SetupPreference,
+    stripeCustomerId: cleanText(row.stripe_customer_id) || null,
     subscriptionPlanKey: subscription?.plan_key ?? null,
     subscriptionStatus: subscription?.status ?? null,
     termsAcceptedAt: row.terms_accepted_at ? cleanText(row.terms_accepted_at) : null,

@@ -206,6 +206,7 @@ export async function POST(request: NextRequest) {
         riskProfile,
         role,
         setupPreference,
+        stripeCustomerId: null,
         subscriptionPlanKey: null,
         subscriptionStatus: null,
         termsAcceptedAt: now,
