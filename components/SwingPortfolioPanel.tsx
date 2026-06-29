@@ -230,6 +230,32 @@ export function SwingPortfolioPanel({ initialTrade }: { initialTrade?: InitialTr
 
     return { invested, needsReview, openReturn };
   }, [openTrades]);
+  const draftPlanMath = useMemo(() => {
+    const entryPrice = toNumber(form.entryPrice);
+    const targetPrice = toNumber(form.targetPrice);
+    const stopLoss = toNumber(form.stopLoss);
+    const quantity = toNumber(form.quantity) ?? 1;
+
+    if (!entryPrice || !targetPrice || !stopLoss) {
+      return null;
+    }
+
+    const plannedUpside = ((targetPrice - entryPrice) / entryPrice) * 100;
+    const plannedDownside = ((entryPrice - stopLoss) / entryPrice) * 100;
+    const dollarsAtTarget = (targetPrice - entryPrice) * quantity;
+    const dollarsAtStop = (entryPrice - stopLoss) * quantity;
+    const rewardRisk = dollarsAtStop > 0 ? dollarsAtTarget / dollarsAtStop : null;
+    const isValidLongPlan = plannedUpside > 0 && plannedDownside > 0;
+
+    return {
+      dollarsAtStop,
+      dollarsAtTarget,
+      isValidLongPlan,
+      plannedDownside,
+      plannedUpside,
+      rewardRisk,
+    };
+  }, [form.entryPrice, form.quantity, form.stopLoss, form.targetPrice]);
 
   async function loadPortfolio() {
     setLoading(true);
@@ -563,6 +589,54 @@ export function SwingPortfolioPanel({ initialTrade }: { initialTrade?: InitialTr
                 />
               </label>
             </div>
+
+            {draftPlanMath ? (
+              <div
+                className={`rounded-3xl border p-4 ${
+                  draftPlanMath.isValidLongPlan
+                    ? "border-pine/20 bg-mint"
+                    : "border-coral/25 bg-coral/10"
+                }`}
+              >
+                <p
+                  className={`text-xs font-black uppercase tracking-normal ${
+                    draftPlanMath.isValidLongPlan ? "text-pine" : "text-coral"
+                  }`}
+                >
+                  Plan preview
+                </p>
+                <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                  <MiniStat
+                    label="Upside"
+                    value={`${draftPlanMath.plannedUpside >= 0 ? "+" : ""}${draftPlanMath.plannedUpside.toFixed(1)}%`}
+                    tone={draftPlanMath.plannedUpside > 0 ? "text-pine" : "text-coral"}
+                  />
+                  <MiniStat
+                    label="Downside"
+                    value={`-${Math.abs(draftPlanMath.plannedDownside).toFixed(1)}%`}
+                    tone={draftPlanMath.plannedDownside > 0 ? "text-coral" : "text-ink"}
+                  />
+                  <MiniStat
+                    label="Reward/risk"
+                    value={
+                      draftPlanMath.rewardRisk && Number.isFinite(draftPlanMath.rewardRisk)
+                        ? `${draftPlanMath.rewardRisk.toFixed(1)}R`
+                        : "Check plan"
+                    }
+                    tone={
+                      draftPlanMath.rewardRisk && draftPlanMath.rewardRisk >= 2
+                        ? "text-pine"
+                        : "text-ink"
+                    }
+                  />
+                </div>
+                <p className="mt-3 text-xs font-semibold leading-5 text-ink/60">
+                  {draftPlanMath.isValidLongPlan
+                    ? `At your entered size, this plan risks about ${formatCurrency(draftPlanMath.dollarsAtStop)} to pursue about ${formatCurrency(draftPlanMath.dollarsAtTarget)}.`
+                    : "For a long swing trade, the target should be above entry and the stop should be below entry."}
+                </p>
+              </div>
+            ) : null}
 
             <div className="grid gap-3 sm:grid-cols-2">
               <label className="grid gap-2">

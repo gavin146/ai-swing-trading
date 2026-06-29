@@ -181,6 +181,20 @@ export async function POST(request: Request) {
     );
   }
 
+  if (targetPrice <= entryPrice) {
+    return NextResponse.json(
+      { error: "For long trades, the target price must be above the entry price." },
+      { status: 400 },
+    );
+  }
+
+  if (stopLoss >= entryPrice) {
+    return NextResponse.json(
+      { error: "For long trades, the stop loss must be below the entry price." },
+      { status: 400 },
+    );
+  }
+
   const { data, error } = await supabase
     .from("trade_history")
     .insert({

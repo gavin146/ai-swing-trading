@@ -166,6 +166,16 @@ function getChoicesFromCustomer(customer: CustomerProfile): SettingsChoices {
   };
 }
 
+function parseScorePreference(value: FormDataEntryValue | null, label: string) {
+  const parsed = Number(value);
+
+  if (!Number.isFinite(parsed) || parsed < 0 || parsed > 100) {
+    throw new Error(`${label} must be a number from 0 to 100.`);
+  }
+
+  return Math.round(parsed);
+}
+
 function ChoiceCards<T extends string>({
   name,
   onChange,
@@ -247,7 +257,17 @@ export function SettingsForm() {
 
     try {
       const nextAlertChannel = String(formData.get("alertChannel") ?? "email") as AlertChannel;
+      const nextEmail = String(formData.get("email") ?? "").trim().toLowerCase();
       const nextPhone = String(formData.get("phone") ?? "").trim();
+      const nextMinimumConfidence = parseScorePreference(
+        formData.get("minimumConfidence"),
+        "Minimum confidence",
+      );
+      const nextMaxRiskScore = parseScorePreference(formData.get("maxRiskScore"), "Max risk score");
+
+      if (!nextEmail.includes("@")) {
+        throw new Error("Enter a valid email address before saving settings.");
+      }
 
       if (nextAlertChannel === "sms" && !nextPhone) {
         throw new Error("Add a phone number before enabling SMS alerts.");
@@ -256,7 +276,7 @@ export function SettingsForm() {
       const next = updateCurrentCustomer({
         accountBudget: String(formData.get("accountBudget") ?? "not_set") as AccountBudget,
         fullName: String(formData.get("fullName") ?? ""),
-        email: String(formData.get("email") ?? ""),
+        email: nextEmail,
         phone: nextPhone,
         preferredBrokerage: String(
           formData.get("preferredBrokerage") ?? "none",
@@ -269,8 +289,8 @@ export function SettingsForm() {
         ) as PositionSizePreference,
         riskProfile: String(formData.get("riskProfile") ?? "balanced") as RiskProfile,
         setupPreference: String(formData.get("setupPreference") ?? "balanced") as SetupPreference,
-        minimumConfidence: Number(formData.get("minimumConfidence") ?? 70),
-        maxRiskScore: Number(formData.get("maxRiskScore") ?? 65),
+        minimumConfidence: nextMinimumConfidence,
+        maxRiskScore: nextMaxRiskScore,
         morningAlertsEnabled: formData.get("morningAlertsEnabled") === "on",
         alertChannel: nextAlertChannel,
         alertTime: String(formData.get("alertTime") ?? "08:30"),
