@@ -967,6 +967,76 @@ function customerSafeFallback(reason?: string) {
   return reason;
 }
 
+function needsResearchSessionReconnect(reason?: string) {
+  const lower = reason?.toLowerCase() ?? "";
+
+  return (
+    lower.includes("valid swingfi login session") ||
+    lower.includes("login session") ||
+    lower.includes("sign in to start") ||
+    lower.includes("session could not be verified")
+  );
+}
+
+function DashboardSessionReconnect({
+  onRefresh,
+  refreshing,
+}: {
+  onRefresh: () => void;
+  refreshing: boolean;
+}) {
+  return (
+    <section className="motion-card overflow-hidden rounded-3xl border border-line/80 bg-white shadow-[0_24px_80px_rgba(7,20,24,0.08)]">
+      <div className="grid gap-0 lg:grid-cols-[1fr_320px]">
+        <div className="p-6 sm:p-8">
+          <div className="signal-line mb-6 h-1.5 max-w-56 rounded-full" />
+          <p className="text-xs font-black uppercase tracking-normal text-pine">
+            Secure research session
+          </p>
+          <h2 className="mt-3 max-w-2xl text-3xl font-black tracking-normal text-ink sm:text-4xl">
+            Log in again to load today&apos;s rankings
+          </h2>
+          <p className="mt-4 max-w-2xl text-sm font-semibold leading-7 text-ink/62">
+            Your local SwingFi profile is still saved, but today&apos;s live analysis
+            needs a verified account session before we can show protected stock
+            research, saved picks, or opportunity details.
+          </p>
+          <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+            <Link
+              href="/login"
+              className="rounded-2xl bg-ink px-5 py-3 text-center text-sm font-black text-white shadow-[0_18px_42px_rgba(7,20,24,0.18)] hover:bg-pine"
+            >
+              Log in again
+            </Link>
+            <button
+              type="button"
+              onClick={onRefresh}
+              disabled={refreshing}
+              className="rounded-2xl border border-line bg-surface px-5 py-3 text-center text-sm font-bold text-ink hover:border-pine disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {refreshing ? "Checking..." : "Try again"}
+            </button>
+          </div>
+        </div>
+        <div className="border-t border-line bg-surface p-6 lg:border-l lg:border-t-0">
+          <p className="text-xs font-black uppercase tracking-normal text-pine">
+            Why this matters
+          </p>
+          <div className="mt-4 grid gap-3 text-sm font-semibold leading-6 text-ink/62">
+            <p className="rounded-2xl border border-line bg-white p-4">
+              Rankings are private account research, not a public ticker feed.
+            </p>
+            <p className="rounded-2xl border border-line bg-white p-4">
+              Re-authentication protects your saved picks, portfolio notes, and
+              preference filters.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function topViewRiskCeiling(customer: CustomerProfile | null) {
   if (!customer) return 72;
   if (customer.riskProfile === "aggressive" && customer.investingExperience !== "beginner") return 95;
@@ -1073,6 +1143,14 @@ export function DashboardOpportunities({
 
       try {
         const authHeaders = await getCustomerAuthHeaders();
+
+        if (!authHeaders && !access.isAdmin) {
+          setOpportunities([]);
+          setCurrentDataSource("empty");
+          setCurrentFallbackReason("A valid SwingFi login session is required.");
+          return;
+        }
+
         const payload = await Promise.race([
           fetchDashboardOpportunities(authHeaders),
           timeoutPromise,
@@ -1355,6 +1433,23 @@ export function DashboardOpportunities({
 
   if (opportunitiesLoading && opportunities.length === 0) {
     return <DashboardAnalysisSkeleton />;
+  }
+
+  if (
+    customer &&
+    currentDataSource === "empty" &&
+    opportunities.length === 0 &&
+    needsResearchSessionReconnect(currentFallbackReason)
+  ) {
+    return (
+      <DashboardSessionReconnect
+        refreshing={opportunitiesLoading}
+        onRefresh={() => {
+          window.sessionStorage.removeItem(dashboardOpportunityCacheKey);
+          setOpportunityRefreshToken(Date.now());
+        }}
+      />
+    );
   }
 
   return (

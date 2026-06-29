@@ -38,6 +38,69 @@ function statusMessage(dataSource: OpportunityDataSource, fallbackReason?: strin
   return null;
 }
 
+function needsResearchSessionReconnect(reason?: string) {
+  const lower = reason?.toLowerCase() ?? "";
+
+  return (
+    lower.includes("valid swingfi login session") ||
+    lower.includes("login session") ||
+    lower.includes("sign in to start") ||
+    lower.includes("session could not be verified")
+  );
+}
+
+function OpportunitySessionReconnect({ symbol }: { symbol: string }) {
+  return (
+    <section className="overflow-hidden rounded-3xl border border-line/80 bg-white shadow-[0_24px_80px_rgba(7,20,24,0.08)]">
+      <div className="grid lg:grid-cols-[1fr_340px]">
+        <div className="p-6 sm:p-8">
+          <Link
+            href="/dashboard"
+            className="inline-flex rounded-xl border border-line bg-surface px-3 py-2 text-sm font-bold text-ink hover:border-pine hover:shadow-soft"
+          >
+            Back to dashboard
+          </Link>
+          <p className="mt-6 text-xs font-black uppercase tracking-normal text-pine">
+            Secure research session
+          </p>
+          <h1 className="mt-3 text-3xl font-black text-ink">
+            Log in again to open {symbol.toUpperCase()}
+          </h1>
+          <p className="mt-3 max-w-2xl leading-7 text-ink/65">
+            Your local SwingFi profile is still saved, but the full stock analysis
+            requires a verified account session before we can show protected research,
+            saved picks, targets, stops, and explanations.
+          </p>
+          <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+            <Link
+              href="/login"
+              className="rounded-2xl bg-ink px-5 py-3 text-center text-sm font-black text-white hover:bg-pine"
+            >
+              Log in again
+            </Link>
+            <Link
+              href="/dashboard"
+              className="rounded-2xl border border-line bg-surface px-5 py-3 text-center text-sm font-bold text-ink hover:border-pine"
+            >
+              Review dashboard
+            </Link>
+          </div>
+        </div>
+        <div className="border-t border-line bg-[linear-gradient(145deg,#071418,#0b3d3f)] p-6 text-white lg:border-l lg:border-t-0">
+          <p className="text-xs font-black uppercase tracking-normal text-lime">
+            Protected analysis
+          </p>
+          <p className="mt-4 text-5xl font-black">{symbol.toUpperCase()}</p>
+          <p className="mt-3 text-sm font-semibold leading-7 text-white/62">
+            Re-authentication keeps your saved research, portfolio notes, and
+            daily-pick access private.
+          </p>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function percentNumber(value: string) {
   return Number(value.replace("+", "").replace("%", "")) || 0;
 }
@@ -346,6 +409,14 @@ export function OpportunityDetailView({
 
       try {
         const authHeaders = await getCustomerAuthHeaders();
+
+        if (!authHeaders && !access.isAdmin) {
+          setOpportunity(undefined);
+          setCurrentDataSource("empty");
+          setCurrentFallbackReason("A valid SwingFi login session is required.");
+          return;
+        }
+
         const response = await fetch(`/api/opportunities/${encodeURIComponent(symbol)}`, {
           cache: "no-store",
           headers: authHeaders,
@@ -554,6 +625,10 @@ export function OpportunityDetailView({
         <div className="skeleton mt-5 h-40 rounded-3xl" />
       </section>
     );
+  }
+
+  if (!opportunity && needsResearchSessionReconnect(currentFallbackReason)) {
+    return <OpportunitySessionReconnect symbol={symbol} />;
   }
 
   if (!opportunity) {
