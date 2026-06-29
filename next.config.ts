@@ -30,6 +30,78 @@ const nextConfig: NextConfig = {
         ],
         source: "/(.*)",
       },
+      {
+        headers: [
+          {
+            key: "X-Robots-Tag",
+            value: "noindex, nofollow",
+          },
+        ],
+        source: "/api/:path*",
+      },
+      {
+        headers: [
+          {
+            key: "X-Robots-Tag",
+            value: "noindex, nofollow",
+          },
+        ],
+        source: "/admin",
+      },
+      {
+        headers: [
+          {
+            key: "X-Robots-Tag",
+            value: "noindex, nofollow",
+          },
+        ],
+        source: "/backtests",
+      },
+      {
+        headers: [
+          {
+            key: "X-Robots-Tag",
+            value: "noindex, nofollow",
+          },
+        ],
+        source: "/dashboard",
+      },
+      {
+        headers: [
+          {
+            key: "X-Robots-Tag",
+            value: "noindex, nofollow",
+          },
+        ],
+        source: "/history",
+      },
+      {
+        headers: [
+          {
+            key: "X-Robots-Tag",
+            value: "noindex, nofollow",
+          },
+        ],
+        source: "/opportunities/:path*",
+      },
+      {
+        headers: [
+          {
+            key: "X-Robots-Tag",
+            value: "noindex, nofollow",
+          },
+        ],
+        source: "/portfolio",
+      },
+      {
+        headers: [
+          {
+            key: "X-Robots-Tag",
+            value: "noindex, nofollow",
+          },
+        ],
+        source: "/settings",
+      },
     ];
   },
   async redirects() {
