@@ -1460,9 +1460,9 @@ export function DashboardOpportunities({
         ) : null}
       </div>
 
-      <MarketRegimeBanner regime={marketRegime} />
+      <FirstLoginWalkthrough customer={customer} />
 
-      <SectorRotationDashboard sectors={sectorRotation} />
+      <TodayActionPlan customer={customer} dailyPicks={dailyPicks} />
 
       <WatchlistChangeAlerts
         picks={dailyPicks}
@@ -1588,9 +1588,6 @@ export function DashboardOpportunities({
           )}
         </div>
       </div>
-
-      <TodayActionPlan customer={customer} dailyPicks={dailyPicks} />
-
       <BeginnerLessonCards picks={dailyPicks} />
 
       <PortfolioFitPanel
@@ -1650,7 +1647,8 @@ export function DashboardOpportunities({
               trust={currentTrust}
               watchedCount={watchedSymbols.size}
             />
-            <FirstLoginWalkthrough customer={customer} />
+            <MarketRegimeBanner regime={marketRegime} />
+            <SectorRotationDashboard sectors={sectorRotation} />
             {dailyPicks.length > 0 ? (
               <div
                 className={`grid gap-4 transition-opacity duration-200 sm:grid-cols-2 xl:grid-cols-5 ${

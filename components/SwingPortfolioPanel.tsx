@@ -113,6 +113,26 @@ function toNumber(value: string | undefined) {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
 }
 
+function validateTradePlan(form: FormState) {
+  const symbol = form.symbol.trim();
+  const entryPrice = toNumber(form.entryPrice);
+  const targetPrice = toNumber(form.targetPrice);
+  const stopLoss = toNumber(form.stopLoss);
+  const quantity = toNumber(form.quantity);
+  const holdingPeriodDays = toNumber(form.holdingPeriodDays);
+
+  if (!symbol) return "Add the ticker symbol you bought.";
+  if (!entryPrice) return "Add the price you paid for the trade.";
+  if (!quantity) return "Add how many shares or units you bought.";
+  if (!targetPrice) return "Add the target price you plan to review.";
+  if (!stopLoss) return "Add the stop loss so the risk is clear.";
+  if (targetPrice <= entryPrice) return "For long trades, the target should be above your entry price.";
+  if (stopLoss >= entryPrice) return "For long trades, the stop loss should be below your entry price.";
+  if (!holdingPeriodDays) return "Add the planned holding window in trading days.";
+
+  return "";
+}
+
 function mapAssetType(value: string | undefined): AssetType {
   const normalized = String(value ?? "").toLowerCase();
   if (normalized === "crypto") return "crypto";
@@ -254,6 +274,12 @@ export function SwingPortfolioPanel({ initialTrade }: { initialTrade?: InitialTr
   }, []);
 
   async function saveTrade() {
+    const validation = validateTradePlan(form);
+    if (validation) {
+      setMessage({ tone: "error", text: validation });
+      return;
+    }
+
     setSaving(true);
     setMessage(null);
 
@@ -310,6 +336,11 @@ export function SwingPortfolioPanel({ initialTrade }: { initialTrade?: InitialTr
 
   async function closeTrade(trade: PortfolioTrade) {
     const exitPrice = closePrices[trade.id];
+    if (!toNumber(exitPrice)) {
+      setMessage({ tone: "error", text: `Add a valid exit price before closing ${trade.symbol}.` });
+      return;
+    }
+
     const token = await getSessionToken();
 
     if (!token) {
@@ -700,11 +731,36 @@ export function SwingPortfolioPanel({ initialTrade }: { initialTrade?: InitialTr
               </div>
             ) : (
               <div className="mt-5 rounded-3xl border border-dashed border-line bg-surface p-6">
-                <p className="text-lg font-black text-ink">No open trades yet</p>
+                <p className="text-sm font-black uppercase tracking-normal text-pine">
+                  Portfolio is ready
+                </p>
+                <h3 className="mt-2 text-xl font-black text-ink">
+                  Save only trades you actually decide to make
+                </h3>
                 <p className="mt-2 text-sm font-semibold leading-6 text-ink/56">
                   When you act on a ranked idea, save it here so the plan, target, stop,
                   and follow-up context stay visible after the daily rankings refresh.
                 </p>
+                <div className="mt-4 grid gap-2 sm:grid-cols-3">
+                  {[
+                    "Record entry and size",
+                    "Keep target and stop visible",
+                    "Review status after the time window",
+                  ].map((item) => (
+                    <p
+                      key={item}
+                      className="rounded-2xl border border-line bg-white px-3 py-2 text-xs font-black text-ink/62"
+                    >
+                      {item}
+                    </p>
+                  ))}
+                </div>
+                <Link
+                  href="/dashboard"
+                  className="mt-5 inline-flex rounded-2xl bg-ink px-4 py-3 text-sm font-black text-white hover:bg-pine"
+                >
+                  Review today&apos;s rankings
+                </Link>
               </div>
             )}
           </div>

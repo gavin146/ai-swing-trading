@@ -47,6 +47,13 @@ export async function PATCH(request: Request, { params }: PortfolioTradeRoutePro
   const update: Record<string, unknown> = {};
 
   if (status) {
+    if (status === "closed" && !exitPrice) {
+      return NextResponse.json(
+        { error: "Add a valid exit price before closing this trade." },
+        { status: 400 },
+      );
+    }
+
     update.status = status;
     if (status === "closed") {
       update.closed_at = new Date().toISOString();
