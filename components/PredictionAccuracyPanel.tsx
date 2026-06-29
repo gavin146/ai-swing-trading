@@ -21,7 +21,32 @@ function statusLabel(status: string) {
   if (status === "stop_hit") return "Stop hit";
   if (status === "no_entry") return "No entry";
   if (status === "no_data") return "No data";
+  if (status === "pending") return "Watching";
+  if (status === "entered") return "Entered";
   return status.charAt(0).toUpperCase() + status.slice(1);
+}
+
+function addDays(date: string, days: number) {
+  const next = new Date(`${date}T00:00:00.000Z`);
+
+  if (Number.isNaN(next.getTime())) return null;
+
+  next.setUTCDate(next.getUTCDate() + days);
+  return next.toISOString().slice(0, 10);
+}
+
+function daysUntil(date: string | null) {
+  if (!date) return null;
+
+  const today = new Date();
+  const target = new Date(`${date}T00:00:00.000Z`);
+
+  if (Number.isNaN(target.getTime())) return null;
+
+  const todayUtc = Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate());
+  const targetUtc = Date.UTC(target.getUTCFullYear(), target.getUTCMonth(), target.getUTCDate());
+
+  return Math.ceil((targetUtc - todayUtc) / (24 * 60 * 60 * 1000));
 }
 
 function StatCard({
@@ -188,6 +213,34 @@ export function PredictionAccuracyPanel() {
     () => summary?.predictions.slice(0, 18) ?? [],
     [summary],
   );
+  const pendingPredictions = useMemo(
+    () => summary?.predictions.filter((prediction) => prediction.status === "pending") ?? [],
+    [summary],
+  );
+  const enteredPredictions = useMemo(
+    () => summary?.predictions.filter((prediction) => prediction.status === "entered") ?? [],
+    [summary],
+  );
+  const completedPredictions = useMemo(
+    () =>
+      summary?.predictions.filter((prediction) =>
+        ["target_hit", "stop_hit", "expired", "no_entry", "no_data"].includes(prediction.status),
+      ) ?? [],
+    [summary],
+  );
+  const firstMaturityDate = useMemo(() => {
+    const dates = pendingPredictions
+      .map((prediction) => addDays(prediction.prediction_date, prediction.holding_period_days))
+      .filter((date): date is string => Boolean(date))
+      .sort();
+
+    return dates[0] ?? null;
+  }, [pendingPredictions]);
+  const firstMaturityDays = daysUntil(firstMaturityDate);
+  const lifecycleMessage =
+    (summary?.totalPredictions ?? 0) > 0 && (summary?.evaluatedCount ?? 0) === 0
+      ? `SwingFi is tracking ${summary?.totalPredictions ?? 0} live predictions. They stay in watching mode until price enters the planned range or the holding window matures. The first full outcome window is expected around ${firstMaturityDate ?? "the next eligible trading window"}.`
+      : summary?.verificationMessage ?? message;
 
   if (checkedAccess && !adminAllowed) {
     return (
@@ -246,7 +299,7 @@ export function PredictionAccuracyPanel() {
               <span className="text-base text-white/44"> evaluated</span>
             </p>
             <p className="mt-4 text-sm font-semibold leading-7 text-white/64">
-              {summary?.verificationMessage ?? message}
+              {lifecycleMessage}
             </p>
           </div>
         </div>
@@ -264,6 +317,61 @@ export function PredictionAccuracyPanel() {
           value={summary?.calibrationGeneratedCount ?? 0}
           tone={summary?.calibrationStatus === "active" ? "good" : "neutral"}
         />
+      </section>
+
+      <section className="premium-panel rounded-3xl p-5 sm:p-6">
+        <div className="grid gap-5 xl:grid-cols-[0.9fr_1.1fr] xl:items-start">
+          <div>
+            <p className="text-sm font-black uppercase tracking-normal text-pine">
+              Prediction lifecycle
+            </p>
+            <h3 className="mt-2 text-2xl font-black text-ink">
+              Why the accuracy numbers are still zero
+            </h3>
+            <p className="mt-3 text-sm font-semibold leading-7 text-ink/62">
+              A prediction is saved the morning it appears in the app. It does not count
+              as right or wrong until the trade either enters the buy range and hits a
+              target/stop, expires after its holding window, or never enters at all.
+            </p>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-3">
+            <div className="rounded-2xl border border-line bg-surface p-4">
+              <p className="text-xs font-black uppercase tracking-normal text-ink/55">
+                Watching
+              </p>
+              <p className="mt-2 text-3xl font-black text-ink">{pendingPredictions.length}</p>
+              <p className="mt-2 text-xs font-bold leading-5 text-ink/55">
+                Waiting for entry or enough days to judge.
+              </p>
+            </div>
+            <div className="rounded-2xl border border-line bg-surface p-4">
+              <p className="text-xs font-black uppercase tracking-normal text-ink/55">
+                Entered
+              </p>
+              <p className="mt-2 text-3xl font-black text-pine">{enteredPredictions.length}</p>
+              <p className="mt-2 text-xs font-bold leading-5 text-ink/55">
+                In range, but not finished yet.
+              </p>
+            </div>
+            <div className="rounded-2xl border border-line bg-surface p-4">
+              <p className="text-xs font-black uppercase tracking-normal text-ink/55">
+                Completed
+              </p>
+              <p className="mt-2 text-3xl font-black text-ink">{completedPredictions.length}</p>
+              <p className="mt-2 text-xs font-bold leading-5 text-ink/55">
+                Mature enough for accuracy metrics.
+              </p>
+            </div>
+          </div>
+        </div>
+        <div className="mt-4 rounded-2xl border border-line bg-sky px-4 py-3 text-sm font-bold leading-6 text-ink">
+          First full outcome window: {firstMaturityDate ?? "No pending predictions"}{" "}
+          {firstMaturityDays !== null
+            ? firstMaturityDays > 0
+              ? `(${firstMaturityDays} day${firstMaturityDays === 1 ? "" : "s"} away)`
+              : "(eligible now)"
+            : ""}
+        </div>
       </section>
 
       <section className="premium-panel rounded-3xl p-5 sm:p-6">
