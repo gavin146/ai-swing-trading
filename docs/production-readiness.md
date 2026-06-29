@@ -4,10 +4,13 @@
 
 The app is configured for Vercel. Vercel Cron is defined in `vercel.json`:
 
-- `/api/cron/daily-rankings` runs at `12:15 UTC` weekdays.
-- `/api/cron/morning-alerts` runs at `12:30 UTC` weekdays.
+- `/api/cron/daily-rankings` runs at `13:00 UTC` weekdays.
+- `/api/cron/morning-alerts` runs at `13:20 UTC` weekdays.
+- `/api/cron/prediction-evaluation` runs at `22:15 UTC` weekdays.
 
-During US daylight saving time, that is 8:15 AM and 8:30 AM Eastern.
+During US daylight saving time, that is 8:00 AM, 8:20 AM, and 5:15 PM
+Central. The morning scan and email alert are both before the 8:30 AM
+Central market open.
 
 The local app is now wired to Supabase for persistence. Once the same
 environment variables are configured in Vercel, server routes can persist real
@@ -23,16 +26,10 @@ customer profiles.
 - `ADMIN_API_SECRET`
 - `CRON_SECRET`
 - `FMP_API_KEY`
-- `FRED_API_KEY`
 - `OPENAI_API_KEY`
 - `RESEND_API_KEY`
 - `ALERT_FROM_EMAIL`
 - `AGENT_DATA_SOURCE=fmp`
-- `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`
-- `STRIPE_SECRET_KEY`
-- `STRIPE_WEBHOOK_SECRET`
-- `STRIPE_PRO_PRICE_ID`
-- `STRIPE_PORTAL_CONFIGURATION_ID`
 - `STRIPE_CHECKOUT_ENABLED=false`
 
 Optional:
@@ -43,11 +40,21 @@ Optional:
 - `FMP_UNIVERSE_LIMIT`
 - `FMP_DETAILED_LIMIT`
 - `FMP_ENRICHMENT_LIMIT`
-- `STRIPE_STARTER_PRICE_ID`
-- `STRIPE_PREMIUM_PRICE_ID`
+- `FMP_MIN_SCREENER_ROWS`
+- `FMP_MIN_DETAILED_CANDIDATES`
+- `FMP_CANDIDATE_DELAY_MS`
+- `FMP_CANDIDATE_CONCURRENCY`
+- `FRED_API_KEY`
+- `BLS_API_KEY`
+- Stripe variables are required before enabling paid checkout:
+  `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`, `STRIPE_SECRET_KEY`,
+  `STRIPE_WEBHOOK_SECRET`, `STRIPE_STARTER_PRICE_ID`,
+  `STRIPE_PRO_PRICE_ID`, `STRIPE_PREMIUM_PRICE_ID`, and
+  `STRIPE_PORTAL_CONFIGURATION_ID`.
 - `TWILIO_ACCOUNT_SID`
 - `TWILIO_AUTH_TOKEN`
 - `TWILIO_FROM_NUMBER`
+- `TWILIO_MESSAGING_SERVICE_SID`
 
 ## Production Database Steps
 
@@ -72,6 +79,9 @@ Optional:
 7. Trigger `/api/cron/daily-rankings` manually with the `CRON_SECRET` bearer token.
 8. Run `npm run production:surface` against the live domain, or set
    `VERIFY_APP_URL=https://your-preview-url` to verify a preview deployment.
+9. Run `npm run production:env` locally with the same variables configured for
+   Vercel to catch missing keys before enabling paid access or scheduled alerts.
+   The script prints pass/warn/fail status without printing secret values.
 
 ## What Is Now Persisted When Supabase Is Configured
 
