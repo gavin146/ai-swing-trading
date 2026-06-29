@@ -5,6 +5,9 @@ import { fileURLToPath } from "node:url";
 const appRoot = dirname(fileURLToPath(import.meta.url));
 
 const nextConfig: NextConfig = {
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
   outputFileTracingRoot: appRoot,
   poweredByHeader: false,
   async headers() {

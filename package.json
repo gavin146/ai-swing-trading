@@ -10,7 +10,8 @@
     "stripe:setup": "node scripts/setup-stripe-products.mjs",
     "stripe:verify": "node scripts/verify-stripe-readiness.mjs",
     "production:surface": "node scripts/verify-production-surface.mjs",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "verify": "npm run lint && npm run typecheck && npm run build"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.108.2",
@@ -20,12 +21,16 @@
     "stripe": "^22.2.2"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.4",
+    "@next/eslint-plugin-next": "^15.5.19",
     "@types/node": "^22.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
+    "@typescript-eslint/eslint-plugin": "^8.61.1",
+    "@typescript-eslint/parser": "^8.61.1",
     "autoprefixer": "^10.4.20",
     "eslint": "^9.0.0",
-    "eslint-config-next": "^15.0.0",
+    "eslint-plugin-react-hooks": "^5.2.0",
     "postcss": "^8.4.49",
     "tailwindcss": "^3.4.17",
     "typescript": "^5.7.0"
