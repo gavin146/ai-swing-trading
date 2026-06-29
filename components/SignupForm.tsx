@@ -55,6 +55,8 @@ type SignupNotice = {
   tone: ToastTone;
 };
 
+type SelectedSignupPlan = "starter" | "pro" | "premium";
+
 const initialValues: SignupValues = {
   accountBudget: "not_set",
   email: "",
@@ -109,6 +111,24 @@ const setupOptions: Array<[SetupPreference, string, string]> = [
   ["balanced", "Balanced setups", "Mix trend quality, catalysts, and reward/risk."],
   ["momentum", "Momentum setups", "Prioritize stronger upside and price movement."],
 ];
+
+const selectedPlanCopy: Record<SelectedSignupPlan, { label: string; picks: string; price: string }> = {
+  premium: {
+    label: "Premium",
+    picks: "Top 90 daily opportunities",
+    price: "$79/mo after trial",
+  },
+  pro: {
+    label: "Pro",
+    picks: "Top 30 daily opportunities",
+    price: "$39/mo after trial",
+  },
+  starter: {
+    label: "Starter",
+    picks: "Top 10 daily opportunities",
+    price: "$19/mo after trial",
+  },
+};
 
 function ChoiceGrid<T extends string>({
   name,
@@ -169,7 +189,7 @@ function friendlySignupError(error: unknown) {
   return message || "Signup failed.";
 }
 
-export function SignupForm() {
+export function SignupForm({ selectedPlan }: { selectedPlan?: SelectedSignupPlan }) {
   const router = useRouter();
   const [step, setStep] = useState(0);
   const [values, setValues] = useState<SignupValues>(initialValues);
@@ -177,6 +197,10 @@ export function SignupForm() {
   const [loading, setLoading] = useState(false);
   const progress = Math.round(((step + 1) / steps.length) * 100);
   const fullName = `${values.firstName.trim()} ${values.lastName.trim()}`.trim();
+  const selectedPlanDetails = selectedPlan ? selectedPlanCopy[selectedPlan] : null;
+  const selectedRiskLabel =
+    riskOptions.find(([riskProfile]) => riskProfile === values.riskProfile)?.[1] ??
+    values.riskProfile;
 
   const stepMeta = useMemo(
     () => [
@@ -282,6 +306,7 @@ export function SignupForm() {
         body: JSON.stringify({
           ...values,
           fullName,
+          selectedPlan,
           riskAcknowledged: values.legalAccepted,
           termsAccepted: values.legalAccepted,
           timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
@@ -302,6 +327,7 @@ export function SignupForm() {
         account_budget: values.accountBudget,
         investing_experience: values.investingExperience,
         method: "email",
+        selected_plan: selectedPlan ?? "none",
         risk_profile: values.riskProfile,
         setup_preference: values.setupPreference,
       });
@@ -329,6 +355,17 @@ export function SignupForm() {
             No payment required today. Your trial unlocks rankings, opportunity details,
             saved picks, and morning email links.
           </p>
+          {selectedPlanDetails ? (
+            <div className="mt-5 rounded-3xl border border-lime/20 bg-white/10 p-4">
+              <p className="text-xs font-black uppercase tracking-normal text-lime">
+                Selected launch plan
+              </p>
+              <p className="mt-2 text-2xl font-black">{selectedPlanDetails.label}</p>
+              <p className="mt-2 text-sm font-semibold leading-6 text-white/66">
+                {selectedPlanDetails.picks}. No payment today; {selectedPlanDetails.price}.
+              </p>
+            </div>
+          ) : null}
           <div className="mt-5 h-2 overflow-hidden rounded-full bg-white/12 sm:mt-8">
             <div className="h-full rounded-full bg-lime transition-all" style={{ width: `${progress}%` }} />
           </div>
@@ -506,17 +543,18 @@ export function SignupForm() {
                     placeholder="Create a password"
                   />
                 </label>
-                <div className="grid gap-3 rounded-3xl border border-line bg-surface p-4 sm:grid-cols-3">
+                <div className="grid gap-3 rounded-3xl border border-line bg-surface p-4 sm:grid-cols-4">
                   {[
+                    ["Plan", selectedPlanDetails?.label ?? "Choose later"],
                     ["Trial", "30 days free"],
-                    ["Risk", values.riskProfile],
+                    ["Risk", selectedRiskLabel],
                     ["Email", values.email || "Not set"],
                   ].map(([label, value]) => (
                     <div key={label}>
                       <p className="text-xs font-black uppercase tracking-normal text-ink/42">
                         {label}
                       </p>
-                      <p className="mt-1 truncate text-sm font-black capitalize text-ink">
+                      <p className="mt-1 truncate text-sm font-black text-ink">
                         {value}
                       </p>
                     </div>
