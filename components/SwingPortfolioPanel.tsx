@@ -365,7 +365,7 @@ export function SwingPortfolioPanel({ initialTrade }: { initialTrade?: InitialTr
             </h2>
             <p className="mt-3 max-w-2xl text-sm font-semibold leading-7 text-ink/62">
               Save the entry, target, stop, and timing you used so your plan does not disappear
-              when tomorrow's rankings refresh.
+              when the next rankings refresh.
             </p>
             <Link
               href="/login"
@@ -597,7 +597,7 @@ export function SwingPortfolioPanel({ initialTrade }: { initialTrade?: InitialTr
                 href="/dashboard"
                 className="rounded-2xl border border-line bg-surface px-4 py-3 text-center text-sm font-black text-ink hover:border-pine"
               >
-                Review today's rankings
+                Review current rankings
               </Link>
             </div>
 

@@ -675,7 +675,7 @@ export function OpportunityDetailView({
             <h2 className="mt-2 text-xl font-black text-ink">Save it to your Swing Portfolio</h2>
             <p className="mt-3 text-sm font-medium leading-7 text-ink/64">
               If you decide to buy, save the entry price and rough time so this plan stays
-              visible after tomorrow's rankings refresh.
+              visible after the next ranking refresh.
             </p>
             <Link
               href={trackTradeHref}
