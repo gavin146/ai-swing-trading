@@ -15,7 +15,7 @@ import type {
 } from "@/lib/database.types";
 import { createSupabaseAdminClient, hasSupabaseAdminConfig } from "@/lib/supabase/server";
 
-type PersistenceResult = {
+export type PersistenceResult = {
   persisted: boolean;
   reason?: string;
   error?: string;
@@ -25,6 +25,15 @@ export type MorningAlertRecipient = {
   userId: string | null;
   email: string;
   fullName: string;
+};
+
+export type PersistedMorningRun = {
+  completedAt: string;
+  marketRegime: string;
+  opportunities: OpportunityRow[];
+  runId: string;
+  selectedCount: number;
+  universeCount: number;
 };
 
 function notConfigured(): PersistenceResult {
@@ -137,6 +146,109 @@ function opportunityRewardRisk(opportunity: OpportunityRow) {
   if (reward <= 0 || risk <= 0) return 0;
 
   return Math.round((reward / risk) * 100) / 100;
+}
+
+function normalizeOpportunityRow(row: Record<string, unknown>): OpportunityRow {
+  return {
+    id: String(row.id),
+    symbol: String(row.symbol),
+    asset_type: row.asset_type as OpportunityRow["asset_type"],
+    score: Number(row.score),
+    confidence: Number(row.confidence),
+    risk_score: Number(row.risk_score),
+    entry_low: Number(row.entry_low),
+    entry_high: Number(row.entry_high),
+    target_price: Number(row.target_price),
+    stop_loss: Number(row.stop_loss),
+    expected_gain: Number(row.expected_gain),
+    expected_loss: Number(row.expected_loss),
+    holding_period_days: Number(row.holding_period_days),
+    explanation: String(row.explanation ?? ""),
+    created_at: String(row.created_at),
+  };
+}
+
+function normalizeJoinedOpportunity(value: unknown): OpportunityRow | null {
+  if (!value) return null;
+  const row = Array.isArray(value) ? value[0] : value;
+
+  if (!row || typeof row !== "object") return null;
+
+  return normalizeOpportunityRow(row as Record<string, unknown>);
+}
+
+export async function getLatestPersistedMorningRun(limit = 30, maxAgeMinutes = 180) {
+  const supabase = createSupabaseAdminClient();
+
+  if (!supabase) {
+    return {
+      reason: "Supabase service role is not configured.",
+      run: null,
+    };
+  }
+
+  const cutoff = new Date(Date.now() - maxAgeMinutes * 60 * 1000).toISOString();
+  const { data: run, error: runError } = await supabase
+    .from("agent_runs")
+    .select("id,universe_count,selected_count,market_regime,completed_at,started_at")
+    .eq("status", "completed")
+    .gte("completed_at", cutoff)
+    .order("completed_at", { ascending: false, nullsFirst: false })
+    .order("started_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (runError) {
+    return {
+      error: runError.message,
+      run: null,
+    };
+  }
+
+  if (!run?.id) {
+    return {
+      reason: `No completed agent run was saved in the last ${maxAgeMinutes} minutes.`,
+      run: null,
+    };
+  }
+
+  const { data: rankings, error: rankingError } = await supabase
+    .from("opportunity_rankings")
+    .select(
+      "rank, opportunities(id,symbol,asset_type,score,confidence,risk_score,entry_low,entry_high,target_price,stop_loss,expected_gain,expected_loss,holding_period_days,explanation,created_at)",
+    )
+    .eq("agent_run_id", run.id)
+    .order("rank", { ascending: true })
+    .limit(limit);
+
+  if (rankingError) {
+    return {
+      error: rankingError.message,
+      run: null,
+    };
+  }
+
+  const opportunities = (rankings ?? [])
+    .map((item) => normalizeJoinedOpportunity((item as Record<string, unknown>).opportunities))
+    .filter((opportunity): opportunity is OpportunityRow => Boolean(opportunity));
+
+  if (opportunities.length === 0) {
+    return {
+      reason: "The latest saved agent run has no ranked opportunities.",
+      run: null,
+    };
+  }
+
+  return {
+    run: {
+      completedAt: String(run.completed_at ?? run.started_at),
+      marketRegime: String(run.market_regime ?? "balanced"),
+      opportunities,
+      runId: String(run.id),
+      selectedCount: Number(run.selected_count ?? opportunities.length),
+      universeCount: Number(run.universe_count ?? opportunities.length),
+    } satisfies PersistedMorningRun,
+  };
 }
 
 async function persistPredictionLedger(result: AgentRunResult) {

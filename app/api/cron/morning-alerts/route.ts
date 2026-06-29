@@ -3,9 +3,11 @@ import { buildMorningAlertMessage, buildMorningEmailAlert } from "@/lib/alerts";
 import { hydrateRuntimeCalibrationFromSupabase, runFmpDailyRankingAgent } from "@/lib/agent";
 import { sendAdminFailureAlert, sendEmail } from "@/lib/email";
 import {
+  getLatestPersistedMorningRun,
   getMorningAlertRecipients,
   persistAgentRun,
   persistAlertLog,
+  type PersistenceResult,
   recordAppEvent,
 } from "@/lib/persistence";
 import { sendTwilioSms } from "@/lib/twilio";
@@ -23,6 +25,14 @@ function isAuthorized(request: NextRequest) {
   return request.headers.get("authorization") === `Bearer ${secret}`;
 }
 
+function alertReuseWindowMinutes() {
+  const parsed = Number(process.env.MORNING_ALERT_REUSE_WINDOW_MINUTES ?? 180);
+
+  if (!Number.isFinite(parsed)) return 180;
+
+  return Math.max(15, Math.min(720, Math.round(parsed)));
+}
+
 async function runMorningAlerts(request: NextRequest) {
   if (!isAuthorized(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -33,30 +43,75 @@ async function runMorningAlerts(request: NextRequest) {
   const phone = process.env.ALERT_TEST_PHONE;
   const customerName = process.env.ALERT_TEST_CUSTOMER_NAME ?? "";
   const smsAlertsEnabled = process.env.ENABLE_TWILIO_MORNING_ALERTS === "true";
-
-  if (!process.env.FMP_API_KEY && !process.env.FINANCIAL_DATA_API_KEY) {
-    await recordAppEvent({
-      level: "error",
-      source: "morning-alerts-cron",
-      message: "Morning alerts blocked because FMP market data is not configured.",
-      metadata: {},
-    });
-    await sendAdminFailureAlert({
-      source: "morning-alerts-cron",
-      message: "Morning alerts blocked because FMP market data is not configured.",
-      error: "FMP_API_KEY is required for live morning alerts.",
-    });
-
-    return NextResponse.json(
-      { error: "FMP_API_KEY is required for live morning alerts." },
-      { status: 503 },
-    );
-  }
+  const reuseWindowMinutes = alertReuseWindowMinutes();
 
   try {
-    const persistedCalibration = await hydrateRuntimeCalibrationFromSupabase();
-    const result = await runFmpDailyRankingAgent({ limit: 30 });
-    const persistence = await persistAgentRun(result);
+    const savedRun = await getLatestPersistedMorningRun(30, reuseWindowMinutes);
+    let persistedCalibration: unknown = {
+      reason: "Morning alerts reused the latest saved ranking run.",
+      skipped: true,
+    };
+    let persistence: PersistenceResult = {
+      persisted: Boolean(savedRun.run),
+      reason: savedRun.run
+        ? "Reused the latest saved ranking run for morning alerts."
+        : savedRun.error ?? savedRun.reason ?? "No fresh saved run was available.",
+    };
+    let result = savedRun.run
+      ? {
+          marketRegime: savedRun.run.marketRegime,
+          opportunities: savedRun.run.opportunities,
+          runId: savedRun.run.runId,
+          selectedCount: savedRun.run.selectedCount,
+          universeCount: savedRun.run.universeCount,
+        }
+      : null;
+
+    if (!result) {
+      if (!process.env.FMP_API_KEY && !process.env.FINANCIAL_DATA_API_KEY) {
+        await recordAppEvent({
+          level: "error",
+          source: "morning-alerts-cron",
+          message: "Morning alerts blocked because no fresh saved run exists and FMP market data is not configured.",
+          metadata: { reuseWindowMinutes },
+        });
+        await sendAdminFailureAlert({
+          source: "morning-alerts-cron",
+          message: "Morning alerts blocked because no fresh saved run exists and FMP market data is not configured.",
+          error: "FMP_API_KEY is required when the morning alert cron cannot reuse a saved ranking run.",
+          metadata: { reuseWindowMinutes },
+        });
+
+        return NextResponse.json(
+          {
+            error:
+              "No fresh saved ranking run was available, and FMP_API_KEY is required to generate a fallback morning alert run.",
+            reuseWindowMinutes,
+          },
+          { status: 503 },
+        );
+      }
+
+      await recordAppEvent({
+        level: "warning",
+        source: "morning-alerts-cron",
+        message: "Morning alerts could not reuse a saved ranking run, so a fallback live scan started.",
+        metadata: {
+          reason: savedRun.error ?? savedRun.reason,
+          reuseWindowMinutes,
+        },
+      });
+      persistedCalibration = await hydrateRuntimeCalibrationFromSupabase();
+      const freshResult = await runFmpDailyRankingAgent({ limit: 30 });
+      persistence = await persistAgentRun(freshResult);
+      result = {
+        marketRegime: freshResult.marketRegime,
+        opportunities: freshResult.opportunities,
+        runId: freshResult.runId,
+        selectedCount: freshResult.selectedCount,
+        universeCount: freshResult.universeCount,
+      };
+    }
     const deliveries = [];
 
     if (result.selectedCount === 0) {
@@ -158,9 +213,10 @@ async function runMorningAlerts(request: NextRequest) {
         sent: 0,
         mode: "preview",
         email: emailAlert,
-      persistence,
-      persistedCalibration,
-      recipients: recipientResult,
+        persistence,
+        persistedCalibration,
+        recipients: recipientResult,
+        runSource: savedRun.run ? "saved" : "fallback-live-scan",
         note:
           "No alert recipients were found. Add users with email alerts enabled in Supabase, or set ALERT_CUSTOMER_EMAILS while Supabase is not configured.",
       });
@@ -209,6 +265,7 @@ async function runMorningAlerts(request: NextRequest) {
       persistence,
       persistedCalibration,
       recipientSource: recipientResult.source,
+      runSource: savedRun.run ? "saved" : "fallback-live-scan",
     });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);

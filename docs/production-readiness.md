@@ -35,6 +35,9 @@ customer profiles.
 Optional:
 
 - `ALERT_CUSTOMER_EMAILS` for pre-Supabase testing only.
+- `MORNING_ALERT_REUSE_WINDOW_MINUTES` defaults to `180`. Morning emails reuse
+  the latest saved ranking run inside this window before starting a fallback
+  live scan, which prevents duplicate market-data and AI usage.
 - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` and `SUPABASE_SECRET_KEY` if using
   Supabase's newer key names. The app accepts both old and new naming styles.
 - `FMP_UNIVERSE_LIMIT`
