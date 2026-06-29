@@ -18,7 +18,10 @@ type StatusPayload = {
   openAiReady: boolean;
   stripeReady: boolean;
   stripeCheckoutEnabled: boolean;
+  stripeMode: string;
   stripePortalConfigured: boolean;
+  stripeReason: string;
+  stripeWebhookConfigured: boolean;
   twilioReady: boolean;
   supabaseReady: boolean;
   supabaseAdminReady: boolean;
@@ -59,8 +62,9 @@ const statusLabels: Array<[keyof StatusPayload, string]> = [
   ["emailReady", "Email"],
   ["openAiReady", "OpenAI"],
   ["stripeReady", "Stripe keys"],
-  ["stripeCheckoutEnabled", "Checkout flag"],
+  ["stripeWebhookConfigured", "Stripe webhook"],
   ["stripePortalConfigured", "Billing portal"],
+  ["stripeCheckoutEnabled", "Checkout ready"],
   ["supabaseReady", "Supabase auth"],
   ["supabaseAdminReady", "Supabase writes"],
   ["livePersistenceReady", "Live database"],
@@ -252,6 +256,46 @@ export function AdminOperationsPanel() {
             {status?.emailReady ? "Ready to send" : status?.emailReason ?? "Missing"}
           </p>
         </div>
+      </div>
+
+      <div className="mt-4 grid gap-3 rounded-2xl border border-line bg-surface p-4 md:grid-cols-4">
+        <div>
+          <p className="text-xs font-black uppercase tracking-normal text-ink/55">
+            Stripe mode
+          </p>
+          <p className="mt-1 text-sm font-bold text-ink">
+            {status?.stripeMode ?? "unknown"}
+          </p>
+        </div>
+        <div>
+          <p className="text-xs font-black uppercase tracking-normal text-ink/55">
+            Webhook
+          </p>
+          <p className={`mt-1 text-sm font-bold ${status?.stripeWebhookConfigured ? "text-pine" : "text-coral"}`}>
+            {status?.stripeWebhookConfigured ? "Configured" : "Missing"}
+          </p>
+        </div>
+        <div>
+          <p className="text-xs font-black uppercase tracking-normal text-ink/55">
+            Portal
+          </p>
+          <p className={`mt-1 text-sm font-bold ${status?.stripePortalConfigured ? "text-pine" : "text-coral"}`}>
+            {status?.stripePortalConfigured ? "Configured" : "Missing"}
+          </p>
+        </div>
+        <div>
+          <p className="text-xs font-black uppercase tracking-normal text-ink/55">
+            Checkout
+          </p>
+          <p className={`mt-1 text-sm font-bold ${status?.stripeCheckoutEnabled ? "text-pine" : "text-coral"}`}>
+            {status?.stripeCheckoutEnabled ? "Ready" : "Locked"}
+          </p>
+        </div>
+        {!status?.stripeCheckoutEnabled ? (
+          <p className="md:col-span-4 text-sm font-bold leading-6 text-ink/65">
+            {status?.stripeReason ?? "Stripe billing is not fully configured yet."}
+          </p>
+        ) : null}
       </div>
 
       <div className="mt-4 grid gap-3 rounded-2xl border border-line bg-panel p-4 md:grid-cols-[1fr_auto] md:items-end">

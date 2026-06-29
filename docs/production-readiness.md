@@ -57,6 +57,8 @@ Optional:
   `STRIPE_WEBHOOK_SECRET`, `STRIPE_STARTER_PRICE_ID`,
   `STRIPE_PRO_PRICE_ID`, `STRIPE_PREMIUM_PRICE_ID`, and
   `STRIPE_PORTAL_CONFIGURATION_ID`.
+  Public SwingFi domains require live-mode Stripe keys before checkout can
+  unlock, even if test keys are present.
 - `TWILIO_ACCOUNT_SID`
 - `TWILIO_AUTH_TOKEN`
 - `TWILIO_FROM_NUMBER`

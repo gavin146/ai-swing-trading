@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getBillingPlan, getPlanPriceId, getStripeTrialDays } from "@/lib/stripe/config";
+import {
+  getBillingPlan,
+  getPlanPriceId,
+  getStripeBillingReadiness,
+  getStripeTrialDays,
+} from "@/lib/stripe/config";
 import { getAppUrl, getStripeClient } from "@/lib/stripe/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 
@@ -68,18 +73,18 @@ export async function POST(request: NextRequest) {
   const body = (await request.json().catch(() => ({}))) as CheckoutRequest;
   const plan = getBillingPlan(body.planKey);
   const sessionCustomer = await getCheckoutCustomerFromSession(request);
+  const readiness = getStripeBillingReadiness();
 
   if (!plan) {
     return NextResponse.json({ error: "Unknown billing plan." }, { status: 400 });
   }
 
-  if (process.env.STRIPE_CHECKOUT_ENABLED !== "true") {
+  if (!readiness.ready) {
     return NextResponse.json(
       {
         error: "Checkout is temporarily unavailable.",
         setupNeeded: true,
-        nextStep:
-          "Free-trial checkout is not available right now. Please create an account and check back shortly.",
+        nextStep: readiness.publicReason,
       },
       { status: 409 },
     );

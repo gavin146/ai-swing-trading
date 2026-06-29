@@ -3,7 +3,7 @@ import type { NextRequest } from "next/server";
 import { getAdminUnauthorizedResponse, isAdminApiRequest } from "@/lib/auth/admin";
 import { getEmailDeliveryStatus } from "@/lib/email";
 import { hasSupabaseAdminConfig, hasSupabasePublicConfig } from "@/lib/supabase/server";
-import { isStripeCheckoutConfigured, isStripeCheckoutEnabled } from "@/lib/stripe/config";
+import { getStripeBillingReadiness } from "@/lib/stripe/config";
 
 export const dynamic = "force-dynamic";
 
@@ -13,6 +13,7 @@ export async function GET(request: NextRequest) {
   }
 
   const email = getEmailDeliveryStatus();
+  const stripe = getStripeBillingReadiness();
 
   return NextResponse.json({
     adminProtected: Boolean(process.env.ADMIN_API_SECRET),
@@ -27,9 +28,12 @@ export async function GET(request: NextRequest) {
     emailProvider: email.provider,
     emailReason: email.reason,
     openAiReady: Boolean(process.env.OPENAI_API_KEY),
-    stripeReady: isStripeCheckoutConfigured(),
-    stripeCheckoutEnabled: isStripeCheckoutEnabled(),
-    stripePortalConfigured: Boolean(process.env.STRIPE_PORTAL_CONFIGURATION_ID),
+    stripeReady: stripe.configured,
+    stripeCheckoutEnabled: stripe.ready,
+    stripeMode: stripe.mode,
+    stripePortalConfigured: stripe.portalConfigured,
+    stripeReason: stripe.reason,
+    stripeWebhookConfigured: stripe.webhookConfigured,
     twilioReady: Boolean(
       process.env.TWILIO_ACCOUNT_SID &&
         process.env.TWILIO_AUTH_TOKEN &&

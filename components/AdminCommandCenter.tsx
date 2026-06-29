@@ -28,7 +28,10 @@ type StatusPayload = {
   openAiReady: boolean;
   stripeReady: boolean;
   stripeCheckoutEnabled: boolean;
+  stripeMode: string;
   stripePortalConfigured: boolean;
+  stripeReason: string;
+  stripeWebhookConfigured: boolean;
   twilioReady: boolean;
   supabaseReady: boolean;
   supabaseAdminReady: boolean;
@@ -64,6 +67,10 @@ const requiredChecks: Array<[keyof StatusPayload, string]> = [
   ["supabaseAdminReady", "Supabase writes"],
   ["marketDataReady", "FMP market data"],
   ["macroDataReady", "FRED macro"],
+  ["stripeReady", "Stripe keys"],
+  ["stripeWebhookConfigured", "Stripe webhook"],
+  ["stripePortalConfigured", "Stripe billing portal"],
+  ["stripeCheckoutEnabled", "Stripe checkout"],
 ];
 
 function formatDate(value?: string | null) {

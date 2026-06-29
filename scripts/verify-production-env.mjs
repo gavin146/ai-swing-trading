@@ -20,6 +20,12 @@ function value(name) {
   return env[name]?.trim() ?? "";
 }
 
+function isPublicSwingFiDomain() {
+  const appUrl = value("NEXT_PUBLIC_APP_URL");
+
+  return appUrl.includes("swingfi.trade") || appUrl.includes("getswingfi.com");
+}
+
 const checks = [];
 
 function addCheck(label, passed, detail, level = "error", okDetail = "configured") {
@@ -96,12 +102,12 @@ if (checkoutEnabled) {
   );
 }
 
-if (value("REQUIRE_LIVE_STRIPE") === "true") {
+if (value("REQUIRE_LIVE_STRIPE") === "true" || isPublicSwingFiDomain()) {
   addCheck(
     "Stripe live keys",
     value("NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY").startsWith("pk_live_") &&
       value("STRIPE_SECRET_KEY").startsWith("sk_live_"),
-    "REQUIRE_LIVE_STRIPE=true expects pk_live_ and sk_live_ keys.",
+    "Public SwingFi domains expect pk_live_ and sk_live_ keys before checkout is enabled.",
   );
 }
 

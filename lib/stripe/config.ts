@@ -74,6 +74,74 @@ export function getPlanPriceId(plan: BillingPlan) {
   return process.env[plan.stripePriceEnv] ?? "";
 }
 
+function getStripeMode(value: string | undefined) {
+  if (value?.startsWith("sk_live_") || value?.startsWith("pk_live_")) return "live";
+  if (value?.startsWith("sk_test_") || value?.startsWith("pk_test_")) return "test";
+  return "unknown";
+}
+
+function isPublicSwingFiDomain() {
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "";
+
+  return appUrl.includes("swingfi.trade") || appUrl.includes("getswingfi.com");
+}
+
+export function getStripeBillingReadiness() {
+  const secretKey = process.env.STRIPE_SECRET_KEY ?? "";
+  const publishableKey = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY ?? "";
+  const secretMode = getStripeMode(secretKey);
+  const publishableMode = getStripeMode(publishableKey);
+  const priceIdsConfigured = billingPlans.every((plan) => Boolean(getPlanPriceId(plan)));
+  const checkoutFlagEnabled = process.env.STRIPE_CHECKOUT_ENABLED === "true";
+  const webhookConfigured = Boolean(process.env.STRIPE_WEBHOOK_SECRET);
+  const portalConfigured = Boolean(process.env.STRIPE_PORTAL_CONFIGURATION_ID);
+  const liveKeysMatch = secretMode === "live" && publishableMode === "live";
+  const testKeysMatch = secretMode === "test" && publishableMode === "test";
+  const keyModesMatch = liveKeysMatch || testKeysMatch;
+  const liveStripeRequired =
+    process.env.REQUIRE_LIVE_STRIPE === "true" ||
+    (process.env.NODE_ENV === "production" && isPublicSwingFiDomain());
+  const liveModeSatisfied = !liveStripeRequired || liveKeysMatch;
+  const configured = Boolean(secretKey && publishableKey && priceIdsConfigured);
+  const ready =
+    configured &&
+    checkoutFlagEnabled &&
+    webhookConfigured &&
+    portalConfigured &&
+    keyModesMatch &&
+    liveModeSatisfied;
+
+  let reason = "Stripe checkout is ready.";
+  let publicReason = "Checkout is ready.";
+  if (!configured) reason = "Stripe keys and all plan price IDs must be configured.";
+  else if (!keyModesMatch) reason = "Stripe publishable and secret keys must both use test mode or both use live mode.";
+  else if (!checkoutFlagEnabled) reason = "STRIPE_CHECKOUT_ENABLED must be true before checkout is available.";
+  else if (!webhookConfigured) reason = "STRIPE_WEBHOOK_SECRET is required so subscriptions sync after checkout.";
+  else if (!portalConfigured) reason = "STRIPE_PORTAL_CONFIGURATION_ID is required so customers can manage billing.";
+  else if (!liveModeSatisfied) reason = "Live Stripe keys are required before production checkout can be enabled.";
+
+  if (!ready) {
+    publicReason =
+      "Paid checkout is being finalized. Create your account to use the free trial now; subscription checkout will open after billing is fully verified.";
+  }
+
+  return {
+    checkoutFlagEnabled,
+    configured,
+    keyModesMatch,
+    liveModeSatisfied,
+    mode: liveKeysMatch ? "live" : testKeysMatch ? "test" : "unknown",
+    portalConfigured,
+    priceIdsConfigured,
+    publishableMode,
+    publicReason,
+    ready,
+    reason,
+    secretMode,
+    webhookConfigured,
+  };
+}
+
 export function getStripeTrialDays() {
   const parsed = Number(process.env.STRIPE_TRIAL_DAYS ?? 30);
 
@@ -83,13 +151,9 @@ export function getStripeTrialDays() {
 }
 
 export function isStripeCheckoutConfigured() {
-  return Boolean(
-    process.env.STRIPE_SECRET_KEY &&
-      process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY &&
-      billingPlans.some((plan) => getPlanPriceId(plan)),
-  );
+  return getStripeBillingReadiness().configured;
 }
 
 export function isStripeCheckoutEnabled() {
-  return isStripeCheckoutConfigured() && process.env.STRIPE_CHECKOUT_ENABLED === "true";
+  return getStripeBillingReadiness().ready;
 }

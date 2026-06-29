@@ -4,9 +4,8 @@ import { BillingCheckoutButton } from "@/components/BillingCheckoutButton";
 import { BrandMark } from "@/components/BrandMark";
 import {
   billingPlans,
+  getStripeBillingReadiness,
   getStripeTrialDays,
-  isStripeCheckoutConfigured,
-  isStripeCheckoutEnabled,
 } from "@/lib/stripe/config";
 
 const trustSignals = [
@@ -58,10 +57,9 @@ export const metadata: Metadata = {
 };
 
 export default function PricingPage() {
-  const checkoutConfigured = isStripeCheckoutConfigured();
-  const checkoutEnabled = isStripeCheckoutEnabled();
+  const billingReadiness = getStripeBillingReadiness();
   const trialDays = getStripeTrialDays();
-  const checkoutReady = checkoutConfigured && checkoutEnabled;
+  const checkoutReady = billingReadiness.ready;
 
   return (
     <main className="min-h-screen">
@@ -123,8 +121,9 @@ export default function PricingPage() {
               {checkoutReady ? "Free trial checkout is ready" : "Free trial access is available"}
             </p>
             <p className="mt-2 text-sm leading-6 text-ink/60">
-              Start with the plan that fits your research needs. You can review rankings,
-              learn the score system, and cancel before paid billing begins.
+              {checkoutReady
+                ? "Start with the plan that fits your research needs. You can review rankings, learn the score system, and cancel before paid billing begins."
+                : "Create your account to use the free trial while billing is being finalized. Paid checkout stays locked until Stripe live billing, webhooks, and customer billing management are fully ready."}
             </p>
           </div>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -190,7 +189,9 @@ export default function PricingPage() {
                 <div className="mt-auto pt-6">
                   <BillingCheckoutButton
                     planKey={plan.key}
-                    label={checkoutEnabled ? `Start ${trialDays}-day trial` : "Checkout not enabled"}
+                    disabled={!checkoutReady}
+                    disabledMessage={billingReadiness.publicReason}
+                    label={checkoutReady ? `Start ${trialDays}-day trial` : "Create account first"}
                     highlighted={plan.highlighted}
                   />
                 </div>
