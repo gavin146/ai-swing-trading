@@ -37,10 +37,7 @@ export async function POST(request: NextRequest) {
   }
 
   if (!userRow) {
-    return NextResponse.json(
-      { error: "No SwingFi account was found for that email. Check the spelling or create an account." },
-      { status: 404 },
-    );
+    return NextResponse.json({ sent: true });
   }
 
   const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? request.nextUrl.origin).replace(/\/$/, "");

@@ -244,17 +244,6 @@ export function LoginForm() {
     setLoading(true);
     setNotice(null);
 
-    const status = await getAccountStatus(email);
-    if (status.validEmail === false || status.exists === false) {
-      showNotice(
-        "error",
-        "No SwingFi account was found for that email. Check the spelling or create an account.",
-        "Account not found",
-      );
-      setLoading(false);
-      return;
-    }
-
     const response = await fetch("/api/auth/password-reset", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -274,8 +263,8 @@ export function LoginForm() {
 
     showNotice(
       "success",
-      "Password reset email sent from SwingFi. Check your inbox and spam folder, then open the secure link.",
-      "Reset email sent",
+      "If a SwingFi account exists for that email, a reset link is on the way. Check your inbox and spam folder.",
+      "Check your inbox",
     );
   }
 

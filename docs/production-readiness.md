@@ -96,6 +96,8 @@ Optional:
 - Server-side research access checks for opportunity list/detail APIs. Research
   data now requires admin access, an active/trialing subscription, or a verified
   customer inside the 30-day trial.
+- Generic password-reset responses, so public reset requests do not reveal
+  whether a specific email has a SwingFi account.
 
 ## Still Required Before Charging Customers
 
