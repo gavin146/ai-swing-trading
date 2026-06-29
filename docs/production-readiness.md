@@ -38,6 +38,9 @@ Optional:
 - `MORNING_ALERT_REUSE_WINDOW_MINUTES` defaults to `180`. Morning emails reuse
   the latest saved ranking run inside this window before starting a fallback
   live scan, which prevents duplicate market-data and AI usage.
+- `ENABLE_LIVE_PREVIEW_FALLBACK=false` should stay false in production. Saved
+  Supabase ranking runs are the source of truth; live previews are only for
+  local testing when the database is empty.
 - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` and `SUPABASE_SECRET_KEY` if using
   Supabase's newer key names. The app accepts both old and new naming styles.
 - `FMP_UNIVERSE_LIMIT`

@@ -121,6 +121,13 @@ function hasFmpKey() {
   return Boolean(process.env.FMP_API_KEY || process.env.FINANCIAL_DATA_API_KEY);
 }
 
+function livePreviewFallbackEnabled() {
+  return (
+    process.env.ENABLE_LIVE_PREVIEW_FALLBACK === "true" ||
+    process.env.NODE_ENV !== "production"
+  );
+}
+
 function trustStatus(value: unknown): OpportunityTrustStatus {
   if (value === "live" || value === "partial" || value === "mock") return value;
   return "missing";
@@ -263,6 +270,14 @@ async function listLiveAgentPreviewOpportunities(
   limit: number,
   reasonPrefix: string,
 ): Promise<OpportunityListResult> {
+  if (!livePreviewFallbackEnabled()) {
+    return {
+      rows: [],
+      source: "empty",
+      reason: `${reasonPrefix} Live preview fallback is disabled in production so customer rankings only come from saved Supabase runs.`,
+    };
+  }
+
   const now = Date.now();
   if (
     latestAgentPreviewCache &&
@@ -500,6 +515,14 @@ async function listLiveAgentPreviewOpportunityBySymbol(
   symbol: string,
   reasonPrefix: string,
 ): Promise<OpportunityListResult> {
+  if (!livePreviewFallbackEnabled()) {
+    return {
+      rows: [],
+      source: "empty",
+      reason: `${reasonPrefix} Live preview fallback is disabled in production so customer analysis only comes from saved Supabase runs.`,
+    };
+  }
+
   const now = Date.now();
   const cachedSymbol = symbolAgentPreviewCache.get(symbol);
 

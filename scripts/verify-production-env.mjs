@@ -1,5 +1,11 @@
 #!/usr/bin/env node
 
+import nextEnv from "@next/env";
+
+const { loadEnvConfig } = nextEnv;
+
+loadEnvConfig(process.cwd());
+
 const env = process.env;
 
 function has(name) {
@@ -52,6 +58,11 @@ requireOne(
   "Market data key",
   ["FMP_API_KEY", "FINANCIAL_DATA_API_KEY"],
   "Required for live FMP rankings. Without this, customer-facing picks cannot refresh.",
+);
+addCheck(
+  "Live preview fallback",
+  value("ENABLE_LIVE_PREVIEW_FALLBACK") !== "true",
+  "ENABLE_LIVE_PREVIEW_FALLBACK should stay false in production so customer rankings only come from saved Supabase runs.",
 );
 requireEnv("OPENAI_API_KEY", "Required for AI-assisted explanations and analysis summaries.");
 warnEnv("FRED_API_KEY", "Recommended for live macro scoring. The app can run without it, but macro quality is weaker.");
