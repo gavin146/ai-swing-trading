@@ -98,6 +98,8 @@ Optional:
   customer inside the 30-day trial.
 - Generic password-reset responses, so public reset requests do not reveal
   whether a specific email has a SwingFi account.
+- Authenticated welcome-email sending, so public callers cannot use SwingFi as
+  an open email sender.
 
 ## Still Required Before Charging Customers
 

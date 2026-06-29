@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { resolveCustomerSession } from "@/lib/auth/customer-session";
 import { sendEmail } from "@/lib/email";
 import { brandedButton, buildBrandedEmail, escapeHtml } from "@/lib/email-branding";
 
@@ -15,17 +16,21 @@ function firstName(value: unknown) {
 }
 
 export async function POST(request: NextRequest) {
-  const body = (await request.json().catch(() => ({}))) as {
-    email?: string;
-    name?: string;
-  };
-  const email = cleanEmail(body.email);
-
-  if (!email || !email.includes("@")) {
-    return NextResponse.json({ error: "A valid email is required." }, { status: 400 });
+  const session = await resolveCustomerSession(request);
+  if (session.error) {
+    return NextResponse.json({ error: session.error }, { status: session.status });
   }
 
-  const name = firstName(body.name);
+  const body = (await request.json().catch(() => ({}))) as {
+    name?: string;
+  };
+  const email = cleanEmail(session.user?.email);
+
+  if (!email || !email.includes("@")) {
+    return NextResponse.json({ error: "A valid login session is required." }, { status: 401 });
+  }
+
+  const name = firstName(body.name || session.user?.email);
   const safeName = escapeHtml(name);
   const dashboardUrl = `${process.env.NEXT_PUBLIC_APP_URL ?? request.nextUrl.origin}/dashboard`;
   const subject = "Welcome to SwingFi";
