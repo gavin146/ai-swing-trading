@@ -192,44 +192,91 @@ export function AdminCommandCenter({ onNavigate }: AdminCommandCenterProps) {
   const [opportunities, setOpportunities] = useState<OpportunityRow[]>([]);
   const [opportunitySource, setOpportunitySource] = useState<OpportunityDataSource>("empty");
   const [loadingMessage, setLoadingMessage] = useState("Loading command center...");
+  const [loadWarnings, setLoadWarnings] = useState<string[]>([]);
 
   useEffect(() => {
     async function loadOverview() {
-      try {
-        const adminHeaders = await getAdminHeaders();
-        const [statusResponse, customerResponse, opportunityResponse, activityResponse] = await Promise.all([
-          fetch("/api/admin/status", { headers: adminHeaders }),
-          fetch("/api/admin/customers", { headers: adminHeaders }),
-          fetch("/api/opportunities", { headers: adminHeaders }),
-          fetch("/api/admin/activity", { headers: adminHeaders }),
+      const adminHeaders = await getAdminHeaders();
+      const warnings: string[] = [];
+      const readJson = async <T,>(response: Response, label: string) => {
+        const payload = (await response.json().catch(() => ({}))) as T & {
+          error?: string;
+          reason?: string;
+        };
+
+        if (!response.ok) {
+          throw new Error(payload.error ?? payload.reason ?? `${label} could not be loaded.`);
+        }
+
+        return payload;
+      };
+      const [statusResult, customerResult, opportunityResult, activityResult] =
+        await Promise.allSettled([
+          fetch("/api/admin/status", { headers: adminHeaders }).then((response) =>
+            readJson<StatusPayload>(response, "Admin status"),
+          ),
+          fetch("/api/admin/customers", { headers: adminHeaders }).then((response) =>
+            readJson<{
+              customers?: CustomerProfile[];
+              usage?: CustomerUsageSummary[];
+            }>(response, "Customer analytics"),
+          ),
+          fetch("/api/opportunities", { headers: adminHeaders }).then((response) =>
+            readJson<{
+              rows?: OpportunityRow[];
+              source?: OpportunityDataSource;
+            }>(response, "Opportunity data"),
+          ),
+          fetch("/api/admin/activity", { headers: adminHeaders }).then((response) =>
+            readJson<{
+              items?: ActivityItem[];
+            }>(response, "Activity feed"),
+          ),
         ]);
 
-        const statusPayload = (await statusResponse.json()) as StatusPayload;
-        const customerPayload = (await customerResponse.json().catch(() => ({}))) as {
-          customers?: CustomerProfile[];
-          usage?: CustomerUsageSummary[];
-        };
-        const opportunityPayload = (await opportunityResponse.json().catch(() => ({}))) as {
-          rows?: OpportunityRow[];
-          source?: OpportunityDataSource;
-        };
-        const activityPayload = (await activityResponse.json().catch(() => ({}))) as {
-          items?: ActivityItem[];
-        };
-
-        setStatus(statusPayload);
-        setActivity(activityPayload.items ?? []);
-        setCustomers(customerPayload.customers ?? []);
-        setUsage(customerPayload.usage ?? []);
-        setOpportunities(opportunityPayload.rows ?? []);
-        setOpportunitySource(opportunityPayload.source ?? "empty");
-        setLoadingMessage("Live admin overview loaded.");
-      } catch {
-        setLoadingMessage("Some admin overview data could not be loaded.");
+      if (statusResult.status === "fulfilled") {
+        setStatus(statusResult.value);
+      } else {
+        warnings.push(statusResult.reason instanceof Error ? statusResult.reason.message : "Admin status could not be loaded.");
       }
+
+      if (customerResult.status === "fulfilled") {
+        setCustomers(customerResult.value.customers ?? []);
+        setUsage(customerResult.value.usage ?? []);
+      } else {
+        warnings.push(customerResult.reason instanceof Error ? customerResult.reason.message : "Customer analytics could not be loaded.");
+        setCustomers([]);
+        setUsage([]);
+      }
+
+      if (opportunityResult.status === "fulfilled") {
+        setOpportunities(opportunityResult.value.rows ?? []);
+        setOpportunitySource(opportunityResult.value.source ?? "empty");
+      } else {
+        warnings.push(opportunityResult.reason instanceof Error ? opportunityResult.reason.message : "Opportunity data could not be loaded.");
+        setOpportunities([]);
+        setOpportunitySource("empty");
+      }
+
+      if (activityResult.status === "fulfilled") {
+        setActivity(activityResult.value.items ?? []);
+      } else {
+        warnings.push(activityResult.reason instanceof Error ? activityResult.reason.message : "Activity feed could not be loaded.");
+        setActivity([]);
+      }
+
+      setLoadWarnings(warnings);
+      setLoadingMessage(
+        warnings.length
+          ? `Command center loaded with ${warnings.length} warning${warnings.length === 1 ? "" : "s"}.`
+          : "Live admin overview loaded.",
+      );
     }
 
-    void loadOverview();
+    loadOverview().catch((error) => {
+      setLoadWarnings([error instanceof Error ? error.message : "Admin command center could not be loaded."]);
+      setLoadingMessage("Admin command center could not be loaded.");
+    });
   }, []);
 
   const missingChecks = useMemo(
@@ -343,6 +390,21 @@ export function AdminCommandCenter({ onNavigate }: AdminCommandCenterProps) {
           </div>
         </div>
       </div>
+
+      {loadWarnings.length ? (
+        <section className="rounded-3xl border border-amber/30 bg-amber/[0.14] p-4 sm:p-5">
+          <p className="text-sm font-black uppercase tracking-normal text-ink">
+            Partial admin data loaded
+          </p>
+          <div className="mt-3 grid gap-2">
+            {loadWarnings.map((warning) => (
+              <p key={warning} className="text-sm font-bold leading-6 text-ink/68">
+                {warning}
+              </p>
+            ))}
+          </div>
+        </section>
+      ) : null}
 
       <div className="grid min-w-0 gap-4 2xl:grid-cols-[1.1fr_0.9fr]">
         <section className="premium-panel min-w-0 rounded-3xl p-5 sm:p-6">

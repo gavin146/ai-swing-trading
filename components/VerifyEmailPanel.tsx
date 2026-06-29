@@ -16,7 +16,9 @@ export function VerifyEmailPanel({ email = "", initialMode }: VerifyEmailPanelPr
   const [emailValue, setEmailValue] = useState(email);
 
   async function handleResend() {
-    if (!emailValue.trim()) {
+    const normalizedEmail = emailValue.trim().toLowerCase();
+
+    if (!normalizedEmail.includes("@")) {
       setError("Enter the email address you used to create your account.");
       return;
     }
@@ -28,7 +30,7 @@ export function VerifyEmailPanel({ email = "", initialMode }: VerifyEmailPanelPr
     const response = await fetch("/api/auth/resend-verification", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: emailValue }),
+      body: JSON.stringify({ email: normalizedEmail }),
     });
     const payload = (await response.json().catch(() => ({}))) as {
       alreadyVerified?: boolean;
