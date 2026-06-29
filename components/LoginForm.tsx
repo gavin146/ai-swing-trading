@@ -173,7 +173,11 @@ export function LoginForm() {
           password,
         });
 
-        if (authError || !data.user) {
+        if (authError) {
+          throw authError;
+        }
+
+        if (!data.user) {
           throw new Error(
             "That email or password is not correct. Check the email spelling or reset your password.",
           );
@@ -318,6 +322,20 @@ export function LoginForm() {
             <ToastNotice tone={notice.tone} title={notice.title}>
               {notice.message}
             </ToastNotice>
+          ) : null}
+          {!recoveryReady ? (
+            <div className="rounded-2xl border border-line bg-surface p-4 text-sm font-semibold leading-6 text-ink/62">
+              <p>
+                This page needs a valid reset email link. If the link expired, go
+                back to login, enter your email, and send yourself a fresh reset email.
+              </p>
+              <Link
+                href="/login"
+                className="mt-3 inline-flex rounded-xl border border-line bg-white px-3 py-2 text-xs font-black text-ink hover:border-pine"
+              >
+                Request a fresh link
+              </Link>
+            </div>
           ) : null}
           <button
             type="submit"
