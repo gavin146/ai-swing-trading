@@ -1,15 +1,9 @@
 import type { OpportunityRow } from "./database.types";
+import { getPublicAppUrl } from "./brand";
 import { buildBrandedMorningEmail } from "./email-branding";
 
 function getAppUrl() {
-  const configured = process.env.NEXT_PUBLIC_APP_URL ?? process.env.VERCEL_URL;
-  const url = configured
-    ? configured.startsWith("http")
-      ? configured
-      : `https://${configured}`
-    : "http://localhost:3000";
-
-  return url.replace(/\/$/, "");
+  return getPublicAppUrl();
 }
 
 function getAnalysisUrl(symbol: string, customerId = "customer", source = "morning_email") {

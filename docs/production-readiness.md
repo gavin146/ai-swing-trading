@@ -108,6 +108,9 @@ Optional:
 - Public SEO hardening: sitemap only lists public pages, app/customer/admin
   surfaces are noindexed, and canonical URLs are page-specific for launch
   pages.
+- Domain normalization treats `getswingfi.com` as a secondary alias and keeps
+  public metadata, sitemap URLs, alert links, auth links, and billing redirects
+  on the primary `https://www.swingfi.trade` domain.
 
 ## Still Required Before Charging Customers
 

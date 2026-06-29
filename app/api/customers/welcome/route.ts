@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { resolveCustomerSession } from "@/lib/auth/customer-session";
+import { normalizeAppUrl } from "@/lib/brand";
 import { sendEmail } from "@/lib/email";
 import { brandedButton, buildBrandedEmail, escapeHtml } from "@/lib/email-branding";
 
@@ -32,7 +33,7 @@ export async function POST(request: NextRequest) {
 
   const name = firstName(body.name || session.user?.email);
   const safeName = escapeHtml(name);
-  const dashboardUrl = `${process.env.NEXT_PUBLIC_APP_URL ?? request.nextUrl.origin}/dashboard`;
+  const dashboardUrl = `${normalizeAppUrl(process.env.NEXT_PUBLIC_APP_URL ?? request.nextUrl.origin)}/dashboard`;
   const subject = "Welcome to SwingFi";
   const text = [
     `Welcome to SwingFi, ${name}.`,

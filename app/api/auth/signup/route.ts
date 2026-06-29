@@ -5,6 +5,7 @@ import {
   normalizeAuthEmail,
   sendVerificationEmail,
 } from "@/lib/auth/email-verification";
+import { normalizeAppUrl } from "@/lib/brand";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 
@@ -118,7 +119,7 @@ export async function POST(request: NextRequest) {
   const maxRiskScore = clampScore(
     riskProfile === "conservative" ? 45 : riskProfile === "aggressive" ? 78 : 65,
   );
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? request.nextUrl.origin;
+  const appUrl = normalizeAppUrl(process.env.NEXT_PUBLIC_APP_URL ?? request.nextUrl.origin);
   const role = await resolveRole(email);
   const now = new Date().toISOString();
 

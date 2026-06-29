@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { normalizeAppUrl } from "@/lib/brand";
 import { sendEmail } from "@/lib/email";
 import { brandedButton, buildBrandedEmail, escapeHtml } from "@/lib/email-branding";
 import { checkRateLimit } from "@/lib/rate-limit";
@@ -56,7 +57,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ sent: true });
   }
 
-  const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? request.nextUrl.origin).replace(/\/$/, "");
+  const appUrl = normalizeAppUrl(process.env.NEXT_PUBLIC_APP_URL ?? request.nextUrl.origin);
   const { data, error } = await supabase.auth.admin.generateLink({
     type: "recovery",
     email,

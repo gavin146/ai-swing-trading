@@ -3,6 +3,7 @@ import {
   normalizeAuthEmail,
   sendNewVerificationEmail,
 } from "@/lib/auth/email-verification";
+import { normalizeAppUrl } from "@/lib/brand";
 import { checkRateLimit } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
@@ -31,7 +32,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "A valid email is required." }, { status: 400 });
   }
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? request.nextUrl.origin;
+  const appUrl = normalizeAppUrl(process.env.NEXT_PUBLIC_APP_URL ?? request.nextUrl.origin);
 
   try {
     const result = await sendNewVerificationEmail({ appUrl, email });

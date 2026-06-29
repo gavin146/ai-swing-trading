@@ -1,4 +1,5 @@
 import Stripe from "stripe";
+import { getPublicAppUrl } from "@/lib/brand";
 
 const stripeApiVersion = "2026-05-27.dahlia" as NonNullable<
   ConstructorParameters<typeof Stripe>[1]
@@ -22,12 +23,5 @@ export function getStripeClient() {
 }
 
 export function getAppUrl() {
-  const configured = process.env.NEXT_PUBLIC_APP_URL ?? process.env.URL ?? process.env.VERCEL_URL;
-  const url = configured
-    ? configured.startsWith("http")
-      ? configured
-      : `https://${configured}`
-    : "http://localhost:3000";
-
-  return url.replace(/\/$/, "");
+  return getPublicAppUrl();
 }
