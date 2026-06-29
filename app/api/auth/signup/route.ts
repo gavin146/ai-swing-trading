@@ -5,6 +5,7 @@ import {
   normalizeAuthEmail,
   sendVerificationEmail,
 } from "@/lib/auth/email-verification";
+import { checkRateLimit } from "@/lib/rate-limit";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -42,6 +43,22 @@ async function resolveRole(email: string): Promise<UserRole> {
 }
 
 export async function POST(request: NextRequest) {
+  const rateLimit = checkRateLimit(request, {
+    key: "auth:signup",
+    limit: 8,
+    windowMs: 10 * 60 * 1000,
+  });
+
+  if (!rateLimit.allowed) {
+    return NextResponse.json(
+      { error: "Too many signup attempts. Wait a few minutes, then try again." },
+      {
+        headers: { "Retry-After": String(rateLimit.retryAfterSeconds) },
+        status: 429,
+      },
+    );
+  }
+
   const supabase = createSupabaseAdminClient();
 
   if (!supabase) {

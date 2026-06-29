@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createSupabaseAdminClient } from "@/lib/supabase/server";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -11,37 +11,25 @@ function cleanEmail(value: unknown) {
 export async function POST(request: NextRequest) {
   const body = (await request.json().catch(() => ({}))) as { email?: string };
   const email = cleanEmail(body.email);
+  const rateLimit = checkRateLimit(request, {
+    key: `auth:account-status:${email}`,
+    limit: 20,
+    windowMs: 10 * 60 * 1000,
+  });
 
-  if (!email || !email.includes("@")) {
-    return NextResponse.json({ exists: false, validEmail: false });
-  }
-
-  const supabase = createSupabaseAdminClient();
-
-  if (!supabase) {
-    return NextResponse.json({
-      exists: null,
-      reason: "Supabase service role is not configured.",
-      validEmail: true,
-    });
-  }
-
-  const { data, error } = await supabase
-    .from("users")
-    .select("id,email,email_verified_at")
-    .eq("email", email)
-    .maybeSingle();
-
-  if (error) {
+  if (!rateLimit.allowed) {
     return NextResponse.json(
-      { error: error.message, exists: null, validEmail: true },
-      { status: 503 },
+      { error: "Too many account checks. Wait a few minutes, then try again." },
+      {
+        headers: { "Retry-After": String(rateLimit.retryAfterSeconds) },
+        status: 429,
+      },
     );
   }
 
-  return NextResponse.json({
-    emailVerified: Boolean(data?.email_verified_at),
-    exists: Boolean(data),
-    validEmail: true,
-  });
+  if (!email || !email.includes("@")) {
+    return NextResponse.json({ validEmail: false });
+  }
+
+  return NextResponse.json({ validEmail: true });
 }

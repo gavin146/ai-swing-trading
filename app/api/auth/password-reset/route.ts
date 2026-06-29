@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sendEmail } from "@/lib/email";
 import { brandedButton, buildBrandedEmail, escapeHtml } from "@/lib/email-branding";
+import { checkRateLimit } from "@/lib/rate-limit";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -13,6 +14,21 @@ function cleanEmail(value: unknown) {
 export async function POST(request: NextRequest) {
   const body = (await request.json().catch(() => ({}))) as { email?: string };
   const email = cleanEmail(body.email);
+  const rateLimit = checkRateLimit(request, {
+    key: `auth:password-reset:${email}`,
+    limit: 5,
+    windowMs: 15 * 60 * 1000,
+  });
+
+  if (!rateLimit.allowed) {
+    return NextResponse.json(
+      { error: "Too many password reset requests. Wait a few minutes, then try again." },
+      {
+        headers: { "Retry-After": String(rateLimit.retryAfterSeconds) },
+        status: 429,
+      },
+    );
+  }
 
   if (!email || !email.includes("@")) {
     return NextResponse.json({ error: "A valid email is required." }, { status: 400 });

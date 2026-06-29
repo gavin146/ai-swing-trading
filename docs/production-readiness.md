@@ -100,6 +100,9 @@ Optional:
   whether a specific email has a SwingFi account.
 - Authenticated welcome-email sending, so public callers cannot use SwingFi as
   an open email sender.
+- Auth endpoint hardening: account-status no longer reveals whether an email
+  exists, and signup/password-reset/verification helper endpoints include
+  lightweight abuse throttling.
 
 ## Still Required Before Charging Customers
 

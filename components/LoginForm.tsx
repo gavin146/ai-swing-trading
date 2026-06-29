@@ -17,27 +17,11 @@ type SessionProfileResponse = {
   error?: string;
 };
 
-type AccountStatusResponse = {
-  error?: string;
-  exists?: boolean | null;
-  validEmail?: boolean;
-};
-
 type AuthNotice = {
   message: string;
   title?: string;
   tone: ToastTone;
 };
-
-async function getAccountStatus(email: string) {
-  const response = await fetch("/api/auth/account-status", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email }),
-  });
-
-  return (await response.json().catch(() => ({}))) as AccountStatusResponse;
-}
 
 function friendlyLoginError(error: unknown) {
   const message = error instanceof Error ? error.message : String(error);
@@ -190,17 +174,9 @@ export function LoginForm() {
         });
 
         if (authError || !data.user) {
-          const status = await getAccountStatus(email);
-
-          if (status.validEmail === false || status.exists === false) {
-            throw new Error("No SwingFi account was found for that email. Check the spelling or create an account.");
-          }
-
-          if (status.exists === true) {
-            throw new Error("That password does not match this account. Try again or reset your password.");
-          }
-
-          customer = loginCustomer(email, password);
+          throw new Error(
+            "That email or password is not correct. Check the email spelling or reset your password.",
+          );
         } else {
           const profileResponse = await fetch("/api/customers/session", {
             method: "POST",

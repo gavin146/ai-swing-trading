@@ -46,7 +46,6 @@ type SignupResponse = {
 };
 
 type AccountStatusResponse = {
-  exists?: boolean | null;
   validEmail?: boolean;
 };
 
@@ -260,14 +259,6 @@ export function SignupForm() {
         return;
       }
 
-      if (status.exists === true) {
-        showNotice(
-          "info",
-          "An account already exists for that email. Log in or reset your password instead.",
-          "Account already exists",
-        );
-        return;
-      }
     }
 
     setNotice(null);
