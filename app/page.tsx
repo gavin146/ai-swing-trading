@@ -51,7 +51,7 @@ const trustProof = [
 const signupJourney = [
   ["1", "Choose a plan", "Starter keeps the list simple. Pro is the best default. Premium gives the widest daily scan."],
   ["2", "Answer risk questions", "Tell SwingFi how cautious, balanced, or aggressive you want the dashboard to feel."],
-  ["3", "Review the morning list", "Start with Best fit, then compare score, confidence, risk, entry, target, and stop."],
+  ["3", "Review the morning list", "Start with the Start here path, then compare score, confidence, risk, entry, target, and stop."],
   ["4", "Track what you act on", "If you make a trade, save it to Portfolio so the plan stays visible after rankings refresh."],
 ];
 

@@ -348,6 +348,31 @@ export function SettingsForm() {
     <form onSubmit={handleSubmit} className="grid gap-5">
       <section className="rounded-3xl border border-line/80 bg-white p-6 shadow-[0_20px_70px_rgba(7,20,24,0.07)]">
         <p className="text-sm font-bold uppercase tracking-normal text-pine">
+          Preference guide
+        </p>
+        <h2 className="mt-3 text-2xl font-black text-ink">
+          These settings shape what shows up first
+        </h2>
+        <p className="mt-2 max-w-3xl text-sm font-semibold leading-6 text-ink/60">
+          Risk tolerance, confidence minimum, account range, and setup preference help
+          SwingFi decide which ranked ideas belong in your Start here path. They do not
+          change the market data or guarantee a result.
+        </p>
+        <div className="mt-5 grid gap-3 sm:grid-cols-3">
+          {[
+            ["Risk", "Lower risk settings keep the first list calmer."],
+            ["Confidence", "Higher confidence means fewer, cleaner ideas."],
+            ["Alerts", "Morning emails send the daily research link before review time."],
+          ].map(([label, text]) => (
+            <div key={label} className="rounded-2xl border border-line bg-surface p-4">
+              <p className="text-sm font-black text-ink">{label}</p>
+              <p className="mt-2 text-xs font-semibold leading-5 text-ink/55">{text}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+      <section className="rounded-3xl border border-line/80 bg-white p-6 shadow-[0_20px_70px_rgba(7,20,24,0.07)]">
+        <p className="text-sm font-bold uppercase tracking-normal text-pine">
           Access
         </p>
         <h2 className="mt-3 text-2xl font-black text-ink">

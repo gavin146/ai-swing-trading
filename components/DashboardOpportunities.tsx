@@ -35,6 +35,7 @@ type DashboardOpportunitiesProps = {
 };
 
 type DashboardView = "top" | "watchlist" | "higher-risk";
+type DashboardDisplayMode = "guided" | "cards";
 
 type DashboardOpportunitiesPayload = {
   reason?: string;
@@ -301,6 +302,28 @@ function getRiskReward(opportunity: Opportunity) {
   return loss > 0 ? gain / loss : gain;
 }
 
+function GuidedMiniScore({
+  label,
+  score,
+  tone = "text-ink",
+}: {
+  label: string;
+  score: number;
+  tone?: string;
+}) {
+  return (
+    <div className="rounded-2xl border border-line/80 bg-surface px-3 py-3">
+      <p className="text-[11px] font-black uppercase tracking-normal text-ink/42">
+        {label}
+      </p>
+      <p className={`mt-1 text-xl font-black ${tone}`}>
+        {score}
+        <span className="text-xs text-ink/38">/100</span>
+      </p>
+    </div>
+  );
+}
+
 function TodayActionPlan({
   customer,
   dailyPicks,
@@ -363,10 +386,107 @@ function TodayActionPlan({
   );
 }
 
+function GuidedOpportunityList({
+  onSave,
+  onSkip,
+  onWatch,
+  picks,
+  savedSymbols,
+  watchedSymbols,
+}: {
+  onSave: (symbol: string) => void;
+  onSkip: (symbol: string) => void;
+  onWatch: (symbol: string) => void;
+  picks: Opportunity[];
+  savedSymbols: Set<string>;
+  watchedSymbols: Set<string>;
+}) {
+  return (
+    <div className="grid gap-3">
+      {picks.map((opportunity, index) => (
+        <article
+          key={opportunity.symbol}
+          className="motion-card rounded-3xl border border-line/80 bg-white p-4 shadow-[0_14px_42px_rgba(7,20,24,0.055)] transition hover:border-pine/35 hover:shadow-lift sm:p-5"
+          style={{ animationDelay: `${Math.min(index * 35, 280)}ms` }}
+        >
+          <div className="grid gap-4 xl:grid-cols-[1fr_420px] xl:items-center">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="rounded-full bg-ink px-3 py-1 text-xs font-black text-white">
+                  #{index + 1}
+                </span>
+                <span className="text-2xl font-black text-ink">{opportunity.symbol}</span>
+                <span className="rounded-full bg-surface px-3 py-1 text-xs font-bold text-ink/55 ring-1 ring-line">
+                  {opportunity.assetType}
+                </span>
+                <span className="rounded-full bg-mint px-3 py-1 text-xs font-black text-pine">
+                  {opportunity.tradeQuality}
+                </span>
+              </div>
+              <p className="mt-2 text-sm font-semibold leading-6 text-ink/62">
+                {opportunity.rankingSummary}
+              </p>
+              <p className="mt-2 rounded-2xl border border-pine/10 bg-mint/70 px-4 py-2 text-xs font-bold leading-5 text-ink/64">
+                Next check: price near {opportunity.entryRange}, target {opportunity.targetPrice},
+                stop {opportunity.stopLoss}.
+              </p>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-center">
+              <div className="grid grid-cols-3 gap-2">
+                <GuidedMiniScore label="Score" score={opportunity.opportunityScore} tone="text-pine" />
+                <GuidedMiniScore label="Confidence" score={opportunity.confidenceScore} />
+                <GuidedMiniScore label="Risk" score={opportunity.riskScore} tone="text-coral" />
+              </div>
+              <div className="grid grid-cols-3 gap-2 sm:w-64">
+                <Link
+                  href={`/opportunities/${opportunity.symbol}`}
+                  className="rounded-2xl bg-ink px-3 py-3 text-center text-sm font-black text-white shadow-[0_12px_28px_rgba(7,20,24,0.14)] hover:bg-pine"
+                >
+                  Review
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => onSave(opportunity.symbol)}
+                  className={`rounded-2xl border px-3 py-3 text-sm font-black transition ${
+                    savedSymbols.has(opportunity.symbol)
+                      ? "border-pine bg-mint text-pine"
+                      : "border-line bg-surface text-ink/66 hover:border-pine/35 hover:text-ink"
+                  }`}
+                >
+                  {savedSymbols.has(opportunity.symbol) ? "Saved" : "Save"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onWatch(opportunity.symbol)}
+                  className={`rounded-2xl border px-3 py-3 text-sm font-black transition ${
+                    watchedSymbols.has(opportunity.symbol)
+                      ? "border-amber bg-amber/12 text-ink"
+                      : "border-line bg-surface text-ink/66 hover:border-amber/45 hover:text-ink"
+                  }`}
+                >
+                  {watchedSymbols.has(opportunity.symbol) ? "Watching" : "Watch"}
+                </button>
+              </div>
+              <button
+                type="button"
+                onClick={() => onSkip(opportunity.symbol)}
+                className="rounded-2xl border border-line bg-white px-4 py-3 text-sm font-black text-ink/52 transition hover:border-coral/35 hover:text-coral sm:col-span-2"
+              >
+                Skip for now
+              </button>
+            </div>
+          </div>
+        </article>
+      ))}
+    </div>
+  );
+}
+
 function ReviewRoutinePanel() {
   const steps = [
     {
-      body: "Open Best fit first. These are filtered to keep the starting point calmer and more relevant to your profile.",
+      body: "Open Start here first. These are filtered to keep the starting point calmer and more relevant to your profile.",
       label: "1",
       title: "Start with the list",
     },
@@ -395,7 +515,7 @@ function ReviewRoutinePanel() {
             Beginner review routine
           </p>
           <h2 className="mt-2 text-2xl font-black text-ink">
-            Read each pick in this order
+            Your first five minutes
           </h2>
         </div>
         <p className="max-w-lg text-sm font-semibold leading-6 text-ink/58 lg:text-right">
@@ -877,6 +997,10 @@ function DashboardAnalysisSkeleton() {
             Pulling the saved morning run and matching it to your risk and confidence
             settings.
           </p>
+          <p className="mt-3 max-w-2xl rounded-2xl border border-line bg-surface px-4 py-3 text-xs font-bold leading-5 text-ink/55">
+            If this does not load shortly, SwingFi will show a reconnect prompt
+            instead of leaving you stuck.
+          </p>
           <div className="mt-5 grid grid-cols-3 gap-2 sm:gap-3">
             <div className="skeleton h-20 rounded-2xl" />
             <div className="skeleton h-20 rounded-2xl" />
@@ -1113,6 +1237,7 @@ export function DashboardOpportunities({
   const [currentTrust, setCurrentTrust] = useState<OpportunityTrustPanel | null>(null);
   const [opportunitiesLoading, setOpportunitiesLoading] = useState(false);
   const [activeView, setActiveView] = useState<DashboardView>("top");
+  const [displayMode, setDisplayMode] = useState<DashboardDisplayMode>("guided");
   const [customer, setCustomer] = useState<CustomerProfile | null>(null);
   const [ready, setReady] = useState(false);
   const [opportunityRefreshToken, setOpportunityRefreshToken] = useState(0);
@@ -1347,21 +1472,21 @@ export function DashboardOpportunities({
       return [
         {
           count: Math.min(5, bestFitCount || activePicks.length),
-          description: "Focused first review for your confidence and risk settings.",
+          description: "The calm first list, filtered around your confidence and risk settings.",
           key: "top" as const,
-          label: "Best fit",
+          label: "Start here",
         },
         {
           count: watchWaitCount,
-          description: "All monitor-worthy ideas to save or revisit near entry.",
+          description: "Ideas to save, watch, or revisit only if the entry improves.",
           key: "watchlist" as const,
-          label: "Watch & wait",
+          label: "Monitor",
         },
         {
           count: higherUpsideCount,
-          description: "All bigger-upside ideas with less forgiving risk.",
+          description: "More upside potential, usually with less forgiving risk.",
           key: "higher-risk" as const,
-          label: "Higher upside",
+          label: "Bigger upside",
         },
       ];
     },
@@ -1438,19 +1563,19 @@ export function DashboardOpportunities({
   const sectorRotation = useMemo(() => buildSectorRotation(dailyPicks), [dailyPicks]);
   const activeViewCopy = {
     top: {
-      eyebrow: "Best-fit opportunities",
-      title: "Start with these profile-friendly setups",
-      note: "Best fit is intentionally focused on the first five ideas so the starting point stays manageable.",
+      eyebrow: "Start here",
+      title: "Review these profile-friendly setups first",
+      note: "Start here is intentionally capped at five ideas so the first screen stays manageable.",
     },
     watchlist: {
-      eyebrow: "Watch & wait",
-      title: "Monitor these before acting",
-      note: "Showing every monitor-worthy idea in this mode.",
+      eyebrow: "Monitor",
+      title: "Save or revisit these before acting",
+      note: "Monitor shows every idea that may be useful later but is not the cleanest first review.",
     },
     "higher-risk": {
-      eyebrow: "Higher-upside review",
+      eyebrow: "Bigger-upside review",
       title: "Review only if the risk fits your plan",
-      note: "Showing every higher-upside idea in this mode.",
+      note: "Bigger upside shows every idea where potential return or risk is higher than your calm starting list.",
     },
   }[activeView];
   const access = getAccessState(customer);
@@ -1536,13 +1661,23 @@ export function DashboardOpportunities({
             </h2>
             <p className="mt-3 max-w-3xl text-sm font-medium leading-6 text-ink/62">
               {customer
-                ? `${planLabel} is showing ${dailyPicks.length} personalized picks from today's ranked scan. Start with Best fit, then open any card that fits your entry, target, and stop plan. ${personalized.dailyDirectMatchCount} picks match your confidence and risk settings${
+                ? `${planLabel} is showing ${dailyPicks.length} personalized picks from today's ranked scan. Begin in the Start here path, then open any card that fits your entry, target, and stop plan. ${personalized.dailyDirectMatchCount} picks match your confidence and risk settings${
                     personalized.closestFitCount > 0
                       ? `; ${personalized.closestFitCount} are close-fit backups.`
                       : "."
                   }`
                 : `Showing ${dailyPicks.length} agent-ranked opportunities. Create a profile to personalize the list by risk, budget, and confidence preference.`}
             </p>
+            <div className="mt-4 rounded-2xl border border-pine/15 bg-mint px-4 py-3">
+              <p className="text-xs font-black uppercase tracking-normal text-pine">
+                Beginner takeaway
+              </p>
+              <p className="mt-1 text-sm font-bold leading-6 text-ink/68">
+                Pick one to three ideas to review. Do not act unless price is still near
+                the entry range, the stop loss fits your risk, and the ranking reason
+                makes sense to you.
+              </p>
+            </div>
             <div className="mt-4 grid grid-cols-3 gap-2 sm:gap-3">
               <div className="rounded-2xl border border-line/80 bg-surface p-3">
                 <p className="text-xs font-black uppercase tracking-normal text-ink/45">
@@ -1626,11 +1761,11 @@ export function DashboardOpportunities({
         <div className="grid gap-3 xl:grid-cols-[300px_1fr] xl:items-stretch">
           <div>
             <p className="text-xs font-black uppercase tracking-normal text-pine">
-              Choose your review mode
+              Choose your review path
             </p>
             <p className="mt-1 text-sm font-semibold text-ink/58">
-              Start with best fit. Move to watch & wait or higher upside only when
-              you want a broader review.
+              Start here first. Move to Monitor or Bigger upside only when you want a
+              broader review.
             </p>
           </div>
           <div className="grid gap-2 sm:grid-cols-3">
@@ -1664,7 +1799,9 @@ export function DashboardOpportunities({
         </div>
         <p className="mt-2 rounded-2xl border border-line/70 bg-white/68 px-4 py-2.5 text-xs font-semibold leading-5 text-ink/54">
           This changes the list you are reviewing. It does not change SwingFi&apos;s
-          original ranking or turn any idea into a buy recommendation.
+          original ranking or turn any idea into a buy recommendation. The number on
+          each path is how many ideas currently match that path after skipped picks
+          are removed.
           {skippedSymbols.size > 0 ? ` ${skippedSymbols.size} skipped ideas are hidden.` : ""}
         </p>
       </div>
@@ -1682,17 +1819,56 @@ export function DashboardOpportunities({
               Showing {visiblePicks.length} ticker analyses. {activeViewCopy.note}
             </p>
           </div>
-          {skippedSymbols.size > 0 ? (
-            <button
-              type="button"
-              onClick={() => setSkippedSymbols(new Set())}
-              className="rounded-full border border-line bg-white px-4 py-2 text-sm font-black text-ink/62 transition hover:border-pine/35 hover:text-ink"
-            >
-              Restore skipped
-            </button>
-          ) : null}
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <div className="grid grid-cols-2 rounded-2xl border border-line bg-white p-1 shadow-[0_10px_28px_rgba(7,20,24,0.045)]">
+              {[
+                ["guided", "Simple list"],
+                ["cards", "Full cards"],
+              ].map(([mode, label]) => (
+                <button
+                  key={mode}
+                  type="button"
+                  onClick={() => setDisplayMode(mode as DashboardDisplayMode)}
+                  className={`rounded-xl px-3 py-2 text-sm font-black transition ${
+                    displayMode === mode
+                      ? "bg-ink text-white"
+                      : "text-ink/58 hover:bg-surface hover:text-ink"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            {skippedSymbols.size > 0 ? (
+              <button
+                type="button"
+                onClick={() => setSkippedSymbols(new Set())}
+                className="rounded-2xl border border-line bg-white px-4 py-2 text-sm font-black text-ink/62 transition hover:border-pine/35 hover:text-ink"
+              >
+                Restore skipped
+              </button>
+            ) : null}
+          </div>
         </div>
-        <div className="grid gap-4 xl:grid-cols-2 2xl:grid-cols-3">
+        <p className="rounded-2xl border border-line/80 bg-white/78 px-4 py-3 text-xs font-semibold leading-5 text-ink/56">
+          Simple list is the default for a calmer first review. Full cards show more
+          model details when you want to compare every signal on screen.
+        </p>
+        {displayMode === "guided" && visiblePicks.length > 0 ? (
+          <GuidedOpportunityList
+            picks={visiblePicks}
+            savedSymbols={savedSymbols}
+            watchedSymbols={watchedSymbols}
+            onSave={(symbol) => toggleSymbol(symbol, setSavedSymbols)}
+            onWatch={(symbol) => toggleSymbol(symbol, setWatchedSymbols)}
+            onSkip={(symbol) =>
+              setSkippedSymbols((current) => new Set(current).add(symbol))
+            }
+          />
+        ) : null}
+        <div className={`grid gap-4 xl:grid-cols-2 2xl:grid-cols-3 ${
+          displayMode === "guided" && visiblePicks.length > 0 ? "hidden" : ""
+        }`}>
           {dailyPicks.length === 0 ? (
             <div className="rounded-3xl border border-line bg-panel p-6 shadow-soft xl:col-span-2">
               <p className="text-sm font-black uppercase tracking-normal text-pine">

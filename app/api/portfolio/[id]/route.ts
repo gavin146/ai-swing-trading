@@ -112,3 +112,29 @@ export async function PATCH(request: Request, { params }: PortfolioTradeRoutePro
 
   return NextResponse.json({ trade: data });
 }
+
+export async function DELETE(request: Request, { params }: PortfolioTradeRouteProps) {
+  const session = await resolveCustomerSession(request);
+  if (session.error) {
+    return NextResponse.json({ error: session.error }, { status: session.status });
+  }
+  const supabase = session.supabase!;
+  const user = session.user!;
+  const { id } = await params;
+
+  const { error, count } = await supabase
+    .from("trade_history")
+    .delete({ count: "exact" })
+    .eq("id", id)
+    .eq("user_id", user.id);
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 503 });
+  }
+
+  if (!count) {
+    return NextResponse.json({ error: "Trade not found." }, { status: 404 });
+  }
+
+  return NextResponse.json({ deleted: true });
+}

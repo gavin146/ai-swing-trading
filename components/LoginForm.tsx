@@ -304,6 +304,17 @@ export function LoginForm() {
               : "Checking your secure password reset link."
             : "Sign in to review today’s ranked opportunities, saved preferences, and morning email settings."}
         </p>
+        {!recoveryMode ? (
+          <div className="mt-5 rounded-2xl border border-line bg-surface px-4 py-3">
+            <p className="text-xs font-black uppercase tracking-normal text-pine">
+              After login
+            </p>
+            <p className="mt-1 text-sm font-semibold leading-6 text-ink/60">
+              You&apos;ll land on today&apos;s ranked ideas. Start with the Start here path,
+              then open one to three setups for deeper review.
+            </p>
+          </div>
+        ) : null}
       </div>
 
       {recoveryMode ? (

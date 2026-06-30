@@ -411,6 +411,15 @@ export function SignupForm({ selectedPlan }: { selectedPlan?: SelectedSignupPlan
           <p className="mt-3 max-w-2xl text-sm font-semibold leading-7 text-ink/60">
             {current.text}
           </p>
+          <div className="mt-5 rounded-2xl border border-line bg-surface px-4 py-3">
+            <p className="text-xs font-black uppercase tracking-normal text-pine">
+              What happens next
+            </p>
+            <p className="mt-1 text-sm font-semibold leading-6 text-ink/60">
+              Answer the questions one at a time. SwingFi uses them to shape your
+              first dashboard around risk, confidence, budget, and trading experience.
+            </p>
+          </div>
 
           <div className="mt-8 min-h-[310px]">
             {step === 0 ? (

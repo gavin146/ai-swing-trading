@@ -184,6 +184,46 @@ function HealthCard({
   );
 }
 
+function ChecklistCard({
+  detail,
+  label,
+  ready,
+  required = false,
+}: {
+  detail: string;
+  label: string;
+  ready: boolean;
+  required?: boolean;
+}) {
+  return (
+    <div
+      className={`rounded-2xl border p-4 ${
+        ready
+          ? "border-pine/20 bg-mint"
+          : required
+            ? "border-coral/25 bg-coral/10"
+            : "border-amber/30 bg-amber/[0.16]"
+      }`}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <p className="text-sm font-black text-ink">{label}</p>
+        <span
+          className={`rounded-full px-2.5 py-1 text-[11px] font-black uppercase tracking-normal ${
+            ready
+              ? "bg-white text-pine ring-1 ring-pine/20"
+              : required
+                ? "bg-white text-coral ring-1 ring-coral/20"
+                : "bg-white text-ink/60 ring-1 ring-line"
+          }`}
+        >
+          {ready ? "Ready" : required ? "Required" : "Improve"}
+        </span>
+      </div>
+      <p className="mt-2 text-xs font-semibold leading-5 text-ink/58">{detail}</p>
+    </div>
+  );
+}
+
 export function AdminCommandCenter({ onNavigate }: AdminCommandCenterProps) {
   const [status, setStatus] = useState<StatusPayload | null>(null);
   const [activity, setActivity] = useState<ActivityItem[]>([]);
@@ -317,6 +357,81 @@ export function AdminCommandCenter({ onNavigate }: AdminCommandCenterProps) {
       "Forward predictions are evaluated after the market closes.",
     ],
   ] as const;
+  const productionChecklist = {
+    required: [
+      [
+        "Admin and cron secrets",
+        Boolean(status?.adminProtected && status?.cronProtected),
+        "Production admin and scheduled jobs must require secrets.",
+      ],
+      [
+        "Supabase writes",
+        Boolean(status?.supabaseReady && status?.supabaseAdminReady && status?.livePersistenceReady),
+        "Customers, picks, predictions, and portfolio records must persist.",
+      ],
+      [
+        "Market analysis feeds",
+        Boolean(status?.marketDataReady && status?.openAiReady),
+        "FMP and OpenAI must be available before publishing daily rankings.",
+      ],
+      [
+        "Morning email delivery",
+        Boolean(status?.emailReady),
+        "Resend sender and branded email alerts must be ready before users rely on briefs.",
+      ],
+      [
+        "Billing launch gate",
+        Boolean(status?.stripeReady && status?.stripeWebhookConfigured && status?.stripePortalConfigured && status?.stripeCheckoutEnabled),
+        "Live checkout, webhook sync, and customer billing portal must work before charging.",
+      ],
+    ],
+    recommended: [
+      [
+        "Prediction evaluation cron",
+        Boolean(status?.predictionEvaluationCronConfigured),
+        "Outcome tracking should run automatically so accuracy can improve over time.",
+      ],
+      [
+        "Daily rankings cron",
+        Boolean(status?.vercelCronConfigured),
+        "The morning agent should run without a manual admin click.",
+      ],
+      [
+        "Macro context",
+        Boolean(status?.macroDataReady),
+        "FRED macro data improves market-regime context for ranking language.",
+      ],
+      [
+        "SMS readiness",
+        Boolean(status?.twilioReady),
+        "Twilio can remain secondary while email is the main alert channel.",
+      ],
+    ],
+    growth: [
+      [
+        "Saved customer activity",
+        customers.length > 0,
+        "Real customer accounts make onboarding, email, and engagement reporting measurable.",
+      ],
+      [
+        "Forward prediction sample",
+        opportunities.length > 0,
+        "Daily picks must be saved consistently before prediction accuracy becomes meaningful.",
+      ],
+      [
+        "Email engagement",
+        monthlyClicks > 0,
+        "Clicks prove users are opening alerts and reaching their dashboard.",
+      ],
+    ],
+  } as const;
+  const requiredReadyCount = productionChecklist.required.filter(([, ready]) => ready).length;
+  const requiredTotal = productionChecklist.required.length;
+  const launchReadiness = isLoading
+    ? "Checking"
+    : requiredReadyCount === requiredTotal
+      ? "Ready for final live test"
+      : `${requiredTotal - requiredReadyCount} required blocker${requiredTotal - requiredReadyCount === 1 ? "" : "s"}`;
 
   return (
     <section className="grid min-w-0 gap-5">
@@ -405,6 +520,60 @@ export function AdminCommandCenter({ onNavigate }: AdminCommandCenterProps) {
           </div>
         </section>
       ) : null}
+
+      <section className="premium-panel min-w-0 rounded-3xl p-5 sm:p-6">
+        <div className="grid gap-4 xl:grid-cols-[1fr_300px] xl:items-start">
+          <div>
+            <p className="text-sm font-black uppercase tracking-normal text-pine">
+              Production readiness
+            </p>
+            <h3 className="mt-2 text-2xl font-black text-ink">
+              Launch checklist for SwingFi
+            </h3>
+            <p className="mt-2 max-w-3xl text-sm font-semibold leading-6 text-ink/60">
+              This separates hard blockers from improvements so you can see whether
+              SwingFi is safe to operate, safe to charge for, and improving prediction
+              quality over time.
+            </p>
+          </div>
+          <div className="rounded-3xl border border-line bg-surface p-4">
+            <p className="text-xs font-black uppercase tracking-normal text-ink/42">
+              Launch status
+            </p>
+            <p className="mt-2 text-2xl font-black text-ink">{launchReadiness}</p>
+            <p className="mt-2 text-xs font-semibold leading-5 text-ink/55">
+              Required checks ready: {isLoading ? "--" : `${requiredReadyCount}/${requiredTotal}`}.
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-5 grid gap-5">
+          {[
+            ["Required before charging", productionChecklist.required, true],
+            ["Recommended before public launch", productionChecklist.recommended, false],
+            ["Growth and quality signals", productionChecklist.growth, false],
+          ].map(([title, checks, required]) => (
+            <div key={String(title)}>
+              <p className="text-xs font-black uppercase tracking-normal text-ink/45">
+                {String(title)}
+              </p>
+              <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                {(checks as ReadonlyArray<readonly [string, boolean, string]>).map(
+                  ([label, ready, detail]) => (
+                    <ChecklistCard
+                      key={label}
+                      label={label}
+                      ready={!isLoading && ready}
+                      detail={isLoading ? "Checking production configuration..." : detail}
+                      required={Boolean(required)}
+                    />
+                  ),
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
 
       <div className="grid min-w-0 gap-4 2xl:grid-cols-[1.1fr_0.9fr]">
         <section className="premium-panel min-w-0 rounded-3xl p-5 sm:p-6">

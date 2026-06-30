@@ -8,6 +8,15 @@ export type FmpHistoricalCandle = {
   volume?: number;
 };
 
+export type FmpSymbolSearchResult = {
+  symbol?: string;
+  name?: string;
+  companyName?: string;
+  currency?: string;
+  stockExchange?: string;
+  exchangeShortName?: string;
+};
+
 export type FmpCompanyProfile = {
   symbol?: string;
   cik?: string;
@@ -92,6 +101,9 @@ export type FmpSecFiling = {
 };
 
 type FmpResponseShape<T> = T[] | { historical?: T[] } | { data?: T[] } | { error?: string };
+type FmpFetchOptions = {
+  revalidateSeconds?: number;
+};
 
 const fmpBaseUrl = "https://financialmodelingprep.com";
 
@@ -138,9 +150,10 @@ function buildUrl(path: string, params: Record<string, string | number | undefin
 async function getFmpArray<T>(
   path: string,
   params: Record<string, string | number | undefined>,
+  options: FmpFetchOptions = {},
 ): Promise<T[]> {
   const response = await fetch(buildUrl(path, params), {
-    next: { revalidate: 60 * 60 * 12 },
+    next: { revalidate: options.revalidateSeconds ?? 60 * 60 * 12 },
   });
 
   if (!response.ok) {
@@ -178,8 +191,35 @@ export async function getFmpHistoricalCandles(symbol: string, from: string, to: 
   });
 }
 
+export async function getFmpIntradayCandles(
+  symbol: string,
+  interval: "1min" | "5min" | "15min" | "30min" | "1hour",
+  from: string,
+  to: string,
+) {
+  return getFmpArray<FmpHistoricalCandle>(`/stable/historical-chart/${interval}`, {
+    symbol,
+    from,
+    to,
+  }, { revalidateSeconds: 60 });
+}
+
+export async function searchFmpSymbols(query: string, limit = 8) {
+  return getFmpArray<FmpSymbolSearchResult>("/stable/search-symbol", {
+    query,
+    limit,
+  }, { revalidateSeconds: 60 * 60 });
+}
+
+export async function searchFmpCompanyNames(query: string, limit = 8) {
+  return getFmpArray<FmpSymbolSearchResult>("/stable/search-name", {
+    query,
+    limit,
+  }, { revalidateSeconds: 60 * 60 });
+}
+
 export async function getFmpCompanyProfile(symbol: string) {
-  const rows = await getFmpArray<FmpCompanyProfile>("/stable/profile", { symbol });
+  const rows = await getFmpArray<FmpCompanyProfile>("/stable/profile", { symbol }, { revalidateSeconds: 60 });
   return rows[0] ?? null;
 }
 
@@ -217,7 +257,7 @@ export async function getFmpStockNews(symbol: string, limit = 8) {
   return getFmpArray<FmpStockNews>("/stable/news/stock", {
     symbols: symbol,
     limit,
-  });
+  }, { revalidateSeconds: 60 * 15 });
 }
 
 export async function getFmpEarnings(symbol: string, limit = 8) {

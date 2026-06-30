@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { AssetType, TradeStatus } from "@/lib/database.types";
 import { resolveCustomerSession } from "@/lib/auth/customer-session";
+import { buildPortfolioExitPlan } from "@/lib/portfolio/exit-plan";
 import { getFmpCompanyProfile, getFmpStockNews } from "@/lib/providers/fmp";
 
 export const dynamic = "force-dynamic";
@@ -152,7 +153,7 @@ export async function GET(request: Request) {
 
   const trades = await Promise.all((data ?? []).map((row) => enrichTrade(row)));
 
-  return NextResponse.json({ trades });
+  return NextResponse.json({ refreshedAt: new Date().toISOString(), trades });
 }
 
 export async function POST(request: Request) {
@@ -166,18 +167,56 @@ export async function POST(request: Request) {
   const body = (await request.json().catch(() => null)) as TradeBody | null;
   const symbol = normalizeSymbol(body?.symbol);
   const entryPrice = parsePositiveNumber(body?.entryPrice);
-  const targetPrice = parsePositiveNumber(body?.targetPrice);
-  const stopLoss = parsePositiveNumber(body?.stopLoss);
+  let targetPrice = parsePositiveNumber(body?.targetPrice);
+  let stopLoss = parsePositiveNumber(body?.stopLoss);
   const quantity = parsePositiveNumber(body?.quantity) ?? 1;
+  let notes = cleanText(body?.notes);
 
   if (!symbol) {
     return NextResponse.json({ error: "Add the ticker symbol you bought." }, { status: 400 });
   }
 
-  if (!entryPrice || !targetPrice || !stopLoss) {
+  if (!entryPrice) {
     return NextResponse.json(
-      { error: "Entry price, target, and stop loss are required." },
+      { error: "Add the price you paid for the trade." },
       { status: 400 },
+    );
+  }
+
+  if (!targetPrice || !stopLoss) {
+    try {
+      const exitPlan = await buildPortfolioExitPlan({ entryPrice, symbol });
+      targetPrice = targetPrice ?? exitPlan.targetPrice;
+      stopLoss = stopLoss ?? exitPlan.stopLoss;
+      const planSource =
+        exitPlan.source === "swingfi_daily_analysis"
+          ? "latest SwingFi daily analysis"
+          : "market-structure estimate";
+      const hasPlannedHold = /planned hold:\s*\d+\s*days/i.test(notes);
+      const autoPlanNote = [
+        hasPlannedHold ? "" : `Planned hold: ${exitPlan.holdingPeriodDays} days.`,
+        `SwingFi exit plan: ${exitPlan.explanation} Source: ${planSource}.`,
+      ]
+        .filter(Boolean)
+        .join("\n\n");
+      notes = [notes, autoPlanNote].filter(Boolean).join("\n\n");
+    } catch (error) {
+      return NextResponse.json(
+        {
+          error:
+            error instanceof Error
+              ? error.message
+              : "SwingFi could not build an exit plan for this trade.",
+        },
+        { status: 503 },
+      );
+    }
+  }
+
+  if (!targetPrice || !stopLoss) {
+    return NextResponse.json(
+      { error: "SwingFi could not build a complete target and stop for this trade." },
+      { status: 503 },
     );
   }
 
@@ -201,7 +240,7 @@ export async function POST(request: Request) {
       asset_type: normalizeAssetType(body?.assetType),
       entry_price: entryPrice,
       exit_price: parsePositiveNumber(body?.exitPrice),
-      notes: cleanText(body?.notes) || null,
+      notes: notes || null,
       opened_at: toIsoDate(body?.openedAt),
       opportunity_id: cleanText(body?.opportunityId) || null,
       quantity,

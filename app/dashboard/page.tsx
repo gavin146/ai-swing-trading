@@ -8,8 +8,8 @@ export default async function DashboardPage() {
     <AppShell
       active="dashboard"
       eyebrow="Today's pre-market brief"
-      title="Your ranked swing trade desk"
-      subtitle="Review the day's strongest setups with entry, target, stop, confidence, risk, and a plain-English reason for each ranking."
+      title="Today's ranked trade ideas"
+      subtitle="Start with the calm first list, open one to three setups, then check entry, target, stop, confidence, and risk before doing deeper research."
     >
       <DashboardOpportunities
         dataSource="empty"

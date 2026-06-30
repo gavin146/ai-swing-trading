@@ -52,6 +52,30 @@ type InitialTrade = {
   targetPrice?: string;
 };
 
+type TickerSuggestion = {
+  currency: string;
+  exchange: string;
+  name: string;
+  symbol: string;
+};
+
+type EntryPriceEstimate = {
+  confidence: "higher" | "estimate";
+  estimatedPrice: number;
+  message: string;
+  source: "fmp_intraday" | "fmp_daily_estimate";
+  sourceTime: string | null;
+};
+
+type ExitPlan = {
+  confidence: "higher" | "estimate";
+  explanation: string;
+  holdingPeriodDays: number;
+  source: "swingfi_daily_analysis" | "market_structure_estimate";
+  stopLoss: number;
+  targetPrice: number;
+};
+
 type FormState = {
   assetType: AssetType;
   entryDate: string;
@@ -108,6 +132,17 @@ function formatPercent(value: number | null | undefined) {
   return `${value >= 0 ? "+" : ""}${value.toFixed(1)}%`;
 }
 
+function formatTime(value: string | null) {
+  if (!value) return "Not refreshed yet";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Not refreshed yet";
+
+  return new Intl.DateTimeFormat("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(date);
+}
+
 function toNumber(value: string | undefined) {
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
@@ -119,16 +154,12 @@ function validateTradePlan(form: FormState) {
   const targetPrice = toNumber(form.targetPrice);
   const stopLoss = toNumber(form.stopLoss);
   const quantity = toNumber(form.quantity);
-  const holdingPeriodDays = toNumber(form.holdingPeriodDays);
 
   if (!symbol) return "Add the ticker symbol you bought.";
   if (!entryPrice) return "Add the price you paid for the trade.";
   if (!quantity) return "Add how many shares or units you bought.";
-  if (!targetPrice) return "Add the target price you plan to review.";
-  if (!stopLoss) return "Add the stop loss so the risk is clear.";
-  if (targetPrice <= entryPrice) return "For long trades, the target should be above your entry price.";
-  if (stopLoss >= entryPrice) return "For long trades, the stop loss should be below your entry price.";
-  if (!holdingPeriodDays) return "Add the planned holding window in trading days.";
+  if (targetPrice && targetPrice <= entryPrice) return "For long trades, the target should be above your entry price.";
+  if (stopLoss && stopLoss >= entryPrice) return "For long trades, the stop loss should be below your entry price.";
 
   return "";
 }
@@ -184,6 +215,73 @@ function statusTone(status: string) {
   }
 
   return "border-amber/25 bg-amber/15 text-ink";
+}
+
+function reviewCountdown(trade: PortfolioTrade) {
+  if (!trade.plannedHoldingDays) {
+    return {
+      label: "SwingFi monitoring",
+      detail: "No review countdown was saved for this trade.",
+      progress: 0,
+      urgency: "neutral",
+    };
+  }
+
+  const daysLeft = trade.plannedHoldingDays - trade.daysHeld;
+  const progress = Math.min(Math.max((trade.daysHeld / trade.plannedHoldingDays) * 100, 0), 100);
+
+  if (daysLeft <= 0) {
+    return {
+      label: "Review sell plan now",
+      detail: `${trade.plannedHoldingDays}-day swing window has arrived.`,
+      progress: 100,
+      urgency: "high",
+    };
+  }
+
+  if (daysLeft <= 2) {
+    return {
+      label: `${daysLeft} day${daysLeft === 1 ? "" : "s"} to review`,
+      detail: "Prepare to review the target, stop, news, and current trend.",
+      progress,
+      urgency: "watch",
+    };
+  }
+
+  return {
+    label: `${daysLeft} days left`,
+    detail: `${trade.daysHeld} of ${trade.plannedHoldingDays} planned swing days complete.`,
+    progress,
+    urgency: "calm",
+  };
+}
+
+function countdownTone(urgency: string) {
+  if (urgency === "high") return "border-coral/25 bg-coral/10 text-coral";
+  if (urgency === "watch") return "border-amber/25 bg-amber/15 text-ink";
+  return "border-pine/15 bg-mint text-pine";
+}
+
+function isEntryPriceEstimate(value: unknown): value is EntryPriceEstimate {
+  const estimate = value as Partial<EntryPriceEstimate>;
+
+  return (
+    typeof estimate.estimatedPrice === "number" &&
+    typeof estimate.message === "string" &&
+    (estimate.source === "fmp_intraday" || estimate.source === "fmp_daily_estimate")
+  );
+}
+
+function isExitPlan(value: unknown): value is ExitPlan {
+  const plan = value as Partial<ExitPlan>;
+
+  return (
+    typeof plan.targetPrice === "number" &&
+    typeof plan.stopLoss === "number" &&
+    typeof plan.holdingPeriodDays === "number" &&
+    typeof plan.explanation === "string" &&
+    (plan.source === "swingfi_daily_analysis" || plan.source === "market_structure_estimate")
+  );
 }
 
 function PortfolioSessionReconnect() {
@@ -246,12 +344,24 @@ export function SwingPortfolioPanel({ initialTrade }: { initialTrade?: InitialTr
   const [loading, setLoading] = useState(true);
   const [requiresSessionReconnect, setRequiresSessionReconnect] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [lastUpdatedAt, setLastUpdatedAt] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const [showAddTrade, setShowAddTrade] = useState(Boolean(initialTrade?.symbol));
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+  const [deletingTradeIds, setDeletingTradeIds] = useState<Record<string, boolean>>({});
   const [message, setMessage] = useState<{ tone: "error" | "success" | "info"; text: string } | null>(
     initialTrade?.symbol
       ? { tone: "info", text: `${initialTrade.symbol.toUpperCase()} is ready to save to your Swing Portfolio.` }
       : null,
   );
   const [closePrices, setClosePrices] = useState<Record<string, string>>({});
+  const [tickerSuggestions, setTickerSuggestions] = useState<TickerSuggestion[]>([]);
+  const [tickerSearchLoading, setTickerSearchLoading] = useState(false);
+  const [showTickerSuggestions, setShowTickerSuggestions] = useState(false);
+  const [entryEstimate, setEntryEstimate] = useState<EntryPriceEstimate | null>(null);
+  const [estimatingEntryPrice, setEstimatingEntryPrice] = useState(false);
+  const [exitPlan, setExitPlan] = useState<ExitPlan | null>(null);
+  const [buildingExitPlan, setBuildingExitPlan] = useState(false);
 
   const openTrades = useMemo(
     () => trades.filter((trade) => trade.status === "open" || trade.status === "planned"),
@@ -304,8 +414,186 @@ export function SwingPortfolioPanel({ initialTrade }: { initialTrade?: InitialTr
     };
   }, [form.entryPrice, form.quantity, form.stopLoss, form.targetPrice]);
 
-  async function loadPortfolio() {
-    setLoading(true);
+  useEffect(() => {
+    const query = form.symbol.trim();
+    let active = true;
+
+    if (query.length < 1 || initialTrade?.symbol) {
+      setTickerSuggestions([]);
+      setTickerSearchLoading(false);
+      return;
+    }
+
+    setTickerSearchLoading(true);
+    const timer = window.setTimeout(async () => {
+      try {
+        const token = await getSessionToken();
+        if (!token) {
+          if (active) {
+            setTickerSuggestions([]);
+            setTickerSearchLoading(false);
+          }
+          return;
+        }
+
+        const response = await fetch(`/api/portfolio/symbol-search?q=${encodeURIComponent(query)}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const payload = (await response.json().catch(() => ({}))) as {
+          results?: TickerSuggestion[];
+        };
+
+        if (!active) return;
+        setTickerSuggestions(response.ok ? payload.results ?? [] : []);
+      } catch {
+        if (active) setTickerSuggestions([]);
+      } finally {
+        if (active) setTickerSearchLoading(false);
+      }
+    }, 250);
+
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, [form.symbol, initialTrade?.symbol]);
+
+  function selectTickerSuggestion(suggestion: TickerSuggestion) {
+    setForm((current) => ({
+      ...current,
+      assetType: suggestion.exchange.toUpperCase().includes("ETF") ? "etf" : "stock",
+      symbol: suggestion.symbol,
+    }));
+    setEntryEstimate(null);
+    setExitPlan(null);
+    setShowTickerSuggestions(false);
+  }
+
+  async function estimateEntryPrice() {
+    const symbol = form.symbol.trim();
+    if (!symbol) {
+      setMessage({ tone: "error", text: "Choose the ticker before estimating the entry price." });
+      return;
+    }
+
+    setEstimatingEntryPrice(true);
+    setEntryEstimate(null);
+    setMessage(null);
+
+    try {
+      const token = await getSessionToken();
+      if (!token) {
+        setRequiresSessionReconnect(true);
+        return;
+      }
+
+      const response = await fetch("/api/portfolio/entry-price", {
+        body: JSON.stringify({
+          date: form.entryDate,
+          symbol,
+          timeWindow: form.entryTimeWindow,
+        }),
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        method: "POST",
+      });
+      const payload = (await response.json().catch(() => ({}))) as
+        | EntryPriceEstimate
+        | { error?: string };
+
+      if (!response.ok || !isEntryPriceEstimate(payload)) {
+        setMessage({
+          tone: "error",
+          text:
+            "error" in payload && payload.error
+              ? payload.error
+              : "SwingFi could not estimate the entry price.",
+        });
+        return;
+      }
+
+      setEntryEstimate(payload);
+      setExitPlan(null);
+      setForm((current) => ({
+        ...current,
+        entryPrice: payload.estimatedPrice.toFixed(2),
+      }));
+      setMessage({
+        tone: "info",
+        text: `Entry price estimated at ${formatCurrency(payload.estimatedPrice)}. Check your broker fill and edit if needed.`,
+      });
+    } finally {
+      setEstimatingEntryPrice(false);
+    }
+  }
+
+  useEffect(() => {
+    const symbol = form.symbol.trim();
+    const entryPrice = toNumber(form.entryPrice);
+    let active = true;
+
+    if (!symbol || !entryPrice) {
+      setExitPlan(null);
+      setBuildingExitPlan(false);
+      return;
+    }
+
+    setBuildingExitPlan(true);
+    const timer = window.setTimeout(async () => {
+      try {
+        const token = await getSessionToken();
+        if (!token) {
+          if (active) setBuildingExitPlan(false);
+          return;
+        }
+
+        const response = await fetch("/api/portfolio/exit-plan", {
+          body: JSON.stringify({
+            entryPrice,
+            symbol,
+          }),
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          method: "POST",
+        });
+        const payload = (await response.json().catch(() => ({}))) as ExitPlan | { error?: string };
+
+        if (!active) return;
+
+        if (response.ok && isExitPlan(payload)) {
+          setExitPlan(payload);
+          setForm((current) => ({
+            ...current,
+            holdingPeriodDays: String(payload.holdingPeriodDays),
+            stopLoss: payload.stopLoss.toFixed(2),
+            targetPrice: payload.targetPrice.toFixed(2),
+          }));
+        } else {
+          setExitPlan(null);
+        }
+      } catch {
+        if (active) setExitPlan(null);
+      } finally {
+        if (active) setBuildingExitPlan(false);
+      }
+    }, 650);
+
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, [form.entryPrice, form.symbol]);
+
+  async function loadPortfolio(options: { quiet?: boolean } = {}) {
+    if (options.quiet) {
+      setRefreshing(true);
+    } else {
+      setLoading(true);
+    }
     setMessage((current) => current?.tone === "info" ? current : null);
 
     try {
@@ -314,7 +602,7 @@ export function SwingPortfolioPanel({ initialTrade }: { initialTrade?: InitialTr
       const token = await getSessionToken();
 
       if (!token) {
-        setTrades([]);
+        if (!options.quiet) setTrades([]);
         setMessage(null);
         setRequiresSessionReconnect(true);
         return;
@@ -326,27 +614,55 @@ export function SwingPortfolioPanel({ initialTrade }: { initialTrade?: InitialTr
         headers: { Authorization: `Bearer ${token}` },
       });
       const payload = (await response.json().catch(() => null)) as
-        | { error?: string; trades?: PortfolioTrade[] }
+        | { error?: string; refreshedAt?: string; trades?: PortfolioTrade[] }
         | null;
 
       if (!response.ok) {
-        setTrades([]);
-        setMessage({ tone: "error", text: payload?.error ?? "Portfolio could not be loaded." });
+        if (!options.quiet) {
+          setTrades([]);
+          setMessage({ tone: "error", text: payload?.error ?? "Portfolio could not be loaded." });
+        }
         return;
       }
 
       setTrades(payload?.trades ?? []);
+      setLastUpdatedAt(payload?.refreshedAt ?? new Date().toISOString());
     } catch {
-      setTrades([]);
-      setMessage({ tone: "error", text: "Portfolio could not be loaded. Try again shortly." });
+      if (!options.quiet) {
+        setTrades([]);
+        setMessage({ tone: "error", text: "Portfolio could not be loaded. Try again shortly." });
+      }
     } finally {
-      setLoading(false);
+      if (options.quiet) {
+        setRefreshing(false);
+      } else {
+        setLoading(false);
+      }
     }
   }
 
   useEffect(() => {
-    loadPortfolio();
+    void loadPortfolio();
   }, []);
+
+  useEffect(() => {
+    if (!customer || requiresSessionReconnect) return;
+
+    const refresh = () => {
+      if (document.visibilityState !== "visible") return;
+      void loadPortfolio({ quiet: true });
+    };
+    const interval = window.setInterval(refresh, 5 * 60 * 1000);
+
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", refresh);
+
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", refresh);
+    };
+  }, [customer, requiresSessionReconnect]);
 
   async function saveTrade() {
     const validation = validateTradePlan(form);
@@ -367,8 +683,12 @@ export function SwingPortfolioPanel({ initialTrade }: { initialTrade?: InitialTr
       }
 
       const holdWindow = toNumber(form.holdingPeriodDays);
+      const hasCompleteEnteredPlan = Boolean(toNumber(form.targetPrice) && toNumber(form.stopLoss));
+      const shouldSendHoldWindow = Boolean(
+        holdWindow && (exitPlan || hasCompleteEnteredPlan || form.holdingPeriodDays !== initialForm.holdingPeriodDays),
+      );
       const planNotes = [
-        holdWindow ? `Planned hold: ${holdWindow} days.` : "",
+        shouldSendHoldWindow ? `Planned hold: ${holdWindow} days.` : "",
         form.notes,
       ]
         .filter(Boolean)
@@ -404,6 +724,9 @@ export function SwingPortfolioPanel({ initialTrade }: { initialTrade?: InitialTr
 
       setTrades((current) => [payload.trade as PortfolioTrade, ...current]);
       setForm(initialForm);
+      setEntryEstimate(null);
+      setExitPlan(null);
+      setShowAddTrade(false);
       setMessage({ tone: "success", text: `${payload.trade.symbol} was added to your Swing Portfolio.` });
     } finally {
       setSaving(false);
@@ -448,6 +771,52 @@ export function SwingPortfolioPanel({ initialTrade }: { initialTrade?: InitialTr
     setTrades((current) => current.map((item) => (item.id === trade.id ? payload.trade as PortfolioTrade : item)));
     setClosePrices((current) => ({ ...current, [trade.id]: "" }));
     setMessage({ tone: "success", text: `${trade.symbol} was moved to closed trades.` });
+  }
+
+  async function deleteTrade(trade: PortfolioTrade) {
+    if (pendingDeleteId !== trade.id) {
+      setPendingDeleteId(trade.id);
+      setMessage({ tone: "info", text: `Confirm remove ${trade.symbol} if you no longer want to track it.` });
+      return;
+    }
+
+    const token = await getSessionToken();
+
+    if (!token) {
+      setRequiresSessionReconnect(true);
+      setMessage(null);
+      return;
+    }
+
+    setDeletingTradeIds((current) => ({ ...current, [trade.id]: true }));
+
+    try {
+      const response = await fetch(`/api/portfolio/${trade.id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+        method: "DELETE",
+      });
+      const payload = (await response.json().catch(() => ({}))) as { error?: string };
+
+      if (!response.ok) {
+        setMessage({ tone: "error", text: payload.error ?? "Trade could not be removed." });
+        return;
+      }
+
+      setTrades((current) => current.filter((item) => item.id !== trade.id));
+      setClosePrices((current) => {
+        const next = { ...current };
+        delete next[trade.id];
+        return next;
+      });
+      setPendingDeleteId(null);
+      setMessage({ tone: "success", text: `${trade.symbol} was removed from your portfolio.` });
+    } finally {
+      setDeletingTradeIds((current) => {
+        const next = { ...current };
+        delete next[trade.id];
+        return next;
+      });
+    }
   }
 
   if (loading) {
@@ -516,6 +885,7 @@ export function SwingPortfolioPanel({ initialTrade }: { initialTrade?: InitialTr
         </div>
       ) : null}
 
+      {!showAddTrade ? (
       <div className="grid gap-4 md:grid-cols-3">
         <div className="rounded-3xl border border-line bg-white p-5 shadow-[0_18px_60px_rgba(7,20,24,0.06)]">
           <p className="text-xs font-black uppercase tracking-normal text-pine">Open trades</p>
@@ -530,7 +900,7 @@ export function SwingPortfolioPanel({ initialTrade }: { initialTrade?: InitialTr
             {formatCurrency(portfolioStats.openReturn)}
           </p>
           <p className="mt-2 text-sm font-semibold text-ink/55">
-            Uses live FMP price when available; broker balances remain separate.
+            Refreshes every 5 minutes while this page is open; broker balances remain separate.
           </p>
         </div>
         <div className="rounded-3xl border border-line bg-white p-5 shadow-[0_18px_60px_rgba(7,20,24,0.06)]">
@@ -541,30 +911,92 @@ export function SwingPortfolioPanel({ initialTrade }: { initialTrade?: InitialTr
           </p>
         </div>
       </div>
+      ) : null}
 
-      <div className="grid gap-6 xl:grid-cols-[420px_1fr]">
+      <div className={showAddTrade ? "mx-auto grid w-full max-w-3xl gap-6" : "grid gap-6"}>
+        {showAddTrade ? (
         <section className="rounded-3xl border border-line bg-white p-5 shadow-[0_18px_60px_rgba(7,20,24,0.06)] sm:p-6">
-          <p className="text-xs font-black uppercase tracking-normal text-pine">
-            Add trade
-          </p>
-          <h2 className="mt-2 text-2xl font-black text-ink">
-            Save the plan you actually used
-          </h2>
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-xs font-black uppercase tracking-normal text-pine">
+                Add trade
+              </p>
+              <h2 className="mt-2 text-3xl font-black text-ink">
+                Add a position to track
+              </h2>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowAddTrade(false)}
+              className="rounded-full border border-line bg-surface px-3 py-1 text-xs font-black text-ink/58 transition hover:border-pine hover:text-pine"
+            >
+              Back
+            </button>
+          </div>
           <p className="mt-3 text-sm font-semibold leading-6 text-ink/58">
-            Add the rough time and price you bought. SwingFi will keep the target, stop,
-            current price, and decision status visible after the daily list changes.
+            Add what you bought and roughly when you bought it. SwingFi automatically
+            builds the target, stop, and sell-review countdown before the trade is saved.
           </p>
 
           <div className="mt-5 grid gap-4">
             <label className="grid gap-2">
-              <span className="text-xs font-black uppercase tracking-normal text-ink/44">Ticker</span>
+              <span className="text-xs font-black uppercase tracking-normal text-ink/44">
+                Ticker or company
+              </span>
               <input
                 value={form.symbol}
-                onChange={(event) => setForm((current) => ({ ...current, symbol: event.target.value.toUpperCase() }))}
-                placeholder="AAPL"
+                onChange={(event) => {
+                  setForm((current) => ({ ...current, symbol: event.target.value.toUpperCase() }));
+                  setEntryEstimate(null);
+                  setExitPlan(null);
+                  setShowTickerSuggestions(true);
+                }}
+                onFocus={() => setShowTickerSuggestions(true)}
+                placeholder="AAPL or Apple"
                 className="rounded-2xl border border-line bg-surface px-4 py-3 text-sm font-bold text-ink outline-none transition focus:border-pine focus:bg-white"
               />
+              <span className="text-xs font-semibold leading-5 text-ink/45">
+                Start typing and choose the matching ticker. You can add a trade from
+                today&apos;s rankings or one you bought on your own.
+              </span>
             </label>
+
+            {showTickerSuggestions && (tickerSuggestions.length > 0 || tickerSearchLoading) ? (
+              <div className="rounded-3xl border border-line bg-surface p-3">
+                <div className="flex items-center justify-between gap-3 px-1">
+                  <p className="text-xs font-black uppercase tracking-normal text-pine">
+                    Ticker matches
+                  </p>
+                  {tickerSearchLoading ? (
+                    <p className="text-xs font-bold text-ink/45">Searching...</p>
+                  ) : null}
+                </div>
+                <div className="mt-2 grid gap-2">
+                  {tickerSuggestions.map((suggestion) => (
+                    <button
+                      key={`${suggestion.symbol}-${suggestion.exchange}`}
+                      type="button"
+                      onClick={() => selectTickerSuggestion(suggestion)}
+                      className="rounded-2xl border border-line bg-white p-3 text-left transition hover:border-pine/35 hover:bg-mint/60"
+                    >
+                      <span className="flex items-start justify-between gap-3">
+                        <span>
+                          <span className="block text-sm font-black text-ink">
+                            {suggestion.symbol}
+                          </span>
+                          <span className="mt-1 block text-xs font-semibold leading-5 text-ink/56">
+                            {suggestion.name}
+                          </span>
+                        </span>
+                        <span className="rounded-full bg-surface px-3 py-1 text-[11px] font-black text-ink/48 ring-1 ring-line">
+                          {suggestion.exchange}
+                        </span>
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : null}
 
             <div className="grid gap-3 sm:grid-cols-3">
               {(["stock", "etf", "crypto"] as AssetType[]).map((assetType) => (
@@ -583,16 +1015,81 @@ export function SwingPortfolioPanel({ initialTrade }: { initialTrade?: InitialTr
               ))}
             </div>
 
+            <div className="rounded-3xl border border-line bg-surface p-4">
+              <p className="text-xs font-black uppercase tracking-normal text-pine">
+                When did you buy?
+              </p>
+              <p className="mt-1 text-xs font-semibold leading-5 text-ink/55">
+                Choose the date and rough time of day, then SwingFi can estimate the entry
+                price from FMP market data. You can still edit the price before saving.
+              </p>
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                <label className="grid gap-2">
+                  <span className="text-xs font-black uppercase tracking-normal text-ink/44">Buy date</span>
+                  <input
+                    type="date"
+                    value={form.entryDate}
+                    onChange={(event) => {
+                      setForm((current) => ({ ...current, entryDate: event.target.value }));
+                      setEntryEstimate(null);
+                    }}
+                    className="rounded-2xl border border-line bg-white px-4 py-3 text-sm font-bold text-ink outline-none transition focus:border-pine focus:bg-white"
+                  />
+                </label>
+                <div className="grid gap-2">
+                  <span className="text-xs font-black uppercase tracking-normal text-ink/44">Approx. time</span>
+                  <div className="grid grid-cols-2 gap-2">
+                    {(Object.keys(timeWindowLabels) as Array<FormState["entryTimeWindow"]>).map((window) => (
+                      <button
+                        key={window}
+                        type="button"
+                        onClick={() => {
+                          setForm((current) => ({ ...current, entryTimeWindow: window }));
+                          setEntryEstimate(null);
+                        }}
+                        className={`rounded-xl border px-2 py-2 text-xs font-black transition ${
+                          form.entryTimeWindow === window
+                            ? "border-pine bg-mint text-pine"
+                            : "border-line bg-white text-ink/56 hover:border-pine/35"
+                        }`}
+                      >
+                        {timeWindowLabels[window]}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => void estimateEntryPrice()}
+                disabled={estimatingEntryPrice || !form.symbol.trim()}
+                className="mt-4 w-full rounded-2xl bg-ink px-4 py-3 text-sm font-black text-white shadow-[0_14px_34px_rgba(7,20,24,0.14)] transition hover:bg-pine disabled:cursor-not-allowed disabled:opacity-55"
+              >
+                {estimatingEntryPrice ? "Estimating price..." : "Estimate entry price from buy time"}
+              </button>
+              {entryEstimate ? (
+                <p className="mt-3 rounded-2xl border border-pine/15 bg-mint px-4 py-3 text-xs font-bold leading-5 text-pine">
+                  {entryEstimate.message} Source time: {entryEstimate.sourceTime ?? "not available"}.
+                </p>
+              ) : null}
+            </div>
+
             <div className="grid gap-3 sm:grid-cols-2">
               <label className="grid gap-2">
                 <span className="text-xs font-black uppercase tracking-normal text-ink/44">Entry price</span>
                 <input
                   inputMode="decimal"
                   value={form.entryPrice}
-                  onChange={(event) => setForm((current) => ({ ...current, entryPrice: event.target.value }))}
+                  onChange={(event) => {
+                    setForm((current) => ({ ...current, entryPrice: event.target.value }));
+                    setExitPlan(null);
+                  }}
                   placeholder="125.50"
                   className="rounded-2xl border border-line bg-surface px-4 py-3 text-sm font-bold text-ink outline-none transition focus:border-pine focus:bg-white"
                 />
+                <span className="text-xs font-semibold leading-5 text-ink/45">
+                  Use the estimate or replace it with your exact broker fill.
+                </span>
               </label>
               <label className="grid gap-2">
                 <span className="text-xs font-black uppercase tracking-normal text-ink/44">Shares/units</span>
@@ -606,43 +1103,43 @@ export function SwingPortfolioPanel({ initialTrade }: { initialTrade?: InitialTr
               </label>
             </div>
 
-            <label className="grid gap-2">
-              <span className="text-xs font-black uppercase tracking-normal text-ink/44">
-                Planned holding window
-              </span>
-              <input
-                inputMode="numeric"
-                value={form.holdingPeriodDays}
-                onChange={(event) => setForm((current) => ({ ...current, holdingPeriodDays: event.target.value }))}
-                placeholder="10"
-                className="rounded-2xl border border-line bg-surface px-4 py-3 text-sm font-bold text-ink outline-none transition focus:border-pine focus:bg-white"
-              />
-              <span className="text-xs font-semibold leading-5 text-ink/45">
-                Use trading days. SwingFi will flag the position when it reaches this review window.
-              </span>
-            </label>
-
-            <div className="grid gap-3 sm:grid-cols-2">
-              <label className="grid gap-2">
-                <span className="text-xs font-black uppercase tracking-normal text-ink/44">Target</span>
-                <input
-                  inputMode="decimal"
-                  value={form.targetPrice}
-                  onChange={(event) => setForm((current) => ({ ...current, targetPrice: event.target.value }))}
-                  placeholder="136.00"
-                  className="rounded-2xl border border-line bg-surface px-4 py-3 text-sm font-bold text-ink outline-none transition focus:border-pine focus:bg-white"
-                />
-              </label>
-              <label className="grid gap-2">
-                <span className="text-xs font-black uppercase tracking-normal text-ink/44">Stop loss</span>
-                <input
-                  inputMode="decimal"
-                  value={form.stopLoss}
-                  onChange={(event) => setForm((current) => ({ ...current, stopLoss: event.target.value }))}
-                  placeholder="119.00"
-                  className="rounded-2xl border border-line bg-surface px-4 py-3 text-sm font-bold text-ink outline-none transition focus:border-pine focus:bg-white"
-                />
-              </label>
+            <div className="rounded-3xl border border-line bg-surface p-4">
+              <div>
+                <div>
+                  <p className="text-xs font-black uppercase tracking-normal text-pine">
+                    SwingFi sell plan
+                  </p>
+                  <p className="mt-1 text-xs font-semibold leading-5 text-ink/55">
+                    Generated automatically from the latest daily analysis when available.
+                    For manual trades, SwingFi estimates from recent price structure.
+                  </p>
+                </div>
+              </div>
+              {exitPlan ? (
+                <div className="mt-4 rounded-2xl border border-pine/15 bg-mint p-4">
+                  <div className="grid gap-2 sm:grid-cols-3">
+                    <MiniStat label="Review target" value={formatCurrency(exitPlan.targetPrice)} tone="text-pine" />
+                    <MiniStat label="Risk stop" value={formatCurrency(exitPlan.stopLoss)} tone="text-coral" />
+                    <MiniStat label="Review window" value={`${exitPlan.holdingPeriodDays} days`} />
+                  </div>
+                  <p className="mt-3 text-xs font-bold leading-5 text-pine">
+                    {exitPlan.explanation}
+                  </p>
+                </div>
+              ) : buildingExitPlan ? (
+                <div className="mt-4 rounded-2xl border border-line bg-white p-4">
+                  <div className="skeleton h-4 w-32 rounded-full" />
+                  <div className="skeleton mt-3 h-12 rounded-2xl" />
+                  <p className="mt-3 text-xs font-bold leading-5 text-ink/50">
+                    SwingFi is building the sell plan from your ticker and entry price.
+                  </p>
+                </div>
+              ) : (
+                <p className="mt-4 rounded-2xl border border-line bg-white px-4 py-3 text-xs font-bold leading-5 text-ink/50">
+                  Enter a ticker and entry price. SwingFi will generate the target, stop,
+                  and countdown automatically.
+                </p>
+              )}
             </div>
 
             {draftPlanMath ? (
@@ -693,37 +1190,6 @@ export function SwingPortfolioPanel({ initialTrade }: { initialTrade?: InitialTr
               </div>
             ) : null}
 
-            <div className="grid gap-3 sm:grid-cols-2">
-              <label className="grid gap-2">
-                <span className="text-xs font-black uppercase tracking-normal text-ink/44">Buy date</span>
-                <input
-                  type="date"
-                  value={form.entryDate}
-                  onChange={(event) => setForm((current) => ({ ...current, entryDate: event.target.value }))}
-                  className="rounded-2xl border border-line bg-surface px-4 py-3 text-sm font-bold text-ink outline-none transition focus:border-pine focus:bg-white"
-                />
-              </label>
-              <div className="grid gap-2">
-                <span className="text-xs font-black uppercase tracking-normal text-ink/44">Approx. time</span>
-                <div className="grid grid-cols-2 gap-2">
-                  {(Object.keys(timeWindowLabels) as Array<FormState["entryTimeWindow"]>).map((window) => (
-                    <button
-                      key={window}
-                      type="button"
-                      onClick={() => setForm((current) => ({ ...current, entryTimeWindow: window }))}
-                      className={`rounded-xl border px-2 py-2 text-xs font-black transition ${
-                        form.entryTimeWindow === window
-                          ? "border-pine bg-mint text-pine"
-                          : "border-line bg-surface text-ink/56 hover:border-pine/35"
-                      }`}
-                    >
-                      {timeWindowLabels[window]}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-
             <label className="grid gap-2">
               <span className="text-xs font-black uppercase tracking-normal text-ink/44">Plan notes</span>
               <textarea
@@ -745,25 +1211,51 @@ export function SwingPortfolioPanel({ initialTrade }: { initialTrade?: InitialTr
             </button>
           </div>
         </section>
+        ) : null}
 
-        <section className="grid gap-5">
+        {!showAddTrade ? (
+        <section className="order-1 grid gap-5">
           <div className="rounded-3xl border border-line bg-white p-5 shadow-[0_18px_60px_rgba(7,20,24,0.06)] sm:p-6">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
               <div>
                 <p className="text-xs font-black uppercase tracking-normal text-pine">Current positions</p>
                 <h2 className="mt-2 text-2xl font-black text-ink">Your open swing plans</h2>
+                <p className="mt-2 text-xs font-bold leading-5 text-ink/48">
+                  Current price, status, latest headlines, and countdown refresh every 5 minutes while the page is open.
+                  Last updated {formatTime(lastUpdatedAt)}.
+                </p>
               </div>
-              <Link
-                href="/dashboard"
-                className="rounded-2xl border border-line bg-surface px-4 py-3 text-center text-sm font-black text-ink hover:border-pine"
-              >
-                Review current rankings
-              </Link>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <button
+                  type="button"
+                  onClick={() => setShowAddTrade((current) => !current)}
+                  className="rounded-2xl bg-ink px-4 py-3 text-center text-sm font-black text-white shadow-[0_12px_30px_rgba(7,20,24,0.14)] transition hover:bg-pine"
+                >
+                  {showAddTrade ? "Hide add trade" : "Add trade"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void loadPortfolio({ quiet: true })}
+                  disabled={refreshing}
+                  className="rounded-2xl border border-line bg-white px-4 py-3 text-center text-sm font-black text-ink transition hover:border-pine disabled:cursor-not-allowed disabled:opacity-55"
+                >
+                  {refreshing ? "Refreshing..." : "Refresh now"}
+                </button>
+                <Link
+                  href="/dashboard"
+                  className="rounded-2xl border border-line bg-surface px-4 py-3 text-center text-sm font-black text-ink hover:border-pine"
+                >
+                  Review rankings
+                </Link>
+              </div>
             </div>
 
             {openTrades.length ? (
               <div className="mt-5 grid gap-4">
-                {openTrades.map((trade) => (
+                {openTrades.map((trade) => {
+                  const countdown = reviewCountdown(trade);
+
+                  return (
                   <article key={trade.id} className="rounded-3xl border border-line bg-surface p-4">
                     <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                       <div>
@@ -786,6 +1278,35 @@ export function SwingPortfolioPanel({ initialTrade }: { initialTrade?: InitialTr
                         <p className="mt-3 text-sm font-semibold leading-6 text-ink/60">
                           Bought around {formatCurrency(Number(trade.entry_price))}. Target is {formatCurrency(Number(trade.target_price))}; stop is {formatCurrency(Number(trade.stop_loss))}.
                         </p>
+                        <div className={`mt-4 rounded-2xl border p-4 ${countdownTone(countdown.urgency)}`}>
+                          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                            <div>
+                              <p className="text-xs font-black uppercase tracking-normal">
+                                Sell-plan countdown
+                              </p>
+                              <p className="mt-1 text-lg font-black">
+                                {countdown.label}
+                              </p>
+                              <p className="mt-1 text-xs font-bold leading-5 opacity-75">
+                                {countdown.detail}
+                              </p>
+                            </div>
+                            <div className="min-w-28 rounded-2xl bg-white/70 px-4 py-3 text-center ring-1 ring-line">
+                              <p className="text-xs font-black uppercase tracking-normal text-ink/42">
+                                Plan used
+                              </p>
+                              <p className="mt-1 text-sm font-black text-ink">
+                                {trade.plannedHoldingDays ? `${trade.plannedHoldingDays} days` : "Active"}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="mt-4 h-2 overflow-hidden rounded-full bg-white/80">
+                            <div
+                              className="h-full rounded-full bg-current transition-all"
+                              style={{ width: `${countdown.progress}%` }}
+                            />
+                          </div>
+                        </div>
                       </div>
                       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:min-w-[420px]">
                         <MiniStat label="Current" value={formatCurrency(trade.currentPrice)} />
@@ -853,10 +1374,44 @@ export function SwingPortfolioPanel({ initialTrade }: { initialTrade?: InitialTr
                         <p className="mt-3 text-xs font-semibold leading-5 text-ink/45">
                           SwingFi records the result for your review. It does not place trades.
                         </p>
+                        <div className="mt-4 border-t border-line pt-3">
+                          <p className="text-xs font-black uppercase tracking-normal text-ink/42">
+                            Remove position
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => void deleteTrade(trade)}
+                            disabled={Boolean(deletingTradeIds[trade.id])}
+                            className={`mt-3 w-full rounded-xl border px-4 py-2 text-sm font-black transition disabled:cursor-not-allowed disabled:opacity-55 ${
+                              pendingDeleteId === trade.id
+                                ? "border-coral/30 bg-coral/10 text-coral hover:bg-coral/15"
+                                : "border-line bg-surface text-ink/62 hover:border-coral/30 hover:text-coral"
+                            }`}
+                          >
+                            {deletingTradeIds[trade.id]
+                              ? "Removing..."
+                              : pendingDeleteId === trade.id
+                                ? "Confirm remove"
+                                : "Remove from portfolio"}
+                          </button>
+                          {pendingDeleteId === trade.id ? (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setPendingDeleteId(null);
+                                setMessage(null);
+                              }}
+                              className="mt-2 w-full rounded-xl border border-line bg-white px-4 py-2 text-sm font-black text-ink/55 transition hover:border-pine hover:text-pine"
+                            >
+                              Keep tracking
+                            </button>
+                          ) : null}
+                        </div>
                       </div>
                     </div>
                   </article>
-                ))}
+                  );
+                })}
               </div>
             ) : (
               <div className="mt-5 rounded-3xl border border-dashed border-line bg-surface p-6">
@@ -884,12 +1439,21 @@ export function SwingPortfolioPanel({ initialTrade }: { initialTrade?: InitialTr
                     </p>
                   ))}
                 </div>
-                <Link
-                  href="/dashboard"
-                  className="mt-5 inline-flex rounded-2xl bg-ink px-4 py-3 text-sm font-black text-white hover:bg-pine"
-                >
-                  Review today&apos;s rankings
-                </Link>
+                <div className="mt-5 flex flex-col gap-3 sm:flex-row">
+                  <button
+                    type="button"
+                    onClick={() => setShowAddTrade(true)}
+                    className="rounded-2xl bg-ink px-4 py-3 text-sm font-black text-white hover:bg-pine"
+                  >
+                    Add your first trade
+                  </button>
+                  <Link
+                    href="/dashboard"
+                    className="rounded-2xl border border-line bg-white px-4 py-3 text-sm font-black text-ink hover:border-pine"
+                  >
+                    Review today&apos;s rankings
+                  </Link>
+                </div>
               </div>
             )}
           </div>
@@ -918,6 +1482,7 @@ export function SwingPortfolioPanel({ initialTrade }: { initialTrade?: InitialTr
             </div>
           ) : null}
         </section>
+        ) : null}
       </div>
     </section>
   );

@@ -248,6 +248,15 @@ function dateFromIso(value: string | null | undefined) {
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
+function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T) {
+  return Promise.race([
+    promise,
+    new Promise<T>((resolve) => {
+      window.setTimeout(() => resolve(fallback), ms);
+    }),
+  ]);
+}
+
 export function getTrialEndsAt(customer: CustomerProfile | null | undefined) {
   const createdAt = dateFromIso(customer?.createdAt);
   return createdAt ? addDays(createdAt, trialLengthDays).toISOString() : null;
@@ -816,7 +825,11 @@ async function restoreAuthenticatedCustomerSessionInternal() {
     return current;
   }
 
-  const { data } = await supabase.auth.getSession();
+  const { data } = await withTimeout(
+    supabase.auth.getSession(),
+    2_500,
+    { data: { session: null }, error: null },
+  );
   const session = data.session;
   const user = session?.user;
   if (!user?.email) {
@@ -827,14 +840,18 @@ async function restoreAuthenticatedCustomerSessionInternal() {
 
   if (session?.access_token) {
     try {
-      const response = await fetch("/api/customers/session", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({ accessToken: session.access_token }),
-      });
+      const response = await withTimeout(
+        fetch("/api/customers/session", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({ accessToken: session.access_token }),
+        }),
+        4_000,
+        new Response(null, { status: 408 }),
+      );
       const payload = (await response.json().catch(() => null)) as {
         customer?: Parameters<typeof rememberAuthenticatedCustomer>[0];
       } | null;

@@ -241,6 +241,33 @@ export function PredictionAccuracyPanel() {
     (summary?.totalPredictions ?? 0) > 0 && (summary?.evaluatedCount ?? 0) === 0
       ? `SwingFi is tracking ${summary?.totalPredictions ?? 0} live predictions. They stay in watching mode until price enters the planned range or the holding window matures. The first full outcome window is expected around ${firstMaturityDate ?? "the next eligible trading window"}.`
       : summary?.verificationMessage ?? message;
+  const calibrationChecks = [
+    [
+      "Daily predictions saved",
+      (summary?.totalPredictions ?? 0) > 0,
+      "The morning agent has persisted live picks for forward tracking.",
+    ],
+    [
+      "Outcomes evaluated",
+      (summary?.evaluatedCount ?? 0) >= 10,
+      "At least 10 completed predictions gives early directional feedback.",
+    ],
+    [
+      "Meaningful sample",
+      (summary?.evaluatedCount ?? 0) >= 50,
+      "50+ completed predictions is a better minimum before trusting calibration shifts.",
+    ],
+    [
+      "Calibration active",
+      summary?.calibrationStatus === "active",
+      "Generated rules are available to adjust future rankings before users see them.",
+    ],
+    [
+      "Benchmark comparison",
+      (summary?.evaluatedCount ?? 0) > 0,
+      "Completed predictions are compared against SPY/QQQ, not judged in isolation.",
+    ],
+  ] as const;
 
   if (checkedAccess && !adminAllowed) {
     return (
@@ -317,6 +344,44 @@ export function PredictionAccuracyPanel() {
           value={summary?.calibrationGeneratedCount ?? 0}
           tone={summary?.calibrationStatus === "active" ? "good" : "neutral"}
         />
+      </section>
+
+      <section className="premium-panel rounded-3xl p-5 sm:p-6">
+        <div className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr] xl:items-start">
+          <div>
+            <p className="text-sm font-black uppercase tracking-normal text-pine">
+              Calibration readiness
+            </p>
+            <h3 className="mt-2 text-2xl font-black text-ink">
+              Is the model ready to learn from results?
+            </h3>
+            <p className="mt-3 text-sm font-semibold leading-7 text-ink/62">
+              SwingFi should only adjust scoring aggressively after enough saved picks
+              have completed their holding windows. Until then, calibration should be
+              treated as early evidence, not proof.
+            </p>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {calibrationChecks.map(([label, ready, detail]) => (
+              <div
+                key={label}
+                className={`rounded-2xl border p-4 ${
+                  ready ? "border-pine/20 bg-mint" : "border-amber/30 bg-amber/[0.16]"
+                }`}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <p className="text-sm font-black text-ink">{label}</p>
+                  <span className={`rounded-full px-2.5 py-1 text-[11px] font-black uppercase tracking-normal ${
+                    ready ? "bg-white text-pine ring-1 ring-pine/20" : "bg-white text-ink/58 ring-1 ring-line"
+                  }`}>
+                    {ready ? "Ready" : "Collecting"}
+                  </span>
+                </div>
+                <p className="mt-2 text-xs font-semibold leading-5 text-ink/58">{detail}</p>
+              </div>
+            ))}
+          </div>
+        </div>
       </section>
 
       <section className="premium-panel rounded-3xl p-5 sm:p-6">
