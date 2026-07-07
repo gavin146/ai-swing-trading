@@ -1,8 +1,10 @@
 import { SignupForm } from "@/components/SignupForm";
 import { BrandMark } from "@/components/BrandMark";
+import { normalizeCustomerNextPath } from "@/lib/customer-flow";
 
 type SignupPageProps = {
   searchParams: Promise<{
+    next?: string;
     plan?: string;
   }>;
 };
@@ -14,6 +16,7 @@ function normalizeSelectedPlan(plan?: string) {
 export default async function SignupPage({ searchParams }: SignupPageProps) {
   const params = await searchParams;
   const selectedPlan = normalizeSelectedPlan(params.plan);
+  const nextPath = normalizeCustomerNextPath(params.next);
 
   return (
     <main className="min-h-screen overflow-x-hidden bg-[linear-gradient(135deg,#071418_0%,#0b3d3f_38%,#f5f7fb_38%,#f5f7fb_100%)] px-4 py-6 sm:py-8">
@@ -25,7 +28,7 @@ export default async function SignupPage({ searchParams }: SignupPageProps) {
       </section>
       <section className="mx-auto mt-6 grid min-h-[calc(100vh-7rem)] max-w-7xl place-items-center">
         <div className="w-full">
-          <SignupForm selectedPlan={selectedPlan} />
+          <SignupForm nextPath={nextPath} selectedPlan={selectedPlan} />
         </div>
       </section>
     </main>

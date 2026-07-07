@@ -13,6 +13,7 @@ import {
   restoreAuthenticatedCustomerSession,
   type CustomerProfile,
 } from "@/lib/customer-store";
+import { loginHref, signupHref } from "@/lib/customer-flow";
 import { getPersonalizedDailyPicks } from "@/lib/customer-picks";
 import type { OpportunityRow } from "@/lib/database.types";
 import { opportunityFromRow, type Opportunity } from "@/lib/opportunities";
@@ -73,7 +74,7 @@ function OpportunitySessionReconnect({ symbol }: { symbol: string }) {
           </p>
           <div className="mt-6 flex flex-col gap-3 sm:flex-row">
             <Link
-              href="/login"
+              href={`/login?next=${encodeURIComponent(`/opportunities/${symbol.toUpperCase()}`)}`}
               className="rounded-2xl bg-ink px-5 py-3 text-center text-sm font-black text-white hover:bg-pine"
             >
               Log in again
@@ -397,6 +398,7 @@ export function OpportunityDetailView({
   }, []);
 
   const access = getAccessState(customer);
+  const opportunityPath = `/opportunities/${symbol.toUpperCase()}`;
 
   useEffect(() => {
     if (!ready || !access.canViewAnalysis) return;
@@ -526,11 +528,11 @@ export function OpportunityDetailView({
             <div className="mt-6 flex flex-col gap-3 sm:flex-row">
               <Link
                 href={
-                  needsEmailVerification
-                    ? `/verify-email?sent=1&email=${encodeURIComponent(customer?.email ?? "")}`
-                    : customer
-                      ? "/pricing"
-                      : "/signup"
+	                  needsEmailVerification
+	                    ? `/verify-email?sent=1&email=${encodeURIComponent(customer?.email ?? "")}&next=${encodeURIComponent(opportunityPath)}`
+	                    : customer
+	                      ? "/pricing"
+	                      : signupHref({ nextPath: opportunityPath })
                 }
                 className="rounded-2xl bg-ink px-5 py-3 text-center text-sm font-black text-white hover:bg-pine"
               >
@@ -541,7 +543,7 @@ export function OpportunityDetailView({
                     : "Start free month"}
               </Link>
               <Link
-                href={customer ? "/settings" : "/login"}
+                href={customer ? "/settings" : loginHref(opportunityPath)}
                 className="rounded-2xl border border-line bg-surface px-5 py-3 text-center text-sm font-bold text-ink hover:border-pine"
               >
                 {customer ? "Account settings" : "Log in"}

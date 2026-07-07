@@ -66,25 +66,26 @@ export default function RootLayout({
   return (
     <html lang="en" data-scroll-behavior="smooth">
       <body>
-        <AppMotionShell>{children}</AppMotionShell>
+        <AppMotionShell />
+        <div className="page-transition">{children}</div>
         <AnalyticsScripts />
-        <footer className="border-t border-line bg-surface px-4 py-6 text-sm text-ink/60">
-          <div className="mx-auto flex max-w-7xl flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <p>
+        <footer className="border-t border-line bg-surface px-4 pb-[calc(6rem+env(safe-area-inset-bottom))] pt-6 text-sm text-ink/60 md:pb-6">
+          <div className="mx-auto flex max-w-7xl flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <p className="max-w-3xl leading-6">
               {brand.appName} is research software, not financial advice, and does not
               place trades or manage brokerage accounts.
             </p>
-            <nav className="flex flex-wrap gap-4 font-bold text-ink/70">
-              <Link href="/legal" className="hover:text-pine">
+            <nav className="flex flex-wrap gap-2 font-bold text-ink/70" aria-label="Legal links">
+              <Link href="/legal" className="rounded-xl px-3 py-2 hover:bg-white hover:text-pine">
                 Legal
               </Link>
-              <Link href="/legal/disclaimer" className="hover:text-pine">
+              <Link href="/legal/disclaimer" className="rounded-xl px-3 py-2 hover:bg-white hover:text-pine">
                 Disclaimer
               </Link>
-              <Link href="/legal/privacy" className="hover:text-pine">
+              <Link href="/legal/privacy" className="rounded-xl px-3 py-2 hover:bg-white hover:text-pine">
                 Privacy
               </Link>
-              <Link href="/legal/terms" className="hover:text-pine">
+              <Link href="/legal/terms" className="rounded-xl px-3 py-2 hover:bg-white hover:text-pine">
                 Terms
               </Link>
             </nav>

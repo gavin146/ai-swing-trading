@@ -1,6 +1,7 @@
 import type { OpportunityRow } from "./database.types";
 import { getPublicAppUrl } from "./brand";
 import { buildBrandedMorningEmail } from "./email-branding";
+import type { MorningPortfolioDigest } from "./portfolio/morning-digest";
 
 function getAppUrl() {
   return getPublicAppUrl();
@@ -39,6 +40,18 @@ function getUnsubscribeUrl(customerId?: string) {
   return `${getAppUrl()}/unsubscribe${params.toString() ? `?${params.toString()}` : ""}`;
 }
 
+function getPortfolioUrl(customerId?: string) {
+  const params = new URLSearchParams({
+    source: "morning_email_portfolio",
+  });
+
+  if (customerId) {
+    params.set("customerId", customerId);
+  }
+
+  return `${getAppUrl()}/portfolio?${params.toString()}`;
+}
+
 export function buildMorningAlertMessage(args: {
   customerName: string;
   customerId?: string;
@@ -64,6 +77,7 @@ export function buildMorningEmailAlert(args: {
   customerId?: string;
   marketRegime: string;
   opportunities: OpportunityRow[];
+  portfolioDigest?: MorningPortfolioDigest | null;
 }) {
   const top = args.opportunities.slice(0, 5);
   const unsubscribeUrl = getUnsubscribeUrl(args.customerId);
@@ -75,6 +89,8 @@ export function buildMorningEmailAlert(args: {
     marketRegime: args.marketRegime,
     openTrackingUrl: getOpenTrackingUrl(args.customerId),
     opportunities: top,
+    portfolioDigest: args.portfolioDigest,
+    portfolioUrl: getPortfolioUrl(args.customerId),
     signoff: "Review risk, position size, and your own plan before trading.",
     subject: `SwingFi morning picks${top.length ? `: ${top.map((item) => item.symbol).join(", ")}` : ""}`,
     unsubscribeUrl,

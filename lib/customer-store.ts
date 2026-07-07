@@ -250,7 +250,7 @@ function dateFromIso(value: string | null | undefined) {
 
 function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T) {
   return Promise.race([
-    promise,
+    promise.catch(() => fallback),
     new Promise<T>((resolve) => {
       window.setTimeout(() => resolve(fallback), ms);
     }),
@@ -859,8 +859,8 @@ async function restoreAuthenticatedCustomerSessionInternal() {
       if (response.ok && payload?.customer) {
         return rememberAuthenticatedCustomer(payload.customer);
       }
-    } catch (error) {
-      console.warn("SwingFi session profile restore failed", error);
+    } catch {
+      return getCurrentCustomer();
     }
   }
 

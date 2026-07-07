@@ -51,7 +51,7 @@ export function PasswordField({ className = "", label, ...props }: PasswordField
         aria-label={toggleLabel}
         title={toggleLabel}
         onClick={() => setVisible((current) => !current)}
-        className="absolute right-3 top-1/2 inline-flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full text-ink/48 transition hover:bg-white hover:text-ink focus:outline-none focus:ring-2 focus:ring-pine/30"
+        className="absolute right-2 top-1/2 inline-flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full text-ink/48 transition hover:bg-white hover:text-ink focus:outline-none focus:ring-2 focus:ring-pine/30"
       >
         <EyeIcon hidden={!visible} />
       </button>

@@ -2,10 +2,12 @@ import Link from "next/link";
 import { BrandMark } from "@/components/BrandMark";
 import { VerifyEmailPanel } from "@/components/VerifyEmailPanel";
 import { verifyEmailToken } from "@/lib/auth/email-verification";
+import { customerDestinationLabel, loginHref, normalizeCustomerNextPath } from "@/lib/customer-flow";
 
 type VerifyEmailPageProps = {
   searchParams: Promise<{
     email?: string;
+    next?: string;
     sent?: string;
     token?: string;
   }>;
@@ -14,6 +16,8 @@ type VerifyEmailPageProps = {
 export default async function VerifyEmailPage({ searchParams }: VerifyEmailPageProps) {
   const params = await searchParams;
   const token = params.token?.trim();
+  const nextPath = normalizeCustomerNextPath(params.next, "/dashboard") ?? "/dashboard";
+  const destinationLabel = customerDestinationLabel(nextPath);
 
   if (!token) {
     return (
@@ -25,7 +29,7 @@ export default async function VerifyEmailPage({ searchParams }: VerifyEmailPageP
           </div>
         </section>
         <section className="mx-auto mt-8 grid max-w-7xl place-items-center">
-          <VerifyEmailPanel email={params.email} initialMode="sent" />
+          <VerifyEmailPanel email={params.email} initialMode="sent" nextPath={nextPath} />
         </section>
       </main>
     );
@@ -46,6 +50,7 @@ export default async function VerifyEmailPage({ searchParams }: VerifyEmailPageP
           <VerifyEmailPanel
             email={"email" in result ? result.email ?? params.email : params.email}
             initialMode={result.status}
+            nextPath={nextPath}
           />
         </section>
       </main>
@@ -70,21 +75,21 @@ export default async function VerifyEmailPage({ searchParams }: VerifyEmailPageP
               Your SwingFi account is ready
             </h1>
             <p className="mt-4 text-sm font-semibold leading-7 text-white/66">
-              You can now log in, open your dashboard, and review today&apos;s ranked opportunities.
+              You can now log in and continue to {destinationLabel}.
             </p>
           </div>
           <div className="grid gap-3 p-6 sm:grid-cols-2 sm:p-8">
             <Link
-              href="/login"
+              href={loginHref(nextPath)}
               className="rounded-2xl bg-ink px-5 py-3 text-center text-sm font-black text-white shadow-[0_18px_42px_rgba(7,20,24,0.18)] transition hover:bg-pine"
             >
-              Log in
+              Continue to {destinationLabel}
             </Link>
             <Link
-              href="/dashboard"
+              href={nextPath}
               className="rounded-2xl border border-line bg-surface px-5 py-3 text-center text-sm font-bold text-ink transition hover:border-pine"
             >
-              Open dashboard
+              Preview {destinationLabel}
             </Link>
           </div>
         </section>

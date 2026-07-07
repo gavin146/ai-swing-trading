@@ -208,6 +208,34 @@ textarea:focus {
   transform: translateY(0) scale(0.992);
 }
 
+@media (hover: none) {
+  button:hover,
+  a:hover,
+  .premium-panel:hover,
+  .motion-card:hover,
+  .pressable:hover {
+    transform: none;
+  }
+
+  .premium-panel:hover,
+  .motion-card:hover,
+  .pressable:hover {
+    box-shadow: var(--shadow-soft);
+  }
+}
+
+@media (max-width: 640px) {
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
+
+  table {
+    font-size: 0.8125rem;
+  }
+}
+
 .toast-notice {
   animation: toast-in 320ms var(--ease-premium) both;
 }

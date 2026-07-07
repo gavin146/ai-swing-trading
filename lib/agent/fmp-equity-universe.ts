@@ -997,14 +997,25 @@ function hasSwingQuality(candidate: EquityCandidate) {
   const price = candidate.technical.price;
   const upsideRoom =
     price > 0 ? ((candidate.technical.resistance - price) / price) * 100 : 0;
+  const downsideToSupport =
+    price > 0 ? ((price - candidate.technical.support) / price) * 100 : 0;
+  const rewardRisk = upsideRoom / Math.max(downsideToSupport, 1);
+  const eventRisk = candidate.news.eventRiskScore ?? 0;
+  const filingRisk = candidate.news.filingRiskScore ?? 0;
+  const relativeStrengthFloor =
+    candidate.market.marketRegimeScore <= 55 ? 42 : 36;
 
   return (
     candidate.averageVolume >= 500_000 &&
     candidate.marketCapBillions >= 1 &&
     price >= 5 &&
-    upsideRoom >= 3.5 &&
-    (candidate.technical.relativeStrengthVsMarket ?? 50) >= 32 &&
-    (candidate.technical.relativeStrengthVsSector ?? 50) >= 30 &&
+    upsideRoom >= 4.5 &&
+    rewardRisk >= 1.15 &&
+    candidate.technical.atrPercent <= 11 &&
+    eventRisk < 70 &&
+    filingRisk < 75 &&
+    (candidate.technical.relativeStrengthVsMarket ?? 50) >= relativeStrengthFloor &&
+    (candidate.technical.relativeStrengthVsSector ?? 50) >= 34 &&
     (candidate.technical.trendQuality ?? 50) >= 34 &&
     candidate.technical.volumeTrend >= -35 &&
     candidate.technical.support > 0 &&

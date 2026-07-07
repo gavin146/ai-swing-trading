@@ -31,7 +31,10 @@ export function LegalShell({ children, eyebrow, title }: LegalShellProps) {
         <div className="mt-8 grid gap-6 text-sm leading-7 text-ink/70">{children}</div>
         <div className="mt-8 rounded-lg border border-line bg-surface p-4 text-sm leading-6 text-ink/65">
           Questions about these policies can be sent to{" "}
-          <a href={`mailto:${brand.contactEmail}`} className="font-bold text-pine">
+          <a
+            href={`mailto:${brand.contactEmail}`}
+            className="inline-flex max-w-full break-all rounded-xl px-2 py-2 font-bold text-pine hover:bg-white"
+          >
             {brand.contactEmail}
           </a>
           .

@@ -195,7 +195,7 @@ export async function POST(request: Request) {
       const hasPlannedHold = /planned hold:\s*\d+\s*days/i.test(notes);
       const autoPlanNote = [
         hasPlannedHold ? "" : `Planned hold: ${exitPlan.holdingPeriodDays} days.`,
-        `SwingFi exit plan: ${exitPlan.explanation} Source: ${planSource}.`,
+        `SwingFi exit plan: ${exitPlan.actionLabel}. Target zone ${exitPlan.takeProfitZoneLow}-${exitPlan.takeProfitZoneHigh}, trail protection near ${exitPlan.trailingStop}, reward/risk ${exitPlan.rewardRiskRatio}R. ${exitPlan.explanation} Source: ${planSource}.`,
       ]
         .filter(Boolean)
         .join("\n\n");

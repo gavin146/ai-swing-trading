@@ -129,9 +129,9 @@ export function AdminOperationsPanel() {
   }
 
   return (
-    <section className="premium-panel mb-6 min-w-0 overflow-hidden rounded-3xl p-5 sm:p-6">
+    <section className="premium-panel mb-6 min-w-0 overflow-hidden rounded-3xl p-4 sm:p-5 2xl:p-6">
       <div className="signal-line mb-5 h-1.5 max-w-48 rounded-full" />
-      <div className="grid gap-5 lg:grid-cols-[1fr_auto] lg:items-start">
+      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_220px] lg:items-start 2xl:grid-cols-[minmax(0,1fr)_260px]">
         <div>
           <p className="text-sm font-bold uppercase tracking-normal text-pine">
             Daily agent controls
@@ -143,25 +143,25 @@ export function AdminOperationsPanel() {
             then email all enabled customers their daily analysis links.
           </p>
         </div>
-        <div className="flex flex-col gap-3 sm:flex-row lg:flex-col">
+        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-1">
           <button
             type="button"
             onClick={() => void runAgent()}
             disabled={runningAgent}
-            className="rounded-2xl bg-ink px-4 py-3 text-sm font-black text-white shadow-[0_14px_34px_rgba(7,20,24,0.16)] hover:bg-pine disabled:cursor-not-allowed disabled:opacity-70"
+            className="min-h-12 rounded-2xl bg-ink px-4 py-3 text-sm font-black text-white shadow-[0_14px_34px_rgba(7,20,24,0.16)] hover:bg-pine disabled:cursor-not-allowed disabled:opacity-70"
           >
             {runningAgent ? "Running..." : "Run agent"}
           </button>
           <Link
             href="/admin?tab=backtesting"
-            className="rounded-2xl border border-line bg-surface px-4 py-3 text-center text-sm font-bold text-ink hover:border-pine"
+            className="min-h-12 rounded-2xl border border-line bg-surface px-4 py-3 text-center text-sm font-bold text-ink hover:border-pine"
           >
             View backtests
           </Link>
         </div>
       </div>
 
-      <div className="mt-6 grid gap-3 md:grid-cols-2 2xl:grid-cols-4">
+      <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {[
           [
             "1. Data intake",
@@ -198,9 +198,9 @@ export function AdminOperationsPanel() {
         ))}
       </div>
 
-      <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5">
+      <div className="mt-5 grid gap-2 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5">
         {statusLabels.map(([key, label]) => (
-          <div key={key} className="min-w-0 rounded-2xl bg-surface px-3 py-3">
+          <div key={key} className="min-w-0 rounded-2xl bg-surface px-3 py-3 ring-1 ring-line/50">
             <p className="text-[11px] font-bold uppercase tracking-normal text-ink/55">
               {label}
             </p>
@@ -231,7 +231,7 @@ export function AdminOperationsPanel() {
         {message}
       </p>
 
-      <div className="mt-4 grid gap-3 rounded-2xl border border-line bg-surface p-4 md:grid-cols-3">
+      <div className="mt-4 grid gap-3 rounded-2xl border border-line bg-surface p-4 sm:grid-cols-2 xl:grid-cols-3">
         <div>
           <p className="text-xs font-black uppercase tracking-normal text-ink/55">
             Email provider
@@ -258,7 +258,7 @@ export function AdminOperationsPanel() {
         </div>
       </div>
 
-      <div className="mt-4 grid gap-3 rounded-2xl border border-line bg-surface p-4 md:grid-cols-4">
+      <div className="mt-4 grid gap-3 rounded-2xl border border-line bg-surface p-4 sm:grid-cols-2 xl:grid-cols-4">
         <div>
           <p className="text-xs font-black uppercase tracking-normal text-ink/55">
             Stripe mode
@@ -292,13 +292,13 @@ export function AdminOperationsPanel() {
           </p>
         </div>
         {!status?.stripeCheckoutEnabled ? (
-          <p className="md:col-span-4 text-sm font-bold leading-6 text-ink/65">
+          <p className="text-sm font-bold leading-6 text-ink/65 sm:col-span-2 xl:col-span-4">
             {status?.stripeReason ?? "Stripe billing is not fully configured yet."}
           </p>
         ) : null}
       </div>
 
-      <div className="mt-4 grid gap-3 rounded-2xl border border-line bg-panel p-4 md:grid-cols-[1fr_auto] md:items-end">
+      <div className="mt-4 grid gap-3 rounded-2xl border border-line bg-panel p-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
         <label className="grid gap-2 text-sm font-bold text-ink">
           Production admin API secret
           <PasswordField
@@ -309,7 +309,7 @@ export function AdminOperationsPanel() {
             className="rounded-xl border border-line bg-surface px-4 py-3 font-medium outline-none transition focus:border-pine focus:bg-panel"
           />
         </label>
-        <div className="flex gap-2">
+        <div className="grid grid-cols-2 gap-2 lg:flex">
           <button
             type="button"
             onClick={() => {

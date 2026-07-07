@@ -72,10 +72,10 @@ export default function PricingPage() {
             <BrandMark />
           </div>
           <div className="flex gap-2 text-sm font-bold">
-            <Link href="/login" className="rounded-lg border border-line bg-surface px-4 py-2">
+            <Link href="/login?next=%2Fdashboard" className="rounded-lg border border-line bg-surface px-4 py-2">
               Log in
             </Link>
-            <Link href="/signup" className="rounded-lg bg-ink px-4 py-2 text-white">
+            <Link href="/signup?next=%2Fdashboard" className="rounded-lg bg-ink px-4 py-2 text-white">
               Sign up
             </Link>
           </div>
@@ -107,7 +107,7 @@ export default function PricingPage() {
               Choose a plan
             </Link>
             <Link
-              href="/login"
+              href="/login?next=%2Fdashboard"
               className="rounded-lg border border-line bg-surface px-4 py-3 text-center text-sm font-bold text-ink hover:border-pine"
             >
               Log in

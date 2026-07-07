@@ -11,6 +11,7 @@ import {
   SWINGFI_ADMIN_EMAIL,
   type AdminAccessRecord,
 } from "@/lib/customer-store";
+import { signupHref } from "@/lib/customer-flow";
 
 function formatDate(value: string) {
   return new Intl.DateTimeFormat("en-US", {
@@ -19,6 +20,10 @@ function formatDate(value: string) {
     hour: "numeric",
     minute: "2-digit",
   }).format(new Date(value));
+}
+
+function accessTypeLabel(record: AdminAccessRecord) {
+  return record.source === "owner" ? "Primary" : "Invited";
 }
 
 export function AdminAccessPanel() {
@@ -150,17 +155,16 @@ export function AdminAccessPanel() {
       <div className="grid gap-5 lg:grid-cols-[1fr_auto] lg:items-start">
         <div>
           <p className="text-sm font-bold uppercase tracking-normal text-pine">
-            Security and roles
+            Team access
           </p>
-          <h2 className="mt-3 text-3xl font-black text-ink">Approved admin access</h2>
+          <h2 className="mt-3 text-3xl font-black text-ink">Manage admins</h2>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-ink/60">
-            Give trusted team members admin access by email. They can then sign up with
-            that same email, choose their own password, and automatically unlock the
-            admin workspace.
+            Add a trusted email, then that person can create an account with the same
+            email and automatically open the admin workspace.
           </p>
         </div>
         <Link
-          href="/signup"
+          href={signupHref({ nextPath: "/admin" })}
           className="rounded-lg border border-line bg-surface px-4 py-3 text-center text-sm font-bold text-ink hover:border-pine"
         >
           Account signup
@@ -170,7 +174,7 @@ export function AdminAccessPanel() {
       <div className="mt-6 grid gap-3 sm:grid-cols-3">
         <div className="rounded-2xl border border-line bg-surface p-4">
           <p className="text-xs font-black uppercase tracking-normal text-ink/45">
-            Approved admins
+            Admins
           </p>
           <p className="mt-2 text-3xl font-black text-ink">{records.length}</p>
         </div>
@@ -188,26 +192,16 @@ export function AdminAccessPanel() {
         </div>
       </div>
 
-      <div className="mt-4 grid gap-3 lg:grid-cols-3">
-        {[
-          [
-            "Owner lock",
-            `${SWINGFI_ADMIN_EMAIL} is the permanent owner account and cannot be removed.`,
-          ],
-          [
-            "Invite flow",
-            "Add an email here first, then that person signs up with the same email and their own password.",
-          ],
-          [
-            "Plan bypass",
-            "Admin users automatically keep full access when paid subscription tiers are added.",
-          ],
-        ].map(([title, text]) => (
-          <div key={title} className="rounded-2xl border border-line bg-white/78 p-4">
-            <p className="text-sm font-black text-ink">{title}</p>
-            <p className="mt-2 text-xs font-semibold leading-5 text-ink/58">{text}</p>
-          </div>
-        ))}
+      <div className="mt-4 rounded-2xl border border-line bg-white/78 p-4">
+        <p className="text-sm font-black text-ink">How admin invites work</p>
+        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+          <p className="rounded-xl border border-line bg-surface px-3 py-2 text-xs font-bold leading-5 text-ink/58">
+            1. Add the person&apos;s email here.
+          </p>
+          <p className="rounded-xl border border-line bg-surface px-3 py-2 text-xs font-bold leading-5 text-ink/58">
+            2. They sign up with that email to unlock admin tools.
+          </p>
+        </div>
       </div>
 
       {loading ? (
@@ -263,10 +257,10 @@ export function AdminAccessPanel() {
                 <td className="py-4 pr-4">
                   <p className="font-bold text-ink">{record.email}</p>
                   {record.email === SWINGFI_ADMIN_EMAIL ? (
-                    <p className="mt-1 text-xs font-semibold text-ink/50">Primary owner</p>
+                    <p className="mt-1 text-xs font-semibold text-ink/50">Primary admin</p>
                   ) : null}
                 </td>
-                <td className="py-4 pr-4 capitalize">{record.source}</td>
+                <td className="py-4 pr-4">{accessTypeLabel(record)}</td>
                 <td className="py-4 pr-4">
                   <span
                     className={`rounded-md px-2 py-1 text-xs font-black ${
@@ -280,7 +274,9 @@ export function AdminAccessPanel() {
                 <td className="py-4 pr-4">{record.createdBy ?? "--"}</td>
                 <td className="py-4 pr-4">
                   {record.source === "owner" ? (
-                    <span className="text-xs font-bold text-ink/50">Cannot remove</span>
+                    <span className="rounded-md bg-surface px-2 py-1 text-xs font-bold text-ink/50">
+                      Protected
+                    </span>
                   ) : (
                     <button
                       type="button"
@@ -296,11 +292,6 @@ export function AdminAccessPanel() {
           </tbody>
         </table>
       </div>
-
-      <p className="mt-5 rounded-2xl bg-surface px-4 py-3 text-sm font-semibold leading-6 text-ink/65">
-        Future subscription rule: admin accounts should always bypass plan limits and
-        receive full product access, even after paid tiers are added.
-      </p>
     </section>
   );
 }

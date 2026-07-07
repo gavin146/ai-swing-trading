@@ -10,6 +10,7 @@ import {
   type PersistenceResult,
   recordAppEvent,
 } from "@/lib/persistence";
+import { getMorningPortfolioDigest } from "@/lib/portfolio/morning-digest";
 import { sendTwilioSms } from "@/lib/twilio";
 
 export const dynamic = "force-dynamic";
@@ -150,11 +151,27 @@ async function runMorningAlerts(request: NextRequest) {
 
     if (recipients.length > 0) {
       for (const recipient of recipients) {
+        const portfolioDigest = await getMorningPortfolioDigest(recipient.userId).catch(
+          async (error) => {
+            await recordAppEvent({
+              level: "warning",
+              source: "morning-alerts-cron",
+              message: "Morning portfolio digest could not be generated for a recipient.",
+              metadata: {
+                error: error instanceof Error ? error.message : String(error),
+                userId: recipient.userId,
+              },
+            });
+
+            return null;
+          },
+        );
         const emailAlert = buildMorningEmailAlert({
           customerName: recipient.fullName,
           customerId: recipient.userId ?? undefined,
           marketRegime: result.marketRegime,
           opportunities: result.opportunities,
+          portfolioDigest,
         });
         const delivery = await sendEmail({
           to: recipient.email,

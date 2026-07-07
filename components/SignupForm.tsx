@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { type KeyboardEvent, useMemo, useState } from "react";
 import { PasswordField } from "@/components/PasswordField";
 import { ToastNotice, type ToastTone } from "@/components/ToastNotice";
 import { trackAnalyticsEvent } from "@/lib/client-analytics";
+import { customerDestinationLabel, loginHref } from "@/lib/customer-flow";
 import {
   rememberAuthenticatedCustomer,
   SWINGFI_ADMIN_EMAIL,
@@ -189,7 +190,13 @@ function friendlySignupError(error: unknown) {
   return message || "Signup failed.";
 }
 
-export function SignupForm({ selectedPlan }: { selectedPlan?: SelectedSignupPlan }) {
+export function SignupForm({
+  nextPath,
+  selectedPlan,
+}: {
+  nextPath?: string;
+  selectedPlan?: SelectedSignupPlan;
+}) {
   const router = useRouter();
   const [step, setStep] = useState(0);
   const [values, setValues] = useState<SignupValues>(initialValues);
@@ -201,6 +208,7 @@ export function SignupForm({ selectedPlan }: { selectedPlan?: SelectedSignupPlan
   const selectedRiskLabel =
     riskOptions.find(([riskProfile]) => riskProfile === values.riskProfile)?.[1] ??
     values.riskProfile;
+  const destinationLabel = customerDestinationLabel(nextPath);
 
   const stepMeta = useMemo(
     () => [
@@ -232,10 +240,10 @@ export function SignupForm({ selectedPlan }: { selectedPlan?: SelectedSignupPlan
       {
         eyebrow: "Security",
         title: "Create your password",
-        text: "After signup, confirm your email to unlock the dashboard and start using your free trial.",
+        text: `After signup, confirm your email and continue to ${destinationLabel}.`,
       },
     ],
-    [],
+    [destinationLabel],
   );
 
   function update<K extends keyof SignupValues>(key: K, value: SignupValues[K]) {
@@ -244,6 +252,21 @@ export function SignupForm({ selectedPlan }: { selectedPlan?: SelectedSignupPlan
 
   function showNotice(tone: ToastTone, message: string, title?: string) {
     setNotice({ message, title, tone });
+  }
+
+  function handleWizardKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+    if (event.key !== "Enter" || event.shiftKey || loading) return;
+
+    const target = event.target;
+    if (target instanceof HTMLButtonElement || target instanceof HTMLAnchorElement) return;
+
+    event.preventDefault();
+    if (step < steps.length - 1) {
+      void goNext();
+      return;
+    }
+
+    void handleCreateAccount();
   }
 
   function validateCurrentStep() {
@@ -332,7 +355,13 @@ export function SignupForm({ selectedPlan }: { selectedPlan?: SelectedSignupPlan
         setup_preference: values.setupPreference,
       });
 
-      router.push(`/verify-email?sent=1&email=${encodeURIComponent(customer.email)}`);
+      const verifyParams = new URLSearchParams({
+        email: customer.email,
+        sent: "1",
+      });
+      if (nextPath) verifyParams.set("next", nextPath);
+
+      router.push(`/verify-email?${verifyParams.toString()}`);
     } catch (caught) {
       showNotice("error", friendlySignupError(caught), "Could not create account");
       setLoading(false);
@@ -401,7 +430,7 @@ export function SignupForm({ selectedPlan }: { selectedPlan?: SelectedSignupPlan
           </div>
         </aside>
 
-        <div className="min-w-0 p-6 sm:p-8">
+        <div className="min-w-0 p-6 sm:p-8" onKeyDown={handleWizardKeyDown}>
           <p className="text-xs font-black uppercase tracking-normal text-pine">
             {current.eyebrow}
           </p>
@@ -418,6 +447,7 @@ export function SignupForm({ selectedPlan }: { selectedPlan?: SelectedSignupPlan
             <p className="mt-1 text-sm font-semibold leading-6 text-ink/60">
               Answer the questions one at a time. SwingFi uses them to shape your
               first dashboard around risk, confidence, budget, and trading experience.
+              {nextPath ? ` After email confirmation, you will continue to ${destinationLabel}.` : ""}
             </p>
           </div>
 
@@ -635,14 +665,17 @@ export function SignupForm({ selectedPlan }: { selectedPlan?: SelectedSignupPlan
                 disabled={loading}
                 className="rounded-2xl bg-ink px-6 py-3 text-sm font-black text-white shadow-[0_14px_34px_rgba(7,20,24,0.16)] hover:bg-pine disabled:cursor-not-allowed disabled:opacity-70"
               >
-                {loading ? "Creating account..." : "Start free month"}
+                {loading ? "Creating account..." : `Start free month and continue`}
               </button>
             )}
           </div>
 
           <p className="mt-6 text-center text-sm text-ink/65">
             Already have an account?{" "}
-            <Link href="/login" className="font-bold text-pine">
+            <Link
+              href={loginHref(nextPath)}
+              className="font-bold text-pine"
+            >
               Log in
             </Link>
           </p>

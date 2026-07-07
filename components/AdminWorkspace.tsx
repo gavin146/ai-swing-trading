@@ -17,6 +17,7 @@ import {
   SWINGFI_ADMIN_EMAIL,
   type CustomerProfile,
 } from "@/lib/customer-store";
+import { loginHref, signupHref } from "@/lib/customer-flow";
 
 type AdminTab =
   | "overview"
@@ -212,13 +213,13 @@ export function AdminWorkspace() {
             ) : null}
             <div className="mt-6 flex flex-col gap-3 sm:flex-row">
               <Link
-                href="/login"
+                href={loginHref("/admin")}
                 className="rounded-2xl bg-ink px-4 py-3 text-center text-sm font-black text-white shadow-[0_14px_34px_rgba(7,20,24,0.16)] hover:bg-pine"
               >
                 Log in as admin
               </Link>
               <Link
-                href="/signup"
+                href={signupHref({ nextPath: "/admin" })}
                 className="rounded-2xl border border-line bg-surface px-4 py-3 text-center text-sm font-bold text-ink hover:border-pine"
               >
                 Create approved account
@@ -253,47 +254,66 @@ export function AdminWorkspace() {
   }
 
   const adminCustomer = customer;
+  const activeTabMeta = adminTabs.find((tab) => tab.key === activeTab) ?? adminTabs[0];
 
   return (
-    <div className="grid min-w-0 gap-5 2xl:grid-cols-[260px_minmax(0,1fr)] 2xl:gap-6">
-      <aside className="premium-panel min-w-0 rounded-3xl p-3 sm:p-4 2xl:sticky 2xl:top-24 2xl:self-start">
-        <div className="rounded-2xl bg-ink p-4 text-white sm:grid sm:grid-cols-[1fr_auto] sm:items-center sm:gap-4 2xl:block">
+    <div className="grid min-w-0 gap-4 xl:grid-cols-[250px_minmax(0,1fr)] 2xl:grid-cols-[280px_minmax(0,1fr)] xl:gap-5">
+      <aside className="premium-panel min-w-0 rounded-[24px] p-3 sm:rounded-3xl sm:p-4 xl:sticky xl:top-24 xl:self-start">
+        <div className="rounded-[20px] bg-ink p-3 text-white sm:grid sm:grid-cols-[1fr_auto] sm:items-center sm:gap-4 sm:p-4 xl:block">
           <div className="min-w-0">
             <p className="text-xs font-black uppercase tracking-normal text-white/60">
               SwingFi admin
             </p>
             <p className="mt-1 break-words text-sm font-bold">{adminCustomer.email}</p>
-            <p className="mt-1 text-xs font-semibold leading-5 text-white/62">
+            <p className="mt-1 hidden text-xs font-semibold leading-5 text-white/62 sm:block">
               Full access to operations, alerts, customers, and opportunity management.
             </p>
           </div>
-          <span className="mt-3 inline-flex w-fit rounded-full bg-white/10 px-3 py-1 text-xs font-black text-white sm:mt-0 2xl:mt-3">
+          <span className="mt-3 inline-flex w-fit rounded-full bg-white/10 px-3 py-1 text-xs font-black text-white sm:mt-0 xl:mt-3">
             Admin
           </span>
         </div>
 
-        <nav className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4 2xl:hidden">
-          {adminTabs.map((tab) => {
-            const isActive = activeTab === tab.key;
+        <div className="mt-3 rounded-[20px] border border-line bg-surface p-3 xl:hidden">
+          <p className="text-[11px] font-black uppercase tracking-normal text-pine">
+            Current section
+          </p>
+          <p className="mt-1 text-lg font-black leading-tight text-ink">
+            {activeTabMeta.label}
+          </p>
+          <p className="mt-1 text-xs font-semibold leading-5 text-ink/58">
+            {activeTabMeta.description}
+          </p>
+        </div>
 
-            return (
-              <button
-                key={tab.key}
-                type="button"
-                onClick={() => selectTab(tab.key)}
-                className={`min-h-11 rounded-2xl border px-3 py-2.5 text-left text-sm font-black transition ${
-                  isActive
-                    ? "border-pine bg-mint text-ink shadow-soft"
-                    : "border-line/70 bg-surface/70 text-ink/68 hover:border-pine/30 hover:bg-white"
-                }`}
-              >
-                {tab.label}
-              </button>
-            );
-          })}
+        <nav className="-mx-3 mt-3 overflow-x-auto px-3 pb-1 xl:hidden" aria-label="Admin sections">
+          <div className="flex min-w-max gap-2">
+            {adminTabGroups.map((group) => (
+              <div key={group.label} className="flex shrink-0 gap-2">
+                {group.tabs.map((tab) => {
+                  const isActive = activeTab === tab.key;
+
+                  return (
+                    <button
+                      key={tab.key}
+                      type="button"
+                      onClick={() => selectTab(tab.key)}
+                      className={`min-h-11 w-32 shrink-0 rounded-2xl border px-3 py-2 text-center text-xs font-black leading-tight transition sm:w-40 sm:text-sm ${
+                        isActive
+                          ? "border-pine bg-mint text-ink shadow-soft"
+                          : "border-line/70 bg-white text-ink/62 hover:border-pine/30 hover:bg-white"
+                      }`}
+                    >
+                      {tab.label}
+                    </button>
+                  );
+                })}
+              </div>
+            ))}
+          </div>
         </nav>
 
-        <nav className="mt-4 hidden gap-4 2xl:grid">
+        <nav className="mt-4 hidden gap-4 xl:grid">
           {adminTabGroups.map((group) => (
             <div key={group.label}>
               <p className="px-2 text-[11px] font-black uppercase tracking-normal text-ink/38">
@@ -308,14 +328,14 @@ export function AdminWorkspace() {
                       key={tab.key}
                       type="button"
                       onClick={() => selectTab(tab.key)}
-                      className={`min-h-[74px] rounded-2xl border px-4 py-3 text-left transition ${
+                      className={`min-h-[72px] rounded-2xl border px-3 py-3 text-left transition 2xl:px-4 ${
                         isActive
                           ? "border-pine bg-mint text-ink shadow-soft"
                           : "border-line/70 bg-surface/70 text-ink/68 hover:border-pine/30 hover:bg-white"
                       }`}
                     >
-                      <span className="block text-sm font-black">{tab.label}</span>
-                      <span className="mt-1 block text-xs font-semibold leading-5 text-ink/55">
+                      <span className="block text-sm font-black leading-tight">{tab.label}</span>
+                      <span className="mt-1 block text-[11px] font-semibold leading-4 text-ink/55 2xl:text-xs 2xl:leading-5">
                         {tab.description}
                       </span>
                     </button>
@@ -326,17 +346,9 @@ export function AdminWorkspace() {
           ))}
         </nav>
 
-        <div className="mt-3 hidden rounded-2xl border border-line bg-surface p-3 sm:mt-4 sm:p-4 2xl:block">
-          <p className="text-xs font-black uppercase tracking-normal text-ink/55">
-            Access rule
-          </p>
-          <p className="mt-2 text-sm font-semibold leading-6 text-ink/65">
-            The owner email plus approved admin emails receive full product access.
-          </p>
-        </div>
       </aside>
 
-      <div className="min-w-0 overflow-hidden [&_*]:min-w-0 [&>section]:mb-0">
+      <div className="min-w-0 overflow-hidden rounded-[24px] sm:rounded-3xl [&_*]:min-w-0 [&_table]:min-w-full [&>section]:mb-0">
         {activePanel}
       </div>
     </div>

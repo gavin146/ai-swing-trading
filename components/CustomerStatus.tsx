@@ -1,7 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
+import { loginHref } from "@/lib/customer-flow";
 import {
   getCurrentCustomer,
   logoutCustomer,
@@ -11,6 +13,7 @@ import {
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 
 export function CustomerStatus() {
+  const pathname = usePathname();
   const [customer, setCustomer] = useState<CustomerProfile | null>(null);
 
   useEffect(() => {
@@ -30,8 +33,8 @@ export function CustomerStatus() {
   if (!customer) {
     return (
       <Link
-        href="/login"
-        className="rounded-xl border border-line bg-white px-3 py-2 font-bold text-ink hover:border-pine hover:shadow-soft"
+        href={loginHref(pathname || "/dashboard")}
+        className="min-h-10 rounded-xl border border-line bg-white px-3 py-2 text-sm font-bold text-ink hover:border-pine hover:shadow-soft sm:text-base"
       >
         Log in
       </Link>
@@ -44,20 +47,26 @@ export function CustomerStatus() {
     logoutCustomer();
   }
 
+  const displayName = customer.fullName || customer.email;
+  const initial = displayName.trim().charAt(0).toUpperCase() || "S";
+
   return (
     <div className="flex min-w-0 items-center gap-2">
       <Link
         href="/settings"
-        className="max-w-[138px] truncate rounded-xl bg-mint px-3 py-2 text-sm font-black text-pine hover:bg-lime hover:text-ink sm:max-w-[220px]"
+        className="flex min-h-10 min-w-10 items-center justify-center rounded-xl bg-mint px-2 text-sm font-black text-pine hover:bg-lime hover:text-ink sm:max-w-[220px] sm:justify-start sm:px-3"
+        aria-label={`Account settings for ${displayName}`}
       >
-        {customer.fullName || customer.email}
+        <span className="sm:hidden">{initial}</span>
+        <span className="hidden truncate sm:block">{displayName}</span>
       </Link>
       <button
         type="button"
         onClick={handleLogout}
-        className="rounded-xl border border-line bg-white px-3 py-2 text-sm font-bold text-ink hover:border-pine hover:shadow-soft"
+        className="min-h-10 rounded-xl border border-line bg-white px-2.5 py-2 text-xs font-bold text-ink hover:border-pine hover:shadow-soft sm:px-3 sm:text-sm"
       >
-        Log out
+        <span className="sm:hidden">Out</span>
+        <span className="hidden sm:inline">Log out</span>
       </button>
     </div>
   );

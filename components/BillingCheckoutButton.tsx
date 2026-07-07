@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { ToastNotice, type ToastTone } from "@/components/ToastNotice";
 import { trackAnalyticsEvent } from "@/lib/client-analytics";
+import { loginHref, signupHref } from "@/lib/customer-flow";
 import type { BillingPlanKey } from "@/lib/stripe/config";
 import { getCurrentCustomer } from "@/lib/customer-store";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
@@ -118,13 +119,13 @@ export function BillingCheckoutButton({
           {notice.showAccountLinks ? (
             <span className="mt-3 flex flex-col gap-2 sm:flex-row">
               <Link
-                href={`/signup?plan=${planKey}`}
+                href={signupHref({ nextPath: "/pricing", plan: planKey })}
                 className="rounded-xl bg-ink px-3 py-2 text-center text-xs font-black text-white hover:bg-pine"
               >
                 Create account
               </Link>
               <Link
-                href="/login"
+                href={loginHref("/pricing")}
                 className="rounded-xl border border-line bg-white/70 px-3 py-2 text-center text-xs font-black text-ink hover:border-pine"
               >
                 Log in

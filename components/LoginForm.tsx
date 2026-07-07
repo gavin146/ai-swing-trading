@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
 import { PasswordField } from "@/components/PasswordField";
 import { ToastNotice, type ToastTone } from "@/components/ToastNotice";
+import { customerDestinationLabel, normalizeCustomerNextPath, signupHref } from "@/lib/customer-flow";
 import {
   isAdminCustomer,
   loginCustomer,
@@ -45,6 +46,9 @@ function friendlyLoginError(error: unknown) {
 export function LoginForm() {
   const router = useRouter();
   const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const requestedNextPath = normalizeCustomerNextPath(searchParams.get("next"));
+  const destinationLabel = customerDestinationLabel(requestedNextPath);
   const [notice, setNotice] = useState<AuthNotice | null>(null);
   const [loading, setLoading] = useState(false);
   const [recoveryMode, setRecoveryMode] = useState(false);
@@ -205,7 +209,7 @@ export function LoginForm() {
         customer = loginCustomer(email, password);
       }
 
-      router.push(isAdminCustomer(customer) ? "/admin" : "/dashboard");
+      router.push(requestedNextPath || (isAdminCustomer(customer) ? "/admin" : "/dashboard"));
     } catch (caught) {
       showNotice("error", friendlyLoginError(caught), "Could not log in");
       setLoading(false);
@@ -302,7 +306,7 @@ export function LoginForm() {
             ? recoveryReady
               ? "Enter a fresh password, then return to sign in."
               : "Checking your secure password reset link."
-            : "Sign in to review today’s ranked opportunities, saved preferences, and morning email settings."}
+            : `Sign in to continue to ${destinationLabel}.`}
         </p>
         {!recoveryMode ? (
           <div className="mt-5 rounded-2xl border border-line bg-surface px-4 py-3">
@@ -310,8 +314,9 @@ export function LoginForm() {
               After login
             </p>
             <p className="mt-1 text-sm font-semibold leading-6 text-ink/60">
-              You&apos;ll land on today&apos;s ranked ideas. Start with the Start here path,
-              then open one to three setups for deeper review.
+              {requestedNextPath
+                ? `SwingFi will return you to ${destinationLabel} after login.`
+                : "Start with the Start here path, then open one to three setups for deeper review."}
             </p>
           </div>
         ) : null}
@@ -341,7 +346,7 @@ export function LoginForm() {
                 back to login, enter your email, and send yourself a fresh reset email.
               </p>
               <Link
-                href="/login"
+                href={requestedNextPath ? `/login?next=${encodeURIComponent(requestedNextPath)}` : "/login"}
                 className="mt-3 inline-flex rounded-xl border border-line bg-white px-3 py-2 text-xs font-black text-ink hover:border-pine"
               >
                 Request a fresh link
@@ -386,7 +391,7 @@ export function LoginForm() {
           disabled={loading}
           className="mt-2 rounded-2xl bg-ink px-4 py-3 text-sm font-black text-white shadow-[0_14px_34px_rgba(7,20,24,0.16)] hover:bg-pine disabled:cursor-not-allowed disabled:opacity-70"
         >
-          {loading ? "Opening dashboard..." : "Log in"}
+          {loading ? `Opening ${destinationLabel}...` : `Continue to ${destinationLabel}`}
         </button>
         <button
           type="button"
@@ -401,7 +406,10 @@ export function LoginForm() {
 
       <p className="mt-6 text-center text-sm text-ink/65">
         New to SwingFi?{" "}
-        <Link href="/signup" className="font-bold text-pine">
+        <Link
+          href={signupHref({ nextPath: requestedNextPath })}
+          className="inline-flex rounded-xl px-2 py-2 font-bold text-pine hover:bg-mint"
+        >
           Create an account
         </Link>
       </p>

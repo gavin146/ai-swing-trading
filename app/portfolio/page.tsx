@@ -4,8 +4,10 @@ import { SwingPortfolioPanel } from "@/components/SwingPortfolioPanel";
 type PortfolioPageProps = {
   searchParams: Promise<{
     assetType?: string;
+    entryDate?: string;
     entryHigh?: string;
     entryLow?: string;
+    entryTimeWindow?: string;
     holdingPeriodDays?: string;
     opportunityId?: string;
     stopLoss?: string;

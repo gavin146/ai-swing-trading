@@ -200,6 +200,144 @@ function scoreConfidence(scores: Omit<ScoreBreakdown, "confidence" | "composite"
   return Math.round(clamp(agreement * 0.58 + riskAdjustment * 0.32 + average * 0.1));
 }
 
+function supportDistancePct(candidate: EquityCandidate) {
+  const price = candidate.technical.price;
+
+  if (price <= 0) return 0;
+
+  return ((price - candidate.technical.support) / price) * 100;
+}
+
+function rewardDistancePct(candidate: EquityCandidate) {
+  const price = candidate.technical.price;
+
+  if (price <= 0) return 0;
+
+  return ((candidate.technical.resistance - price) / price) * 100;
+}
+
+function rewardRiskRatio(candidate: EquityCandidate) {
+  const risk = supportDistancePct(candidate);
+  const reward = rewardDistancePct(candidate);
+
+  return reward / Math.max(risk, 1);
+}
+
+function dataCompletenessScore(candidate: EquityCandidate) {
+  const { financials, news, technical } = candidate;
+  const hasMeaningfulFinancials =
+    Math.abs(financials.revenueGrowth) > 0.1 ||
+    Math.abs(financials.earningsGrowth) > 0.1 ||
+    Math.abs(financials.marginTrend) > 0.1 ||
+    financials.revisionScore !== 55 ||
+    financials.valuationScore !== 55;
+  const hasCatalystDetail =
+    news.headlineCount > 0 || Boolean(news.catalystTags?.length) || news.daysToEarnings !== undefined;
+  const hasEventDetail =
+    news.daysToEarnings !== undefined ||
+    news.eventRiskScore !== undefined ||
+    news.filingRiskScore !== undefined;
+  const hasRelativeBenchmarks =
+    technical.relativeStrengthVsMarket !== undefined &&
+    technical.relativeStrengthVsSector !== undefined;
+
+  return Math.round(
+    clamp(
+      22 +
+        (hasRelativeBenchmarks ? 18 : 0) +
+        (candidate.averageVolume >= 500_000 && candidate.marketCapBillions >= 1 ? 12 : 0) +
+        (hasMeaningfulFinancials ? 16 : 0) +
+        (hasCatalystDetail ? 17 : 0) +
+        (hasEventDetail ? 8 : 0) +
+        (news.summary.toLowerCase().includes("sec") || news.filingRiskScore !== undefined ? 7 : 0),
+    ),
+  );
+}
+
+function predictionQualityAdjustment(
+  candidate: EquityCandidate,
+  partial: Omit<ScoreBreakdown, "confidence" | "composite">,
+) {
+  const supportDistance = supportDistancePct(candidate);
+  const rewardDistance = rewardDistancePct(candidate);
+  const rewardRisk = rewardRiskRatio(candidate);
+  const hasRelativeBenchmarks =
+    candidate.technical.relativeStrengthVsMarket !== undefined &&
+    candidate.technical.relativeStrengthVsSector !== undefined;
+  const marketRelative = candidate.technical.relativeStrengthVsMarket ?? 50;
+  const sectorRelative = candidate.technical.relativeStrengthVsSector ?? 50;
+  const eventRisk = candidate.news.eventRiskScore ?? 0;
+  const filingRisk = candidate.news.filingRiskScore ?? 0;
+  const dataCompleteness = dataCompletenessScore(candidate);
+  const underperformingBenchmarks = hasRelativeBenchmarks && (marketRelative < 45 || sectorRelative < 45);
+  const outperformingBenchmarks = hasRelativeBenchmarks && marketRelative >= 62 && sectorRelative >= 58;
+  const extendedFromSupport = supportDistance >= 8.5;
+  const limitedUpside = rewardDistance < 4.5 || rewardRisk < 1.35;
+  const elevatedBinaryRisk = eventRisk >= 45 || filingRisk >= 45;
+  const highVolatility = candidate.technical.atrPercent >= 6.5 || partial.risk >= 66;
+  const weakConfirmation =
+    dataCompleteness < 58 ||
+    candidate.news.headlineCount === 0 ||
+    (candidate.news.catalystScore < 52 && candidate.news.sentimentScore < 55);
+  const scoreAdjustment =
+    (limitedUpside ? -8 : rewardRisk >= 2.2 && rewardDistance >= 6 ? 4 : 0) +
+    (underperformingBenchmarks ? -7 : outperformingBenchmarks ? 4 : hasRelativeBenchmarks ? 0 : -3) +
+    (extendedFromSupport ? -4 : supportDistance <= 5.5 ? 2 : 0) +
+    (elevatedBinaryRisk ? -8 : 0) +
+    (highVolatility ? -4 : 0) +
+    (weakConfirmation ? -5 : dataCompleteness >= 78 ? 3 : 0);
+  const confidenceAdjustment =
+    (dataCompleteness >= 78 ? 5 : dataCompleteness >= 62 ? 1 : -8) +
+    (underperformingBenchmarks ? -5 : hasRelativeBenchmarks ? 2 : -2) +
+    (limitedUpside ? -4 : 1) +
+    (elevatedBinaryRisk ? -7 : 0);
+  const riskAdjustment =
+    (extendedFromSupport ? 5 : 0) +
+    (limitedUpside ? 4 : 0) +
+    (underperformingBenchmarks ? 4 : 0) +
+    (elevatedBinaryRisk ? 8 : 0) +
+    (highVolatility ? 6 : 0) -
+    (dataCompleteness >= 78 && rewardRisk >= 1.8 ? 3 : 0);
+  const cap = Math.min(
+    100,
+    limitedUpside ? 72 : 100,
+    underperformingBenchmarks ? 76 : 100,
+    elevatedBinaryRisk ? 70 : 100,
+    dataCompleteness < 50 ? 68 : 100,
+    highVolatility && rewardRisk < 1.8 ? 74 : 100,
+  );
+  const notes = [
+    limitedUpside
+      ? `Reward/risk is thin at ${round(rewardRisk, 1)}R with ${round(rewardDistance, 1)}% upside to resistance.`
+      : `Reward/risk is ${round(rewardRisk, 1)}R with ${round(rewardDistance, 1)}% upside to resistance.`,
+    !hasRelativeBenchmarks
+      ? "Benchmark-relative strength was not available, so the model treats that signal as neutral and caps conviction."
+      : underperformingBenchmarks
+      ? `Relative strength is weak versus market/sector benchmarks (${marketRelative}/${sectorRelative}).`
+      : `Relative strength clears benchmark checks (${marketRelative}/${sectorRelative}).`,
+    dataCompleteness < 58
+      ? `Data completeness is limited at ${dataCompleteness}/100, so conviction is capped.`
+      : `Data completeness is ${dataCompleteness}/100 across price, fundamentals, catalysts, events, and filings.`,
+  ];
+
+  if (elevatedBinaryRisk) {
+    notes.push("Event or SEC filing risk is elevated, so the score is capped until the binary risk clears.");
+  }
+
+  if (extendedFromSupport) {
+    notes.push(`Price is ${round(supportDistance, 1)}% above support, increasing entry discipline risk.`);
+  }
+
+  return {
+    cap,
+    confidenceAdjustment,
+    dataCompleteness,
+    notes,
+    riskAdjustment,
+    scoreAdjustment,
+  };
+}
+
 function getMarketRegime(candidates: EquityCandidate[]) {
   if (candidates.length === 0) {
     return "balanced";
@@ -215,11 +353,20 @@ function getMarketRegime(candidates: EquityCandidate[]) {
 }
 
 function buildReasons(candidate: EquityCandidate, scores: ScoreBreakdown) {
+  const quality = predictionQualityAdjustment(candidate, {
+    technical: scores.technical,
+    financial: scores.financial,
+    news: scores.news,
+    macro: scores.macro,
+    liquidity: scores.liquidity,
+    risk: scores.risk,
+  });
   const reasons = [
     `Technical setup scores ${scores.technical}/100 with price near ${round(candidate.technical.price, 2)}, 90-day relative strength at ${candidate.technical.relativeStrength90d}, market-relative strength at ${candidate.technical.relativeStrengthVsMarket ?? 50}, and sector-relative strength at ${candidate.technical.relativeStrengthVsSector ?? 50}.`,
     `Financial quality scores ${scores.financial}/100, supported by ${candidate.financials.revenueGrowth}% revenue growth and ${candidate.financials.earningsGrowth}% earnings growth.`,
     `News and catalyst tone scores ${scores.news}/100 with ${candidate.news.headlineCount} tracked headlines, ${candidate.news.riskFlagCount} risk flags, and ${candidate.news.catalystTags?.length ? `catalysts including ${candidate.news.catalystTags.slice(0, 2).join(" and ")}` : "no standout catalyst tag"}.`,
     `Macro backdrop scores ${scores.macro}/100 for ${candidate.sector}, using market breadth, rates pressure, FRED, BLS, and Treasury context where available.`,
+    `Prediction quality check: ${quality.notes.join(" ")}`,
   ];
 
   if ((candidate.news.eventRiskScore ?? 0) >= 35) {
@@ -258,16 +405,26 @@ function buildOpportunity(
   source: AgentDataSource,
 ) {
   const { technical } = candidate;
+  const quality = predictionQualityAdjustment(candidate, {
+    technical: scores.technical,
+    financial: scores.financial,
+    news: scores.news,
+    macro: scores.macro,
+    liquidity: scores.liquidity,
+    risk: scores.risk,
+  });
   const entryLow = Math.max(technical.support * 1.005, technical.price * 0.985);
   const entryHigh = technical.price * 1.012;
-  const stopRiskPct = clamp(technical.atrPercent * 1.35, 4, 12) / 100;
+  const eventRiskDrag = (candidate.news.eventRiskScore ?? 0) >= 45 ? 0.92 : 1;
+  const stopRiskPct = clamp(technical.atrPercent * 1.35, 4, scores.risk >= 68 ? 10 : 12) / 100;
   const technicalStop = entryLow * (1 - stopRiskPct);
   const structuralStop = technical.support * 0.985;
   const stopLoss = Math.max(structuralStop, technicalStop);
   const riskDollars = Math.max(entryLow - stopLoss, entryLow * 0.035);
-  const resistanceTarget = technical.resistance * 0.99;
-  const minimumRewardTarget = entryLow + riskDollars * 1.6;
-  const targetPrice = Math.min(Math.max(resistanceTarget, minimumRewardTarget), entryLow * 1.18);
+  const resistanceTarget = technical.resistance * 0.99 * eventRiskDrag;
+  const minimumRewardTarget = entryLow + riskDollars * (quality.dataCompleteness >= 70 ? 1.75 : 1.45);
+  const maxTargetMultiple = scores.risk >= 68 ? 1.12 : quality.dataCompleteness < 58 ? 1.14 : 1.18;
+  const targetPrice = Math.min(Math.max(resistanceTarget, minimumRewardTarget), entryLow * maxTargetMultiple);
   const expectedGain = ((targetPrice - entryLow) / entryLow) * 100;
   const expectedLoss = ((entryLow - stopLoss) / entryLow) * 100;
   const holdingPeriodDays = Math.round(clamp(8 + (scores.risk / 100) * 18, 8, 28));
@@ -275,6 +432,7 @@ function buildOpportunity(
   const explanation = [
     `${candidate.symbol} ranks highly because trend, market-relative strength, fundamentals, catalyst tone, and macro context are aligned better than most names in the ${source === "fmp" ? "live FMP-screened universe" : "mock universe"}.`,
     `The modeled plan shows about ${round(expectedGain, 1)}% potential upside versus ${round(expectedLoss, 1)}% planned downside, or roughly ${round(rewardRisk, 1)}R reward/risk.`,
+    `Prediction quality review: ${quality.notes.join(" ")}`,
     ...buildReasons(candidate, scores).slice(0, 3),
     calibration.appliedRules.length > 0
       ? `Backtest calibration lowered this setup by ${calibration.totalScorePenalty} score points because similar risk patterns have been less reliable historically.`
@@ -304,7 +462,7 @@ function buildOpportunity(
 }
 
 function scoreCandidate(candidate: EquityCandidate): ScoreBreakdown {
-  const partial = {
+  const initialPartial = {
     technical: Math.round(scoreTechnical(candidate)),
     financial: Math.round(scoreFinancials(candidate)),
     news: Math.round(scoreNews(candidate)),
@@ -312,7 +470,14 @@ function scoreCandidate(candidate: EquityCandidate): ScoreBreakdown {
     liquidity: Math.round(scoreLiquidity(candidate)),
     risk: Math.round(scoreRisk(candidate)),
   };
-  const confidence = scoreConfidence(partial);
+  const quality = predictionQualityAdjustment(candidate, initialPartial);
+  const partial = {
+    ...initialPartial,
+    risk: Math.round(clamp(initialPartial.risk + quality.riskAdjustment)),
+  };
+  const confidence = Math.round(
+    clamp(scoreConfidence(partial) + quality.confidenceAdjustment),
+  );
   const supportDistance = ((candidate.technical.price - candidate.technical.support) / candidate.technical.price) * 100;
   const rewardDistance = ((candidate.technical.resistance - candidate.technical.price) / candidate.technical.price) * 100;
   const rewardRiskScore = clamp(
@@ -338,7 +503,7 @@ function scoreCandidate(candidate: EquityCandidate): ScoreBreakdown {
     -7,
     5,
   );
-  const composite = Math.round(
+  const rawComposite = Math.round(
     clamp(
       partial.technical * 0.34 +
         partial.financial * 0.21 +
@@ -351,6 +516,7 @@ function scoreCandidate(candidate: EquityCandidate): ScoreBreakdown {
         catalystAdjustment,
     ),
   );
+  const composite = Math.round(clamp(Math.min(rawComposite + quality.scoreAdjustment, quality.cap)));
 
   return { ...partial, confidence, composite };
 }
@@ -457,7 +623,7 @@ export function rankEquityCandidates(
     universeCount: uniqueUniverse.length,
     selectedCount: ranked.length,
     marketRegime,
-    summary: `${summaryPrefix ?? "Morning agent"} ranked ${uniqueUniverse.length} unique US stocks and selected the top ${ranked.length} using technicals, company financials, news/catalyst tone, macro/government data placeholders, liquidity, risk, and active backtest calibration penalties.`,
+    summary: `${summaryPrefix ?? "Morning agent"} ranked ${uniqueUniverse.length} unique US stocks and selected the top ${ranked.length} using technicals, company financials, news/catalyst tone, macro/government context, liquidity, reward/risk, benchmark-relative strength, data-completeness caps, event-risk checks, and active backtest calibration penalties.`,
     costEstimate: estimateDailyAgentCost({ selectedCount: ranked.length }),
     opportunities: ranked.map((item) => item.opportunity),
     rankings: ranked,

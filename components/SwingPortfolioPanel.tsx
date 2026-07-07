@@ -1,13 +1,19 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { loginHref, signupHref } from "@/lib/customer-flow";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import {
   getCurrentCustomer,
   restoreAuthenticatedCustomerSession,
   type CustomerProfile,
 } from "@/lib/customer-store";
+import {
+  buildPortfolioPlainInsight,
+  type PlainLanguageInsight,
+} from "@/lib/plain-language-insights";
+import { getTradeLiveIntelligence } from "@/lib/portfolio/intelligence";
 import type { AssetType, TradeStatus } from "@/lib/database.types";
 
 type PortfolioTrade = {
@@ -43,8 +49,10 @@ type PortfolioTrade = {
 
 type InitialTrade = {
   assetType?: string;
+  entryDate?: string;
   entryHigh?: string;
   entryLow?: string;
+  entryTimeWindow?: string;
   holdingPeriodDays?: string;
   opportunityId?: string;
   stopLoss?: string;
@@ -68,12 +76,28 @@ type EntryPriceEstimate = {
 };
 
 type ExitPlan = {
+  actionLabel: string;
+  actionTone: "positive" | "neutral" | "caution";
+  checklist: string[];
   confidence: "higher" | "estimate";
+  currentPrice: number | null;
+  dataQuality: "daily_analysis" | "live_structure" | "limited_structure";
   explanation: string;
   holdingPeriodDays: number;
+  invalidationSignals: string[];
+  rewardRiskRatio: number;
   source: "swingfi_daily_analysis" | "market_structure_estimate";
   stopLoss: number;
+  takeProfitZoneHigh: number;
+  takeProfitZoneLow: number;
   targetPrice: number;
+  trailingStop: number;
+  trendState: "uptrend" | "sideways" | "downtrend" | "unknown";
+};
+
+type PortfolioCoachNote = {
+  mode: "deterministic" | "openai";
+  text: string;
 };
 
 type FormState = {
@@ -143,6 +167,10 @@ function formatTime(value: string | null) {
   }).format(date);
 }
 
+function clamp(value: number, min = 0, max = 100) {
+  return Math.min(Math.max(value, min), max);
+}
+
 function toNumber(value: string | undefined) {
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
@@ -182,6 +210,16 @@ function buildOpenedAt(date: string, window: FormState["entryTimeWindow"]) {
   return new Date(`${date}T${time}`).toISOString();
 }
 
+function cleanInitialEntryDate(value: string | undefined) {
+  return value && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : initialForm.entryDate;
+}
+
+function cleanInitialTimeWindow(value: string | undefined): FormState["entryTimeWindow"] {
+  return value === "midday" || value === "afternoon" || value === "after_hours"
+    ? value
+    : "open";
+}
+
 function formFromInitialTrade(initialTrade?: InitialTrade): FormState {
   if (!initialTrade?.symbol) return initialForm;
 
@@ -193,11 +231,13 @@ function formFromInitialTrade(initialTrade?: InitialTrade): FormState {
   return {
     ...initialForm,
     assetType: mapAssetType(initialTrade.assetType),
+    entryDate: cleanInitialEntryDate(initialTrade.entryDate),
     entryPrice: midpoint,
+    entryTimeWindow: cleanInitialTimeWindow(initialTrade.entryTimeWindow),
     holdingPeriodDays: holdingDays ? String(holdingDays) : initialForm.holdingPeriodDays,
     notes: holdingDays
-      ? `Original SwingFi plan estimated a ${holdingDays}-day holding window.`
-      : "Added from SwingFi analysis.",
+      ? `Original SwingFi plan estimated a ${holdingDays}-day holding window. Added from dashboard after the user chose a rough buy time.`
+      : "Added from SwingFi dashboard after the user chose a rough buy time.",
     opportunityId: initialTrade.opportunityId ?? "",
     stopLoss: initialTrade.stopLoss ?? "",
     symbol: initialTrade.symbol.toUpperCase(),
@@ -215,6 +255,16 @@ function statusTone(status: string) {
   }
 
   return "border-amber/25 bg-amber/15 text-ink";
+}
+
+function planStatusLabel(status: string) {
+  if (status === "Near stop") return "Close to saved stop";
+  if (status === "Below stop") return "Below saved stop";
+  if (status === "Near target") return "Close to target";
+  if (status === "At or above target") return "Target reached";
+  if (status === "Review time window") return "Time to review";
+  if (status === "Inside plan") return "Inside plan";
+  return status;
 }
 
 function reviewCountdown(trade: PortfolioTrade) {
@@ -262,6 +312,336 @@ function countdownTone(urgency: string) {
   return "border-pine/15 bg-mint text-pine";
 }
 
+function exitPlanTone(tone: ExitPlan["actionTone"]) {
+  if (tone === "positive") return "border-pine/20 bg-mint text-pine";
+  if (tone === "caution") return "border-coral/25 bg-coral/10 text-coral";
+  return "border-amber/30 bg-amber/15 text-ink";
+}
+
+function dataQualityLabel(value: ExitPlan["dataQuality"]) {
+  if (value === "daily_analysis") return "Daily ranking plan";
+  if (value === "live_structure") return "Live structure estimate";
+  return "Limited structure estimate";
+}
+
+function rewardRiskForTrade(trade: PortfolioTrade) {
+  const entry = Number(trade.entry_price);
+  const target = Number(trade.target_price);
+  const stop = Number(trade.stop_loss);
+  const reward = target - entry;
+  const risk = entry - stop;
+
+  return risk > 0 ? reward / risk : 0;
+}
+
+function percentDistance(from: number | null, to: number) {
+  if (!from || !Number.isFinite(from) || from <= 0 || !Number.isFinite(to) || to <= 0) return null;
+
+  return ((to - from) / from) * 100;
+}
+
+function getTradeReview(trade: PortfolioTrade) {
+  const countdown = reviewCountdown(trade);
+  const rewardRisk = rewardRiskForTrade(trade);
+  const targetDistance = percentDistance(trade.currentPrice, Number(trade.target_price));
+  const stopDistance = percentDistance(trade.currentPrice, Number(trade.stop_loss));
+  const lossFromEntry = trade.unrealizedReturnPct !== null && trade.unrealizedReturnPct < 0;
+  const hasFreshNews = trade.latestNews.length > 0;
+  const nearTarget = trade.planStatus === "At or above target" || trade.planStatus === "Near target";
+  const nearStop = trade.planStatus === "Below stop" || trade.planStatus === "Near stop";
+  const timeReview = trade.planStatus === "Review time window" || countdown.urgency === "high";
+  const priority =
+    nearStop ? 100 : nearTarget ? 90 : timeReview ? 80 : countdown.urgency === "watch" ? 66 : lossFromEntry ? 52 : 35;
+  const tone =
+    nearStop ? "caution" : nearTarget || timeReview || countdown.urgency === "watch" ? "neutral" : "positive";
+  const label =
+    nearStop
+      ? "Protect capital"
+      : nearTarget
+        ? "Plan profit-taking"
+        : timeReview
+          ? "Review the hold window"
+          : countdown.urgency === "watch"
+            ? "Prepare a decision"
+            : lossFromEntry
+              ? "Watch support closely"
+              : "Plan is still intact";
+  const nextStep =
+    nearStop
+      ? "Check whether the stop has triggered and avoid widening risk without a fresh reason."
+      : nearTarget
+        ? "Decide before the target zone whether to sell, trim, or trail the stop."
+        : timeReview
+          ? "Review current trend, latest news, and whether the original swing window still makes sense."
+          : countdown.urgency === "watch"
+            ? "Start planning the exit decision before the countdown reaches zero."
+            : lossFromEntry
+              ? "Compare the current price to the stop and make sure the downside still fits your account."
+              : "Keep monitoring price, news, and the countdown; no urgent change is flagged.";
+  const evidence = [
+    `Status: ${trade.planStatus}.`,
+    `Reward/risk from entry is about ${rewardRisk.toFixed(1)}R.`,
+    targetDistance === null
+      ? "Target distance unavailable."
+      : targetDistance >= 0
+        ? `Saved target is ${Math.abs(targetDistance).toFixed(1)}% above latest price.`
+        : `Latest price is ${Math.abs(targetDistance).toFixed(1)}% above the saved target.`,
+    stopDistance === null
+      ? "Stop distance unavailable."
+      : stopDistance >= 0
+        ? `Latest price is ${Math.abs(stopDistance).toFixed(1)}% below the saved stop.`
+        : `Saved stop is ${Math.abs(stopDistance).toFixed(1)}% below latest price.`,
+    hasFreshNews ? "Fresh headlines are available to review." : "No fresh FMP headlines are available.",
+  ];
+
+  return {
+    evidence,
+    label,
+    nextStep,
+    priority,
+    rewardRisk,
+    tone,
+  };
+}
+
+function getExitDecisionGuide(trade: PortfolioTrade) {
+  const current = trade.currentPrice;
+  const entry = Number(trade.entry_price);
+  const target = Number(trade.target_price);
+  const stop = Number(trade.stop_loss);
+  const countdown = reviewCountdown(trade);
+  const targetDistance = percentDistance(current, target);
+  const stopDistance = percentDistance(current, stop);
+  const rewardRisk = rewardRiskForTrade(trade);
+  const gainPct = current && entry > 0 ? ((current - entry) / entry) * 100 : null;
+  const daysLeft = trade.plannedHoldingDays ? trade.plannedHoldingDays - trade.daysHeld : null;
+  const inDecisionWindow =
+    trade.planStatus === "Review time window" ||
+    trade.planStatus === "Near target" ||
+    trade.planStatus === "At or above target" ||
+    trade.planStatus === "Near stop" ||
+    trade.planStatus === "Below stop" ||
+    countdown.urgency === "watch" ||
+    countdown.urgency === "high";
+
+  if (trade.planStatus === "Below stop") {
+    return {
+      actions: [
+        "Check whether price traded through the saved stop.",
+        "If the stop was triggered, review closing or reducing risk instead of hoping it recovers.",
+        "Only keep tracking if you have a new, written setup reason.",
+      ],
+      avoidAction: "Do not widen the stop or average down just because the trade is uncomfortable.",
+      beginnerMeaning: "The saved risk line is not holding. In beginner terms, the priority is protecting your account, not proving the trade right.",
+      decisionChoices: [
+        "Close or reduce if your broker shows the stop was triggered.",
+        "Keep it only if you can write a new setup reason and new risk line.",
+        "Skip averaging down unless you have a separate, planned strategy.",
+      ],
+      headline: "Stop area is breached",
+      helper: "The original risk line is no longer holding. The main beginner mistake here is moving the stop lower without a fresh plan.",
+      holdCondition: "Only keep the trade on watch if you can write a new setup reason and a new risk line before acting.",
+      primaryAction: "Review closing or reducing risk from your brokerage if the stop has triggered.",
+      secondaryAction: "If the quote recovered above the stop, wait for support to hold before giving it more time.",
+      status: "Protect capital first",
+      tone: "caution" as const,
+      watch: [
+        `Saved stop: ${formatCurrency(stop)}`,
+        current ? `Latest price: ${formatCurrency(current)}` : "Latest price unavailable",
+        "Do not average down just because the trade is red.",
+      ],
+    };
+  }
+
+  if (trade.planStatus === "Near stop") {
+    return {
+      actions: [
+        "Look at the latest price and compare it with the saved stop before making any new decision.",
+        "Check whether the latest headline tone or broader market weakness explains the pressure.",
+        "Keep the original stop visible; changing it should require a new written reason.",
+      ],
+      avoidAction: "Avoid moving the stop lower just because the trade is uncomfortable.",
+      beginnerMeaning: "This means the price is getting close to the risk line you saved when the trade was created. It is not an automatic sell signal, but it is a warning to review the plan before the stop is reached.",
+      decisionChoices: [
+        "If price stays above the stop and the reason for the trade still makes sense, keep monitoring.",
+        "If the possible loss now feels too large, review reducing risk from your brokerage.",
+        "If price reaches or breaks the saved stop, compare that with the exit rule you chose when entering.",
+      ],
+      headline: `${trade.symbol} is close to your saved stop`,
+      helper: "SwingFi is flagging risk because the price buffer above your stop is small. The question is whether the original trade reason still holds.",
+      holdCondition: "Giving the trade more time only makes sense if price remains above the saved stop and the latest news or market context does not add new risk.",
+      primaryAction: "Review your risk line before price reaches the stop.",
+      secondaryAction: "Check the latest price, saved stop, news tone, and market weakness before giving the plan more time.",
+      status: "Risk review",
+      tone: "caution" as const,
+      watch: [
+        stopDistance === null ? "Stop distance unavailable" : `${Math.abs(stopDistance).toFixed(1)}% from stop`,
+        "Weak close below support",
+        "Negative news or market weakness",
+      ],
+    };
+  }
+
+  if (trade.planStatus === "At or above target") {
+    return {
+      actions: [
+        "Review taking profit or closing the trade while the target is available.",
+        "If you keep part of the trade, consider moving the stop up to protect gains.",
+        "Write down why you are holding longer before changing the plan.",
+      ],
+      avoidAction: "Avoid turning a planned swing win into an open-ended hold because the move feels exciting.",
+      beginnerMeaning: "The trade reached the area SwingFi planned for profit. This is when you review taking gains, trimming, or protecting the win.",
+      decisionChoices: [
+        "Take profit or close if the original plan is complete.",
+        "Trim part and protect the rest if momentum still looks strong.",
+        "Trail a stop only if you understand where you will exit if price reverses.",
+      ],
+      headline: "Target area is available",
+      helper: "The planned reward has arrived. For beginners, this is where discipline matters: have a reason to keep holding, not just excitement.",
+      holdCondition: "Holding longer should require strong momentum plus a protected stop above your original risk zone.",
+      primaryAction: "Review taking profit, trimming, or closing while the planned target is available.",
+      secondaryAction: "If you keep part of it, review moving protection higher so a winner does not become a loss.",
+      status: "Profit decision now",
+      tone: "neutral" as const,
+      watch: [
+        `Target: ${formatCurrency(target)}`,
+        gainPct === null ? "Gain unavailable" : `Open gain: ${formatPercent(gainPct)}`,
+        "Large reversal candle or fading volume",
+      ],
+    };
+  }
+
+  if (trade.planStatus === "Near target") {
+    return {
+      actions: [
+        "Decide your exit plan before price touches the target.",
+        "Consider whether you would rather close, trim some, or trail a stop if momentum is still strong.",
+        "Avoid adding new shares near the target unless the reward/risk still improves.",
+      ],
+      avoidAction: "Avoid buying more near the target unless the new entry still has a clean reward/risk profile.",
+      beginnerMeaning: "You are close to the planned profit area. The best move is to decide the exit plan before emotion kicks in.",
+      decisionChoices: [
+        "Prepare to take profit if price reaches the target.",
+        "Choose whether you would trim, close, or trail before it gets there.",
+        "Avoid adding new shares unless the new entry still has enough upside.",
+      ],
+      headline: "Close to the target zone",
+      helper: "This is the moment to plan the exit before emotion shows up. A good swing trade can still become messy if you chase the last few percent.",
+      holdCondition: "Holding through the target zone needs strong volume, no reversal, and a clear trailing-stop plan.",
+      primaryAction: "Choose your profit plan before price reaches target: close, trim, or trail.",
+      secondaryAction: "Watch for rejection near resistance and be ready to protect gains if momentum fades.",
+      status: "Prepare profit plan",
+      tone: "neutral" as const,
+      watch: [
+        targetDistance === null ? "Target distance unavailable" : `${Math.abs(targetDistance).toFixed(1)}% from target`,
+        "Volume fade near resistance",
+        "Price rejection near the target area",
+      ],
+    };
+  }
+
+  if (trade.planStatus === "Review time window" || countdown.urgency === "high") {
+    return {
+      actions: [
+        "Re-read the original reason for the trade and check if it is still true.",
+        "If price is not progressing, consider tightening the stop or closing the trade from your brokerage.",
+        "If trend and news are still supportive, define a new review date before holding longer.",
+      ],
+      avoidAction: "Avoid letting a planned swing trade become a long-term hold by accident.",
+      beginnerMeaning: "The planned swing window is ending. That does not mean automatic sell, but it does mean the trade needs a fresh decision.",
+      decisionChoices: [
+        "Close if the setup failed or has not progressed.",
+        "Tighten risk if price is drifting but not broken.",
+        "Set a new review date only if trend, news, and market context still support it.",
+      ],
+      headline: "Planned swing window is ending",
+      helper: "The countdown does not mean automatic sell. It means the trade needs a fresh decision instead of drifting into a long-term hold by accident.",
+      holdCondition: "Holding longer should require price progress, supportive news, and a new review date.",
+      primaryAction: "Review whether to close, tighten the stop, or set a new written review date.",
+      secondaryAction: "Compare this trade with today's cleaner opportunities before keeping capital tied up.",
+      status: "Decision required",
+      tone: "neutral" as const,
+      watch: [
+        trade.plannedHoldingDays ? `${trade.plannedHoldingDays}-day plan reached` : "Plan window reached",
+        gainPct === null ? "Open gain unavailable" : `Open return: ${formatPercent(gainPct)}`,
+        "No progress after the planned hold window",
+      ],
+    };
+  }
+
+  if (countdown.urgency === "watch") {
+    return {
+      actions: [
+        "Start deciding what would make you close, trim, or keep holding.",
+        "Check whether price is moving toward target faster than it is moving toward stop.",
+        "Review news and the broader market before the countdown reaches zero.",
+      ],
+      avoidAction: "Avoid waiting until the last review day to think through the exit.",
+      beginnerMeaning: "The exit review is coming soon. You still have time, but you should know what would make you close, trim, or keep holding.",
+      decisionChoices: [
+        "Keep holding while price stays above stop and moves toward target.",
+        "Plan your profit response before the final review day.",
+        "Review news and market direction once per day.",
+      ],
+      headline: "Exit decision is coming soon",
+      helper: "You do not need to act immediately, but you should know what you will do before the final review day arrives.",
+      holdCondition: "Holding is reasonable while the setup remains above stop and keeps moving toward target.",
+      primaryAction: "Write your exit rule now: what price, news, or day would make you close or trim?",
+      secondaryAction: "Use the countdown to prepare instead of reacting emotionally later.",
+      status: "Plan ahead",
+      tone: "neutral" as const,
+      watch: [
+        daysLeft === null ? "Review date unavailable" : `${daysLeft} day${daysLeft === 1 ? "" : "s"} left`,
+        `Reward/risk: ${rewardRisk.toFixed(1)}R`,
+        "Target, stop, latest news, and market direction",
+      ],
+    };
+  }
+
+  return {
+    actions: [
+      "Keep the trade only while price stays above the stop and the setup still makes sense.",
+      "Review target and stop once per day; avoid checking so often that you react emotionally.",
+      "If you change the plan, write down the reason before acting.",
+    ],
+    avoidAction: "Avoid changing the target, stop, or hold window without writing down the new reason.",
+    beginnerMeaning: "Nothing urgent is flagged right now. The job is to follow the plan, not constantly react to every small price move.",
+    decisionChoices: [
+      "Keep monitoring if price remains above the stop.",
+      "Let the target and time window guide your review.",
+      "Update the plan only when new price action or news changes the setup.",
+    ],
+    headline: "No exit pressure right now",
+    helper: inDecisionWindow
+      ? "A review flag is active, so slow down and compare the trade against the saved plan."
+      : "The plan is still active. The job is to let the trade work while keeping the exit rules visible.",
+    holdCondition: "Keep tracking while price stays above stop, the setup remains intact, and no new event risk changes the plan.",
+    primaryAction: "Hold the plan for now, but keep target and stop visible before making any new decision.",
+    secondaryAction: "Review once daily instead of reacting to every small price move.",
+    status: "Hold while valid",
+    tone: "positive" as const,
+    watch: [
+      targetDistance === null ? "Target distance unavailable" : `${Math.abs(targetDistance).toFixed(1)}% from target`,
+      stopDistance === null ? "Stop distance unavailable" : `${Math.abs(stopDistance).toFixed(1)}% from stop`,
+      "Any new event risk or headline that changes the setup",
+    ],
+  };
+}
+
+function tradeRiskDollars(trade: PortfolioTrade) {
+  return Math.max(0, (Number(trade.entry_price) - Number(trade.stop_loss)) * Number(trade.quantity));
+}
+
+function tradeUpsideDollars(trade: PortfolioTrade) {
+  return Math.max(0, (Number(trade.target_price) - Number(trade.entry_price)) * Number(trade.quantity));
+}
+
+function reviewTone(tone: ReturnType<typeof getTradeReview>["tone"]) {
+  if (tone === "positive") return "border-pine/20 bg-mint text-pine";
+  if (tone === "caution") return "border-coral/25 bg-coral/10 text-coral";
+  return "border-amber/30 bg-amber/15 text-ink";
+}
+
 function isEntryPriceEstimate(value: unknown): value is EntryPriceEstimate {
   const estimate = value as Partial<EntryPriceEstimate>;
 
@@ -302,7 +682,7 @@ function PortfolioSessionReconnect() {
           </p>
           <div className="mt-6 flex flex-col gap-3 sm:flex-row">
             <Link
-              href="/login"
+              href={loginHref("/portfolio")}
               className="rounded-2xl bg-ink px-5 py-3 text-center text-sm font-black text-white hover:bg-pine"
             >
               Log in again
@@ -338,9 +718,11 @@ function getSessionToken() {
 }
 
 export function SwingPortfolioPanel({ initialTrade }: { initialTrade?: InitialTrade }) {
+  const autoEstimatedInitialTrade = useRef(false);
   const [customer, setCustomer] = useState<CustomerProfile | null>(null);
   const [form, setForm] = useState<FormState>(() => formFromInitialTrade(initialTrade));
   const [trades, setTrades] = useState<PortfolioTrade[]>([]);
+  const [positionFilter, setPositionFilter] = useState<"all" | "attention" | "inside_plan">("all");
   const [loading, setLoading] = useState(true);
   const [requiresSessionReconnect, setRequiresSessionReconnect] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -362,6 +744,11 @@ export function SwingPortfolioPanel({ initialTrade }: { initialTrade?: InitialTr
   const [estimatingEntryPrice, setEstimatingEntryPrice] = useState(false);
   const [exitPlan, setExitPlan] = useState<ExitPlan | null>(null);
   const [buildingExitPlan, setBuildingExitPlan] = useState(false);
+  const [coachNote, setCoachNote] = useState<PortfolioCoachNote | null>(null);
+  const [coachLoading, setCoachLoading] = useState(false);
+  const [portfolioInsightsBySymbol, setPortfolioInsightsBySymbol] = useState<
+    Record<string, PlainLanguageInsight>
+  >({});
 
   const openTrades = useMemo(
     () => trades.filter((trade) => trade.status === "open" || trade.status === "planned"),
@@ -371,6 +758,104 @@ export function SwingPortfolioPanel({ initialTrade }: { initialTrade?: InitialTr
     () => trades.filter((trade) => trade.status === "closed" || trade.status === "cancelled"),
     [trades],
   );
+  const tradeReviews = useMemo(() => {
+    const reviews = new Map<string, ReturnType<typeof getTradeReview>>();
+    openTrades.forEach((trade) => reviews.set(trade.id, getTradeReview(trade)));
+    return reviews;
+  }, [openTrades]);
+  const attentionTrades = useMemo(
+    () =>
+      openTrades
+        .filter((trade) => (tradeReviews.get(trade.id)?.priority ?? 0) >= 66)
+        .sort((a, b) => (tradeReviews.get(b.id)?.priority ?? 0) - (tradeReviews.get(a.id)?.priority ?? 0)),
+    [openTrades, tradeReviews],
+  );
+  const visibleOpenTrades = useMemo(() => {
+    if (positionFilter === "attention") return attentionTrades;
+    if (positionFilter === "inside_plan") {
+      return openTrades.filter((trade) => (tradeReviews.get(trade.id)?.priority ?? 0) < 66);
+    }
+
+    return [...openTrades].sort(
+      (a, b) => (tradeReviews.get(b.id)?.priority ?? 0) - (tradeReviews.get(a.id)?.priority ?? 0),
+    );
+  }, [attentionTrades, openTrades, positionFilter, tradeReviews]);
+
+  useEffect(() => {
+    if (!openTrades.length) {
+      setPortfolioInsightsBySymbol({});
+      return;
+    }
+
+    let isActive = true;
+    const tradePayloads = openTrades.map((trade) => {
+      const liveIntelligence = getTradeLiveIntelligence({
+        currentPrice: trade.currentPrice,
+        daysHeld: trade.daysHeld,
+        entryPrice: Number(trade.entry_price),
+        latestNews: trade.latestNews,
+        plannedHoldingDays: trade.plannedHoldingDays,
+        planStatus: trade.planStatus,
+        stopLoss: Number(trade.stop_loss),
+        symbol: trade.symbol,
+        targetPrice: Number(trade.target_price),
+        unrealizedReturnPct: trade.unrealizedReturnPct,
+      });
+
+      return {
+        currentPrice: trade.currentPrice,
+        daysHeld: trade.daysHeld,
+        directionRead: liveIntelligence.directionRead,
+        entryPrice: Number(trade.entry_price),
+        latestNews: trade.latestNews.map((item) => ({ title: item.title })),
+        liveRead: liveIntelligence.liveRead,
+        nextReview: liveIntelligence.nextReview,
+        planStatus: trade.planStatus,
+        plannedHoldingDays: trade.plannedHoldingDays,
+        stopLoss: Number(trade.stop_loss),
+        symbol: trade.symbol,
+        targetPrice: Number(trade.target_price),
+        unrealizedReturnPct: trade.unrealizedReturnPct,
+      };
+    });
+    const fallbackInsights = Object.fromEntries(
+      tradePayloads.map((trade) => [trade.symbol, buildPortfolioPlainInsight(trade)]),
+    );
+
+    setPortfolioInsightsBySymbol(fallbackInsights);
+
+    async function loadPortfolioInsights() {
+      const token = await getSessionToken();
+      if (!token) return;
+
+      const response = await fetch("/api/insights/portfolio", {
+        body: JSON.stringify({ trades: tradePayloads }),
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        method: "POST",
+      });
+      const payload = (await response.json().catch(() => null)) as {
+        insights?: Record<string, PlainLanguageInsight>;
+      } | null;
+
+      if (!isActive || !payload?.insights) return;
+
+      setPortfolioInsightsBySymbol((current) => ({
+        ...current,
+        ...payload.insights,
+      }));
+    }
+
+    loadPortfolioInsights().catch(() => {
+      if (isActive) setPortfolioInsightsBySymbol(fallbackInsights);
+    });
+
+    return () => {
+      isActive = false;
+    };
+  }, [openTrades]);
 
   const portfolioStats = useMemo(() => {
     const invested = openTrades.reduce(
@@ -384,9 +869,89 @@ export function SwingPortfolioPanel({ initialTrade }: { initialTrade?: InitialTr
     const needsReview = openTrades.filter((trade) =>
       ["Below stop", "Near stop", "At or above target", "Review time window"].includes(trade.planStatus),
     ).length;
+    const riskAtStop = openTrades.reduce((total, trade) => total + tradeRiskDollars(trade), 0);
+    const targetUpside = openTrades.reduce((total, trade) => total + tradeUpsideDollars(trade), 0);
+    const averageRewardRisk = openTrades.length
+      ? openTrades.reduce((total, trade) => total + rewardRiskForTrade(trade), 0) / openTrades.length
+      : 0;
+    const riskPercentOfInvested = invested > 0 ? (riskAtStop / invested) * 100 : 0;
+    const healthScore = Math.round(
+      clamp(
+        86 -
+          attentionTrades.length * 12 -
+          Math.max(0, riskPercentOfInvested - 7) * 2 +
+          Math.min(averageRewardRisk, 3) * 4,
+        0,
+        100,
+      ),
+    );
 
-    return { invested, needsReview, openReturn };
-  }, [openTrades]);
+    return {
+      averageRewardRisk,
+      healthScore,
+      invested,
+      needsReview,
+      openReturn,
+      riskAtStop,
+      riskPercentOfInvested,
+      targetUpside,
+    };
+  }, [attentionTrades.length, openTrades]);
+  const portfolioBriefing = useMemo(() => {
+    if (!openTrades.length) {
+      return {
+        body: "Add a trade after you decide to act on a SwingFi idea or an outside ticker. SwingFi will generate the sell plan and keep the countdown visible.",
+        cta: "Add your first trade",
+        headline: "Your portfolio is ready for tracking",
+        tone: "neutral" as const,
+      };
+    }
+
+    const urgent = attentionTrades[0];
+    const urgentReview = urgent ? tradeReviews.get(urgent.id) : null;
+
+    if (urgent && urgentReview) {
+      const positionNoun = attentionTrades.length === 1 ? "position needs" : "positions need";
+      return {
+        body: `${urgent.symbol}: ${urgentReview.nextStep}`,
+        cta: "Review attention list",
+        headline: `${attentionTrades.length} ${positionNoun} a decision check`,
+        tone: urgentReview.tone,
+      };
+    }
+
+    return {
+      body: "Open positions are inside their plans. Keep the stop visible, avoid adding without a fresh setup, and let the countdown guide the next review.",
+      cta: "Review all positions",
+      headline: "No urgent portfolio actions right now",
+      tone: "positive" as const,
+    };
+  }, [attentionTrades, openTrades.length, tradeReviews]);
+  const localCoachNote = useMemo(() => {
+    if (!openTrades.length) {
+      return {
+        mode: "deterministic",
+        text: "No open trades are being tracked yet. Add only trades you actually decide to take, then SwingFi can keep the target, stop, countdown, and review status visible after daily rankings refresh.",
+      } satisfies PortfolioCoachNote;
+    }
+
+    const riskLine =
+      portfolioStats.riskPercentOfInvested > 10
+        ? "Risk at stop is elevated versus tracked entry value, so review position sizes before adding more exposure."
+        : "Risk at stop looks controlled relative to tracked entry value.";
+    const attentionLine = attentionTrades.length
+      ? `${attentionTrades.length} position${attentionTrades.length === 1 ? " needs" : "s need"} a closer review before new trades.`
+      : "No open position is currently near target, stop, or the end of its swing window.";
+    const rewardLine =
+      portfolioStats.averageRewardRisk >= 2
+        ? `Average reward/risk is about ${portfolioStats.averageRewardRisk.toFixed(1)}R, which gives the plans room to work if entries and stops are respected.`
+        : `Average reward/risk is about ${portfolioStats.averageRewardRisk.toFixed(1)}R, so avoid chasing entries and be quicker to reject weak setups.`;
+
+    return {
+      mode: "deterministic",
+      text: `${attentionLine} ${riskLine} ${rewardLine}`,
+    } satisfies PortfolioCoachNote;
+  }, [attentionTrades.length, openTrades.length, portfolioStats.averageRewardRisk, portfolioStats.riskPercentOfInvested]);
   const draftPlanMath = useMemo(() => {
     const entryPrice = toNumber(form.entryPrice);
     const targetPrice = toNumber(form.targetPrice);
@@ -413,6 +978,58 @@ export function SwingPortfolioPanel({ initialTrade }: { initialTrade?: InitialTr
       rewardRisk,
     };
   }, [form.entryPrice, form.quantity, form.stopLoss, form.targetPrice]);
+
+  async function generateCoachNote() {
+    setCoachLoading(true);
+    setMessage(null);
+
+    try {
+      const token = await getSessionToken();
+      if (!token) {
+        setRequiresSessionReconnect(true);
+        return;
+      }
+
+      const response = await fetch("/api/portfolio/coach", {
+        body: JSON.stringify({
+          attentionCount: attentionTrades.length,
+          averageRewardRisk: portfolioStats.averageRewardRisk,
+          invested: portfolioStats.invested,
+          openReturn: portfolioStats.openReturn,
+          riskAtStop: portfolioStats.riskAtStop,
+          targetUpside: portfolioStats.targetUpside,
+          trades: openTrades.slice(0, 12).map((trade) => ({
+            daysHeld: trade.daysHeld,
+            planStatus: trade.planStatus,
+            rewardRisk: rewardRiskForTrade(trade),
+            symbol: trade.symbol,
+            unrealizedReturnPct: trade.unrealizedReturnPct,
+          })),
+        }),
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        method: "POST",
+      });
+      const payload = (await response.json().catch(() => ({}))) as { error?: string; text?: string };
+
+      if (!response.ok || !payload.text) {
+        setCoachNote(localCoachNote);
+        setMessage({
+          tone: "info",
+          text: payload.error
+            ? `Using SwingFi's built-in portfolio coach because AI coach is unavailable: ${payload.error}`
+            : "Using SwingFi's built-in portfolio coach because AI coach is unavailable.",
+        });
+        return;
+      }
+
+      setCoachNote({ mode: "openai", text: payload.text });
+    } finally {
+      setCoachLoading(false);
+    }
+  }
 
   useEffect(() => {
     const query = form.symbol.trim();
@@ -469,7 +1086,7 @@ export function SwingPortfolioPanel({ initialTrade }: { initialTrade?: InitialTr
     setShowTickerSuggestions(false);
   }
 
-  async function estimateEntryPrice() {
+  const estimateEntryPrice = useCallback(async () => {
     const symbol = form.symbol.trim();
     if (!symbol) {
       setMessage({ tone: "error", text: "Choose the ticker before estimating the entry price." });
@@ -527,7 +1144,21 @@ export function SwingPortfolioPanel({ initialTrade }: { initialTrade?: InitialTr
     } finally {
       setEstimatingEntryPrice(false);
     }
-  }
+  }, [form.entryDate, form.entryTimeWindow, form.symbol]);
+
+  useEffect(() => {
+    if (
+      autoEstimatedInitialTrade.current ||
+      !initialTrade?.symbol ||
+      !initialTrade.entryDate ||
+      !initialTrade.entryTimeWindow
+    ) {
+      return;
+    }
+
+    autoEstimatedInitialTrade.current = true;
+    void estimateEntryPrice();
+  }, [estimateEntryPrice, initialTrade?.entryDate, initialTrade?.entryTimeWindow, initialTrade?.symbol]);
 
   useEffect(() => {
     const symbol = form.symbol.trim();
@@ -844,12 +1475,32 @@ export function SwingPortfolioPanel({ initialTrade }: { initialTrade?: InitialTr
               Save the entry, target, stop, and timing you used so your plan does not disappear
               when the next rankings refresh.
             </p>
-            <Link
-              href="/login"
-              className="mt-6 inline-flex rounded-2xl bg-ink px-5 py-3 text-sm font-black text-white hover:bg-pine"
-            >
-              Log in
-            </Link>
+            <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+              <Link
+                href={signupHref({ nextPath: "/portfolio" })}
+                className="rounded-2xl bg-ink px-5 py-3 text-center text-sm font-black text-white hover:bg-pine"
+              >
+                Create free account
+              </Link>
+              <Link
+                href={loginHref("/portfolio")}
+                className="rounded-2xl border border-line bg-surface px-5 py-3 text-center text-sm font-bold text-ink hover:border-pine"
+              >
+                Log in
+              </Link>
+            </div>
+            <div className="mt-6 grid gap-3 sm:grid-cols-3">
+              {[
+                ["1", "Create account"],
+                ["2", "Add a trade"],
+                ["3", "Track the sell plan"],
+              ].map(([number, label]) => (
+                <div key={number} className="rounded-2xl border border-line bg-surface p-4">
+                  <p className="text-xs font-black text-pine">Step {number}</p>
+                  <p className="mt-1 text-sm font-black text-ink">{label}</p>
+                </div>
+              ))}
+            </div>
           </div>
           <div className="border-t border-line bg-[linear-gradient(145deg,#071418,#0b3d3f)] p-6 text-white lg:border-l lg:border-t-0">
             <p className="text-xs font-black uppercase tracking-normal text-lime">
@@ -886,30 +1537,117 @@ export function SwingPortfolioPanel({ initialTrade }: { initialTrade?: InitialTr
       ) : null}
 
       {!showAddTrade ? (
-      <div className="grid gap-4 md:grid-cols-3">
-        <div className="rounded-3xl border border-line bg-white p-5 shadow-[0_18px_60px_rgba(7,20,24,0.06)]">
-          <p className="text-xs font-black uppercase tracking-normal text-pine">Open trades</p>
-          <p className="mt-2 text-4xl font-black text-ink">{openTrades.length}</p>
-          <p className="mt-2 text-sm font-semibold text-ink/55">
-            Current swing plans saved from SwingFi rankings or added manually.
-          </p>
+      <div className="grid gap-4">
+        <div className={`rounded-3xl border p-5 shadow-[0_18px_60px_rgba(7,20,24,0.06)] ${reviewTone(portfolioBriefing.tone)}`}>
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <p className="text-xs font-black uppercase tracking-normal opacity-70">
+                Today&apos;s portfolio briefing
+              </p>
+              <h2 className="mt-2 text-2xl font-black">{portfolioBriefing.headline}</h2>
+              <p className="mt-2 max-w-3xl text-sm font-bold leading-6 opacity-75">
+                {portfolioBriefing.body}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                if (!openTrades.length) {
+                  setShowAddTrade(true);
+                  return;
+                }
+                setPositionFilter(attentionTrades.length ? "attention" : "all");
+              }}
+              className="rounded-2xl bg-white/80 px-4 py-3 text-sm font-black text-ink ring-1 ring-line transition hover:bg-white"
+            >
+              {portfolioBriefing.cta}
+            </button>
+          </div>
         </div>
-        <div className="rounded-3xl border border-line bg-white p-5 shadow-[0_18px_60px_rgba(7,20,24,0.06)]">
-          <p className="text-xs font-black uppercase tracking-normal text-pine">Open P/L estimate</p>
-          <p className={`mt-2 text-4xl font-black ${portfolioStats.openReturn >= 0 ? "text-pine" : "text-coral"}`}>
-            {formatCurrency(portfolioStats.openReturn)}
+        <details className="rounded-3xl border border-line bg-white p-4 shadow-[0_18px_60px_rgba(7,20,24,0.06)]">
+          <summary className="cursor-pointer text-sm font-black text-ink">
+            Portfolio health details
+          </summary>
+          <p className="mt-2 text-xs font-semibold leading-5 text-ink/50">
+            Open this when you want the math, AI coach, and portfolio-level risk view.
           </p>
-          <p className="mt-2 text-sm font-semibold text-ink/55">
-            Refreshes every 5 minutes while this page is open; broker balances remain separate.
-          </p>
+        <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+          <div className="rounded-3xl border border-line bg-white p-5 shadow-[0_18px_60px_rgba(7,20,24,0.06)]">
+            <p className="text-xs font-black uppercase tracking-normal text-pine">Open trades</p>
+            <p className="mt-2 text-4xl font-black text-ink">{openTrades.length}</p>
+            <p className="mt-2 text-sm font-semibold text-ink/55">
+              Current swing plans saved from SwingFi rankings or added manually.
+            </p>
+          </div>
+          <div className="rounded-3xl border border-line bg-white p-5 shadow-[0_18px_60px_rgba(7,20,24,0.06)]">
+            <p className="text-xs font-black uppercase tracking-normal text-pine">Open P/L estimate</p>
+            <p className={`mt-2 text-4xl font-black ${portfolioStats.openReturn >= 0 ? "text-pine" : "text-coral"}`}>
+              {formatCurrency(portfolioStats.openReturn)}
+            </p>
+            <p className="mt-2 text-sm font-semibold text-ink/55">
+              Refreshes every 5 minutes while this page is open; broker balances remain separate.
+            </p>
+          </div>
+          <div className="rounded-3xl border border-line bg-white p-5 shadow-[0_18px_60px_rgba(7,20,24,0.06)]">
+            <p className="text-xs font-black uppercase tracking-normal text-pine">Needs review</p>
+            <p className="mt-2 text-4xl font-black text-ink">{attentionTrades.length}</p>
+            <p className="mt-2 text-sm font-semibold text-ink/55">
+              Near target, near stop, below stop, or close to the review window.
+            </p>
+          </div>
+          <div className="rounded-3xl border border-line bg-white p-5 shadow-[0_18px_60px_rgba(7,20,24,0.06)]">
+            <p className="text-xs font-black uppercase tracking-normal text-pine">Plan health</p>
+            <p className={`mt-2 text-4xl font-black ${portfolioStats.healthScore >= 75 ? "text-pine" : portfolioStats.healthScore >= 55 ? "text-ink" : "text-coral"}`}>
+              {portfolioStats.healthScore}
+            </p>
+            <p className="mt-2 text-sm font-semibold text-ink/55">
+              Combines attention items, stop risk, and reward/risk quality.
+            </p>
+          </div>
+          <div className="rounded-3xl border border-line bg-white p-5 shadow-[0_18px_60px_rgba(7,20,24,0.06)]">
+            <p className="text-xs font-black uppercase tracking-normal text-pine">Risk at stops</p>
+            <p className="mt-2 text-4xl font-black text-coral">{formatCurrency(portfolioStats.riskAtStop)}</p>
+            <p className="mt-2 text-sm font-semibold text-ink/55">
+              About {portfolioStats.riskPercentOfInvested.toFixed(1)}% of tracked entry value if every stop hit.
+            </p>
+          </div>
         </div>
-        <div className="rounded-3xl border border-line bg-white p-5 shadow-[0_18px_60px_rgba(7,20,24,0.06)]">
-          <p className="text-xs font-black uppercase tracking-normal text-pine">Needs review</p>
-          <p className="mt-2 text-4xl font-black text-ink">{portfolioStats.needsReview}</p>
-          <p className="mt-2 text-sm font-semibold text-ink/55">
-            Near target, near stop, below stop, or past the review window.
-          </p>
+        <div className="mt-4 grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
+          <div className="rounded-3xl border border-line bg-white p-5 shadow-[0_18px_60px_rgba(7,20,24,0.06)]">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <p className="text-xs font-black uppercase tracking-normal text-pine">AI portfolio coach</p>
+                <h2 className="mt-2 text-2xl font-black text-ink">
+                  {coachNote?.mode === "openai" ? "AI review generated" : "SwingFi built-in review"}
+                </h2>
+                <p className="mt-2 text-sm font-semibold leading-7 text-ink/62">
+                  {(coachNote ?? localCoachNote).text}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => void generateCoachNote()}
+                disabled={coachLoading}
+                className="rounded-2xl bg-ink px-4 py-3 text-sm font-black text-white shadow-[0_12px_30px_rgba(7,20,24,0.14)] transition hover:bg-pine disabled:cursor-not-allowed disabled:opacity-55"
+              >
+                {coachLoading ? "Reviewing..." : "Ask AI coach"}
+              </button>
+            </div>
+            <p className="mt-4 rounded-2xl border border-line bg-surface px-4 py-3 text-xs font-semibold leading-5 text-ink/50">
+              AI coaching is for research review only. SwingFi does not place trades,
+              manage accounts, or tell you what to buy or sell.
+            </p>
+          </div>
+          <div className="rounded-3xl border border-line bg-white p-5 shadow-[0_18px_60px_rgba(7,20,24,0.06)]">
+            <p className="text-xs font-black uppercase tracking-normal text-pine">Plan math</p>
+            <div className="mt-4 grid gap-3">
+              <MiniStat label="Target upside" value={formatCurrency(portfolioStats.targetUpside)} tone="text-pine" />
+              <MiniStat label="Average reward/risk" value={`${portfolioStats.averageRewardRisk.toFixed(1)}R`} />
+              <MiniStat label="Tracked entry value" value={formatCurrency(portfolioStats.invested)} />
+            </div>
+          </div>
         </div>
+        </details>
       </div>
       ) : null}
 
@@ -1116,15 +1854,65 @@ export function SwingPortfolioPanel({ initialTrade }: { initialTrade?: InitialTr
                 </div>
               </div>
               {exitPlan ? (
-                <div className="mt-4 rounded-2xl border border-pine/15 bg-mint p-4">
-                  <div className="grid gap-2 sm:grid-cols-3">
+                <div className={`mt-4 rounded-2xl border p-4 ${exitPlanTone(exitPlan.actionTone)}`}>
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                      <p className="text-xs font-black uppercase tracking-normal opacity-70">
+                        SwingFi action
+                      </p>
+                      <p className="mt-1 text-lg font-black">{exitPlan.actionLabel}</p>
+                      <p className="mt-1 text-xs font-bold leading-5 opacity-75">
+                        {dataQualityLabel(exitPlan.dataQuality)} · Trend: {exitPlan.trendState}
+                      </p>
+                    </div>
+                    {exitPlan.currentPrice ? (
+                      <div className="rounded-2xl bg-white/75 px-4 py-3 text-left ring-1 ring-line sm:text-right">
+                        <p className="text-xs font-black uppercase tracking-normal text-ink/42">
+                          Last price
+                        </p>
+                        <p className="mt-1 text-sm font-black text-ink">
+                          {formatCurrency(exitPlan.currentPrice)}
+                        </p>
+                      </div>
+                    ) : null}
+                  </div>
+                  <div className="mt-4 grid gap-2 sm:grid-cols-3">
                     <MiniStat label="Review target" value={formatCurrency(exitPlan.targetPrice)} tone="text-pine" />
                     <MiniStat label="Risk stop" value={formatCurrency(exitPlan.stopLoss)} tone="text-coral" />
+                    <MiniStat label="Reward/risk" value={`${exitPlan.rewardRiskRatio.toFixed(1)}R`} />
+                    <MiniStat
+                      label="Take-profit zone"
+                      value={`${formatCurrency(exitPlan.takeProfitZoneLow)} - ${formatCurrency(exitPlan.takeProfitZoneHigh)}`}
+                      tone="text-pine"
+                    />
+                    <MiniStat label="Trail protection" value={formatCurrency(exitPlan.trailingStop)} tone="text-coral" />
                     <MiniStat label="Review window" value={`${exitPlan.holdingPeriodDays} days`} />
                   </div>
-                  <p className="mt-3 text-xs font-bold leading-5 text-pine">
+                  <p className="mt-3 text-xs font-bold leading-5 opacity-80">
                     {exitPlan.explanation}
                   </p>
+                  <div className="mt-4 grid gap-3 lg:grid-cols-2">
+                    <div className="rounded-2xl border border-line bg-white/80 p-3 text-ink">
+                      <p className="text-xs font-black uppercase tracking-normal text-pine">
+                        Before holding
+                      </p>
+                      <ul className="mt-2 grid gap-2 text-xs font-semibold leading-5 text-ink/62">
+                        {exitPlan.checklist.slice(0, 3).map((item) => (
+                          <li key={item}>{item}</li>
+                        ))}
+                      </ul>
+                    </div>
+                    <div className="rounded-2xl border border-line bg-white/80 p-3 text-ink">
+                      <p className="text-xs font-black uppercase tracking-normal text-coral">
+                        Recheck or exit if
+                      </p>
+                      <ul className="mt-2 grid gap-2 text-xs font-semibold leading-5 text-ink/62">
+                        {exitPlan.invalidationSignals.slice(0, 3).map((item) => (
+                          <li key={item}>{item}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
                 </div>
               ) : buildingExitPlan ? (
                 <div className="mt-4 rounded-2xl border border-line bg-white p-4">
@@ -1252,166 +2040,463 @@ export function SwingPortfolioPanel({ initialTrade }: { initialTrade?: InitialTr
 
             {openTrades.length ? (
               <div className="mt-5 grid gap-4">
-                {openTrades.map((trade) => {
+                <div className="grid gap-2 sm:grid-cols-3">
+                  {[
+                    ["all", `All open (${openTrades.length})`],
+                    ["attention", `Needs attention (${attentionTrades.length})`],
+                    ["inside_plan", `Inside plan (${Math.max(openTrades.length - attentionTrades.length, 0)})`],
+                  ].map(([value, label]) => (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => setPositionFilter(value as typeof positionFilter)}
+                      className={`rounded-2xl border px-4 py-3 text-sm font-black transition ${
+                        positionFilter === value
+                          ? "border-pine bg-mint text-pine"
+                          : "border-line bg-surface text-ink/58 hover:border-pine/35"
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+
+                {visibleOpenTrades.length ? visibleOpenTrades.map((trade) => {
                   const countdown = reviewCountdown(trade);
+                  const decisionGuide = getExitDecisionGuide(trade);
+                  const review = tradeReviews.get(trade.id) ?? getTradeReview(trade);
+                  const decisionTone = reviewTone(decisionGuide.tone);
+                  const liveIntelligence = getTradeLiveIntelligence({
+                    currentPrice: trade.currentPrice,
+                    daysHeld: trade.daysHeld,
+                    entryPrice: Number(trade.entry_price),
+                    latestNews: trade.latestNews,
+                    plannedHoldingDays: trade.plannedHoldingDays,
+                    planStatus: trade.planStatus,
+                    stopLoss: Number(trade.stop_loss),
+                    symbol: trade.symbol,
+                    targetPrice: Number(trade.target_price),
+                    unrealizedReturnPct: trade.unrealizedReturnPct,
+                  });
+                  const liveTone =
+                    liveIntelligence.tone === "positive"
+                      ? "border-pine/20 bg-mint text-pine"
+                      : liveIntelligence.tone === "caution"
+                        ? "border-coral/25 bg-coral/10 text-coral"
+                        : "border-amber/30 bg-amber/15 text-ink";
+                  const plainInsight =
+                    portfolioInsightsBySymbol[trade.symbol] ??
+                    buildPortfolioPlainInsight({
+                      currentPrice: trade.currentPrice,
+                      daysHeld: trade.daysHeld,
+                      directionRead: liveIntelligence.directionRead,
+                      entryPrice: Number(trade.entry_price),
+                      latestNews: trade.latestNews.map((item) => ({ title: item.title })),
+                      liveRead: liveIntelligence.liveRead,
+                      nextReview: liveIntelligence.nextReview,
+                      planStatus: trade.planStatus,
+                      plannedHoldingDays: trade.plannedHoldingDays,
+                      stopLoss: Number(trade.stop_loss),
+                      symbol: trade.symbol,
+                      targetPrice: Number(trade.target_price),
+                      unrealizedReturnPct: trade.unrealizedReturnPct,
+                    });
+                  const priorityLabel =
+                    review.priority >= 90
+                      ? "Review now"
+                      : review.priority >= 66
+                        ? "Plan today"
+                        : "Monitor";
 
                   return (
-                  <article key={trade.id} className="rounded-3xl border border-line bg-surface p-4">
-                    <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                      <div>
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="rounded-full bg-ink px-3 py-1 text-xs font-black text-white">
-                            {trade.symbol}
-                          </span>
-                          <span className={`rounded-full border px-3 py-1 text-xs font-black ${statusTone(trade.planStatus)}`}>
-                            {trade.planStatus}
-                          </span>
-                          <span className="rounded-full bg-white px-3 py-1 text-xs font-bold text-ink/55 ring-1 ring-line">
-                            {trade.daysHeld} days held
-                          </span>
-                          {trade.plannedHoldingDays ? (
-                            <span className="rounded-full bg-white px-3 py-1 text-xs font-bold text-ink/55 ring-1 ring-line">
-                              {trade.plannedHoldingDays}-day plan
-                            </span>
-                          ) : null}
-                        </div>
-                        <p className="mt-3 text-sm font-semibold leading-6 text-ink/60">
-                          Bought around {formatCurrency(Number(trade.entry_price))}. Target is {formatCurrency(Number(trade.target_price))}; stop is {formatCurrency(Number(trade.stop_loss))}.
-                        </p>
-                        <div className={`mt-4 rounded-2xl border p-4 ${countdownTone(countdown.urgency)}`}>
-                          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                            <div>
-                              <p className="text-xs font-black uppercase tracking-normal">
-                                Sell-plan countdown
-                              </p>
-                              <p className="mt-1 text-lg font-black">
-                                {countdown.label}
-                              </p>
-                              <p className="mt-1 text-xs font-bold leading-5 opacity-75">
-                                {countdown.detail}
-                              </p>
-                            </div>
-                            <div className="min-w-28 rounded-2xl bg-white/70 px-4 py-3 text-center ring-1 ring-line">
-                              <p className="text-xs font-black uppercase tracking-normal text-ink/42">
-                                Plan used
-                              </p>
-                              <p className="mt-1 text-sm font-black text-ink">
-                                {trade.plannedHoldingDays ? `${trade.plannedHoldingDays} days` : "Active"}
-                              </p>
-                            </div>
-                          </div>
-                          <div className="mt-4 h-2 overflow-hidden rounded-full bg-white/80">
-                            <div
-                              className="h-full rounded-full bg-current transition-all"
-                              style={{ width: `${countdown.progress}%` }}
-                            />
-                          </div>
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:min-w-[420px]">
-                        <MiniStat label="Current" value={formatCurrency(trade.currentPrice)} />
-                        <MiniStat label="Open P/L" value={formatPercent(trade.unrealizedReturnPct)} />
-                        <MiniStat label="Target" value={formatCurrency(Number(trade.target_price))} tone="text-pine" />
-                        <MiniStat label="Stop" value={formatCurrency(Number(trade.stop_loss))} tone="text-coral" />
-                      </div>
-                    </div>
-
-                    {trade.notes ? (
-                      <p className="mt-4 rounded-2xl border border-line bg-white p-3 text-sm font-semibold leading-6 text-ink/62">
-                        {trade.notes}
-                      </p>
-                    ) : null}
-
-                    <div className="mt-4 grid gap-4 xl:grid-cols-[1fr_280px]">
-                      <div className="grid gap-2">
-                        <p className="text-xs font-black uppercase tracking-normal text-ink/42">
-                          Latest context
-                        </p>
-                        {trade.latestNews.length ? (
-                          trade.latestNews.map((item) => (
-                            <a
-                              key={`${trade.id}-${item.title}`}
-                              href={item.url ?? "#"}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="rounded-2xl border border-line bg-white p-3 text-sm font-bold leading-6 text-ink transition hover:border-pine"
-                            >
-                              {item.title}
-                              {item.site ? (
-                                <span className="mt-1 block text-xs font-semibold text-ink/45">
-                                  {item.site}
+                    <article
+                      key={trade.id}
+                      className="overflow-hidden rounded-[28px] border border-line bg-white shadow-[0_18px_60px_rgba(7,20,24,0.06)]"
+                    >
+                      <div className="grid gap-0 xl:grid-cols-[minmax(0,1fr)_300px]">
+                        <div className="min-w-0 p-4 sm:p-5">
+                          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                            <div className="min-w-0">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="rounded-full bg-ink px-3 py-1 text-xs font-black text-white">
+                                  {trade.symbol}
                                 </span>
-                              ) : null}
-                            </a>
-                          ))
-                        ) : (
-                          <p className="rounded-2xl border border-line bg-white p-3 text-sm font-semibold text-ink/55">
-                            No fresh headlines were available from FMP for this ticker.
-                          </p>
-                        )}
-                      </div>
+                                <span className={`rounded-full border px-3 py-1 text-xs font-black ${statusTone(trade.planStatus)}`}>
+                                  {planStatusLabel(trade.planStatus)}
+                                </span>
+                                <span className={`rounded-full border px-3 py-1 text-xs font-black ${countdownTone(countdown.urgency)}`}>
+                                  {priorityLabel}
+                                </span>
+                              </div>
+                              <h3 className="mt-4 text-2xl font-black leading-tight text-ink">
+                                {decisionGuide.headline}
+                              </h3>
+                              <p className="mt-2 max-w-3xl text-sm font-semibold leading-6 text-ink/62">
+                                {decisionGuide.helper}
+                              </p>
+                            </div>
+                            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 md:min-w-[360px] xl:hidden">
+                              <MiniStat label="Current" value={formatCurrency(trade.currentPrice)} />
+                              <MiniStat label="Open P/L" value={formatPercent(trade.unrealizedReturnPct)} tone={(trade.unrealizedReturnPct ?? 0) >= 0 ? "text-pine" : "text-coral"} />
+                              <MiniStat label="Target" value={formatCurrency(Number(trade.target_price))} tone="text-pine" />
+                              <MiniStat label="Stop" value={formatCurrency(Number(trade.stop_loss))} tone="text-coral" />
+                            </div>
+                          </div>
 
-                      <div className="rounded-2xl border border-line bg-white p-3">
-                        <p className="text-xs font-black uppercase tracking-normal text-ink/42">
-                          Close trade
-                        </p>
-                        <input
-                          inputMode="decimal"
-                          value={closePrices[trade.id] ?? ""}
-                          onChange={(event) =>
-                            setClosePrices((current) => ({ ...current, [trade.id]: event.target.value }))
-                          }
-                          placeholder="Exit price"
-                          className="mt-3 w-full rounded-xl border border-line bg-surface px-3 py-2 text-sm font-bold text-ink outline-none focus:border-pine focus:bg-white"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => closeTrade(trade)}
-                          className="mt-3 w-full rounded-xl bg-ink px-4 py-2 text-sm font-black text-white hover:bg-pine"
-                        >
-                          Mark closed
-                        </button>
-                        <p className="mt-3 text-xs font-semibold leading-5 text-ink/45">
-                          SwingFi records the result for your review. It does not place trades.
-                        </p>
-                        <div className="mt-4 border-t border-line pt-3">
-                          <p className="text-xs font-black uppercase tracking-normal text-ink/42">
-                            Remove position
-                          </p>
-                          <button
-                            type="button"
-                            onClick={() => void deleteTrade(trade)}
-                            disabled={Boolean(deletingTradeIds[trade.id])}
-                            className={`mt-3 w-full rounded-xl border px-4 py-2 text-sm font-black transition disabled:cursor-not-allowed disabled:opacity-55 ${
-                              pendingDeleteId === trade.id
-                                ? "border-coral/30 bg-coral/10 text-coral hover:bg-coral/15"
-                                : "border-line bg-surface text-ink/62 hover:border-coral/30 hover:text-coral"
-                            }`}
-                          >
-                            {deletingTradeIds[trade.id]
-                              ? "Removing..."
-                              : pendingDeleteId === trade.id
-                                ? "Confirm remove"
-                                : "Remove from portfolio"}
-                          </button>
-                          {pendingDeleteId === trade.id ? (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setPendingDeleteId(null);
-                                setMessage(null);
-                              }}
-                              className="mt-2 w-full rounded-xl border border-line bg-white px-4 py-2 text-sm font-black text-ink/55 transition hover:border-pine hover:text-pine"
-                            >
-                              Keep tracking
-                            </button>
-                          ) : null}
+                          <div className={`mt-5 rounded-3xl border p-4 sm:p-5 ${liveTone}`}>
+                            <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                              <div className="min-w-0">
+                                <p className="text-xs font-black uppercase tracking-normal opacity-70">
+                                  Why SwingFi flagged this
+                                </p>
+                                <h4 className="mt-2 text-xl font-black leading-tight">
+                                  {liveIntelligence.decisionZone}
+                                </h4>
+                                <p className="mt-2 text-sm font-bold leading-6 opacity-78">
+                                  {liveIntelligence.directionRead}
+                                </p>
+                              </div>
+                              <div className="rounded-2xl bg-white/75 px-4 py-3 text-left ring-1 ring-line lg:min-w-44 lg:text-right">
+                                <p className="text-xs font-black uppercase tracking-normal text-ink/42">
+                                  News read
+                                </p>
+                                <p className="mt-1 text-sm font-black text-ink">
+                                  {liveIntelligence.news.label}
+                                </p>
+                              </div>
+                            </div>
+                            <p className="mt-4 rounded-2xl border border-line bg-white/85 px-4 py-3 text-sm font-bold leading-6 text-ink/66">
+                              {liveIntelligence.liveRead}
+                            </p>
+                            <p className="mt-3 rounded-2xl border border-line bg-white/85 px-4 py-3 text-xs font-bold leading-5 text-ink/58">
+                              Data behind the flag: SwingFi compares your latest refreshed price
+                              against the target, stop, open return, plan countdown, and latest
+                              headline tone. The flag changes when those inputs change.
+                            </p>
+                            <div className="mt-3 rounded-2xl border border-line bg-white/90 p-4 text-ink">
+                              <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                                <div>
+                                  <p className="text-xs font-black uppercase tracking-normal text-pine">
+                                    Plain-English position read
+                                  </p>
+                                  <h4 className="mt-1 text-lg font-black leading-tight">
+                                    {plainInsight.headline}
+                                  </h4>
+                                </div>
+                                <span className="w-fit rounded-full border border-line bg-surface px-3 py-1 text-[11px] font-black uppercase tracking-normal text-ink/45">
+                                  {plainInsight.mode === "openai" ? "AI explained" : "SwingFi read"}
+                                </span>
+                              </div>
+                              <p className="mt-3 text-sm font-bold leading-6 text-ink/66">
+                                {plainInsight.summary}
+                              </p>
+                              <div className="mt-3 grid gap-2 md:grid-cols-3">
+                                {plainInsight.evidence.slice(0, 3).map((item) => (
+                                  <p
+                                    key={item}
+                                    className="rounded-xl border border-line bg-surface px-3 py-2 text-xs font-bold leading-5 text-ink/62"
+                                  >
+                                    {item}
+                                  </p>
+                                ))}
+                              </div>
+                              <p className="mt-3 rounded-xl border border-line bg-surface px-3 py-2 text-xs font-bold leading-5 text-ink/58">
+                                Next: {plainInsight.nextReview}
+                              </p>
+                            </div>
+                            <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                              {liveIntelligence.priceFacts.map((fact) => (
+                                <p
+                                  key={fact}
+                                  className="rounded-xl border border-line bg-white/80 px-3 py-2 text-xs font-black leading-5 text-ink/58"
+                                >
+                                  {fact}
+                                </p>
+                              ))}
+                            </div>
+                            <div className="mt-3 grid gap-3 lg:grid-cols-[1fr_0.9fr]">
+                              <p className="rounded-2xl border border-line bg-white/80 px-4 py-3 text-xs font-bold leading-5 text-ink/60">
+                                <span className="block text-[11px] font-black uppercase tracking-normal text-ink/42">
+                                  Next review
+                                </span>
+                                <span className="mt-1 block">{liveIntelligence.nextReview}</span>
+                              </p>
+                              <p className="rounded-2xl border border-line bg-white/80 px-4 py-3 text-xs font-bold leading-5 text-ink/60">
+                                <span className="block text-[11px] font-black uppercase tracking-normal text-ink/42">
+                                  Headline context
+                                </span>
+                                <span className="mt-1 block">{liveIntelligence.news.summary}</span>
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className={`mt-5 rounded-3xl border p-4 sm:p-5 ${decisionTone}`}>
+                            <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                              <div>
+                                <p className="text-xs font-black uppercase tracking-normal opacity-70">
+                                  SwingFi decision path
+                                </p>
+                                <p className="mt-2 text-xl font-black leading-tight">
+                                  {decisionGuide.primaryAction}
+                                </p>
+                                <p className="mt-2 text-sm font-bold leading-6 opacity-75">
+                                  {decisionGuide.secondaryAction}
+                                </p>
+                              </div>
+                              <div className="rounded-2xl bg-white/75 px-4 py-3 text-left ring-1 ring-line lg:min-w-36 lg:text-right">
+                                <p className="text-xs font-black uppercase tracking-normal text-ink/42">
+                                  Current read
+                                </p>
+                                <p className="mt-1 text-sm font-black text-ink">
+                                  {decisionGuide.status}
+                                </p>
+                              </div>
+                            </div>
+
+                            <div className="mt-4 rounded-2xl border border-line bg-white/85 p-4 text-ink">
+                              <p className="text-xs font-black uppercase tracking-normal text-pine">
+                                In beginner terms
+                              </p>
+                              <p className="mt-2 text-sm font-bold leading-6 text-ink/66">
+                                {decisionGuide.beginnerMeaning}
+                              </p>
+                              <div className="mt-3 grid gap-2 md:grid-cols-3">
+                                {decisionGuide.decisionChoices.map((choice, choiceIndex) => (
+                                  <p
+                                    key={choice}
+                                    className="rounded-xl border border-line bg-surface px-3 py-2 text-xs font-bold leading-5 text-ink/62"
+                                  >
+                                    <span className="mr-1 text-ink">{choiceIndex + 1}.</span>{" "}
+                                    {choice}
+                                  </p>
+                                ))}
+                              </div>
+                            </div>
+
+                            <div className="mt-4 grid gap-3 lg:grid-cols-3">
+                              <div className="rounded-2xl border border-line bg-white/80 p-3 text-ink">
+                                <p className="text-xs font-black uppercase tracking-normal text-pine">
+                                  If holding longer
+                                </p>
+                                <p className="mt-2 text-xs font-bold leading-5 text-ink/64">
+                                  {decisionGuide.holdCondition}
+                                </p>
+                              </div>
+                              <div className="rounded-2xl border border-line bg-white/80 p-3 text-ink">
+                                <p className="text-xs font-black uppercase tracking-normal text-coral">
+                                  Avoid this
+                                </p>
+                                <p className="mt-2 text-xs font-bold leading-5 text-ink/64">
+                                  {decisionGuide.avoidAction}
+                                </p>
+                              </div>
+                              <div className="rounded-2xl border border-line bg-white/80 p-3 text-ink">
+                                <p className="text-xs font-black uppercase tracking-normal text-ink/42">
+                                  Plan countdown
+                                </p>
+                                <p className="mt-2 text-sm font-black text-ink">{countdown.label}</p>
+                                <p className="mt-1 text-xs font-semibold leading-5 text-ink/52">
+                                  {countdown.detail}
+                                </p>
+                                <div className="mt-3 h-2 overflow-hidden rounded-full bg-surface">
+                                  <div
+                                    className="h-full rounded-full bg-pine transition-all"
+                                    style={{ width: `${countdown.progress}%` }}
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="mt-4 grid gap-3 lg:grid-cols-[1fr_0.8fr]">
+                            <div className="rounded-2xl border border-line bg-surface p-4">
+                              <p className="text-xs font-black uppercase tracking-normal text-ink/42">
+                                What to check before acting
+                              </p>
+                              <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                                {decisionGuide.actions.slice(0, 4).map((item) => (
+                                  <p
+                                    key={item}
+                                    className="rounded-xl border border-line bg-white px-3 py-2 text-xs font-bold leading-5 text-ink/62"
+                                  >
+                                    {item}
+                                  </p>
+                                ))}
+                              </div>
+                            </div>
+                            <div className="rounded-2xl border border-line bg-surface p-4">
+                              <p className="text-xs font-black uppercase tracking-normal text-ink/42">
+                                Watch signals
+                              </p>
+                              <div className="mt-3 flex flex-wrap gap-2">
+                                {decisionGuide.watch.map((item) => (
+                                  <span
+                                    key={item}
+                                    className="rounded-full border border-line bg-white px-3 py-2 text-xs font-black text-ink/58"
+                                  >
+                                    {item}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+
+                          <details className="mt-4 rounded-2xl border border-line bg-surface p-4">
+                            <summary className="cursor-pointer text-sm font-black text-ink">
+                              News, notes, and manage position
+                            </summary>
+                            <div className="mt-4 grid gap-4 xl:grid-cols-[1fr_280px]">
+                              <div className="grid gap-3">
+                                <div>
+                                  <p className="text-xs font-black uppercase tracking-normal text-ink/42">
+                                    Latest context
+                                  </p>
+                                  <div className="mt-2 grid gap-2">
+                                    {trade.latestNews.length ? (
+                                      trade.latestNews.map((item) => (
+                                        <a
+                                          key={`${trade.id}-${item.title}`}
+                                          href={item.url ?? "#"}
+                                          target="_blank"
+                                          rel="noreferrer"
+                                          className="rounded-2xl border border-line bg-white p-3 text-sm font-bold leading-6 text-ink transition hover:border-pine"
+                                        >
+                                          {item.title}
+                                          {item.site ? (
+                                            <span className="mt-1 block text-xs font-semibold text-ink/45">
+                                              {item.site}
+                                            </span>
+                                          ) : null}
+                                        </a>
+                                      ))
+                                    ) : (
+                                      <p className="rounded-2xl border border-line bg-white p-3 text-sm font-semibold text-ink/55">
+                                        No fresh headlines were available from FMP for this ticker.
+                                      </p>
+                                    )}
+                                  </div>
+                                </div>
+
+                                {trade.notes ? (
+                                  <div className="rounded-2xl border border-line bg-white p-3">
+                                    <p className="text-xs font-black uppercase tracking-normal text-ink/42">
+                                      Saved plan notes
+                                    </p>
+                                    <p className="mt-2 text-sm font-semibold leading-6 text-ink/62">
+                                      {trade.notes}
+                                    </p>
+                                  </div>
+                                ) : null}
+
+                                <div className="grid gap-2 sm:grid-cols-2">
+                                  {review.evidence.slice(0, 4).map((item) => (
+                                    <p
+                                      key={item}
+                                      className="rounded-xl border border-line bg-white px-3 py-2 text-xs font-bold leading-5 text-ink/58"
+                                    >
+                                      {item}
+                                    </p>
+                                  ))}
+                                </div>
+                              </div>
+
+                              <div className="rounded-2xl border border-line bg-white p-3">
+                                <p className="text-xs font-black uppercase tracking-normal text-ink/42">
+                                  Close trade
+                                </p>
+                                <input
+                                  inputMode="decimal"
+                                  value={closePrices[trade.id] ?? ""}
+                                  onChange={(event) =>
+                                    setClosePrices((current) => ({ ...current, [trade.id]: event.target.value }))
+                                  }
+                                  placeholder="Exit price"
+                                  className="mt-3 w-full rounded-xl border border-line bg-surface px-3 py-2 text-sm font-bold text-ink outline-none focus:border-pine focus:bg-white"
+                                />
+                                {trade.currentPrice ? (
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setClosePrices((current) => ({
+                                        ...current,
+                                        [trade.id]: String(trade.currentPrice?.toFixed(2) ?? ""),
+                                      }))
+                                    }
+                                    className="mt-2 w-full rounded-xl border border-line bg-surface px-4 py-2 text-sm font-black text-ink/62 transition hover:border-pine hover:text-pine"
+                                  >
+                                    Use latest price {formatCurrency(trade.currentPrice)}
+                                  </button>
+                                ) : null}
+                                <button
+                                  type="button"
+                                  onClick={() => closeTrade(trade)}
+                                  className="mt-3 w-full rounded-xl bg-ink px-4 py-2 text-sm font-black text-white hover:bg-pine"
+                                >
+                                  Mark closed
+                                </button>
+                                <p className="mt-3 text-xs font-semibold leading-5 text-ink/45">
+                                  SwingFi records the result for your review. It does not place trades.
+                                </p>
+                                <div className="mt-4 border-t border-line pt-3">
+                                  <p className="text-xs font-black uppercase tracking-normal text-ink/42">
+                                    Remove position
+                                  </p>
+                                  <button
+                                    type="button"
+                                    onClick={() => void deleteTrade(trade)}
+                                    disabled={Boolean(deletingTradeIds[trade.id])}
+                                    className={`mt-3 w-full rounded-xl border px-4 py-2 text-sm font-black transition disabled:cursor-not-allowed disabled:opacity-55 ${
+                                      pendingDeleteId === trade.id
+                                        ? "border-coral/30 bg-coral/10 text-coral hover:bg-coral/15"
+                                        : "border-line bg-surface text-ink/62 hover:border-coral/30 hover:text-coral"
+                                    }`}
+                                  >
+                                    {deletingTradeIds[trade.id]
+                                      ? "Removing..."
+                                      : pendingDeleteId === trade.id
+                                        ? "Confirm remove"
+                                        : "Remove from portfolio"}
+                                  </button>
+                                  {pendingDeleteId === trade.id ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setPendingDeleteId(null);
+                                        setMessage(null);
+                                      }}
+                                      className="mt-2 w-full rounded-xl border border-line bg-white px-4 py-2 text-sm font-black text-ink/55 transition hover:border-pine hover:text-pine"
+                                    >
+                                      Keep tracking
+                                    </button>
+                                  ) : null}
+                                </div>
+                              </div>
+                            </div>
+                          </details>
                         </div>
+
+                        <aside className="grid gap-2 border-t border-line bg-surface p-4 xl:border-l xl:border-t-0">
+                          <MiniStat label="Current" value={formatCurrency(trade.currentPrice)} />
+                          <MiniStat label="Open P/L" value={formatPercent(trade.unrealizedReturnPct)} tone={(trade.unrealizedReturnPct ?? 0) >= 0 ? "text-pine" : "text-coral"} />
+                          <MiniStat label="Entry" value={formatCurrency(Number(trade.entry_price))} />
+                          <MiniStat label="Target" value={formatCurrency(Number(trade.target_price))} tone="text-pine" />
+                          <MiniStat label="Stop" value={formatCurrency(Number(trade.stop_loss))} tone="text-coral" />
+                          <MiniStat label="Reward/risk" value={`${rewardRiskForTrade(trade).toFixed(1)}R`} />
+                          <p className="rounded-2xl border border-line bg-white px-3 py-2 text-xs font-semibold leading-5 text-ink/50">
+                            Research only. Final trade decisions happen in your brokerage account.
+                          </p>
+                        </aside>
                       </div>
-                    </div>
-                  </article>
+                    </article>
                   );
-                })}
+                }) : (
+                  <div className="rounded-3xl border border-line bg-surface p-5">
+                    <p className="text-sm font-black text-ink">No positions match this filter.</p>
+                    <p className="mt-2 text-sm font-semibold leading-6 text-ink/55">
+                      Switch to all open positions or add another trade to track.
+                    </p>
+                  </div>
+                )}
               </div>
             ) : (
               <div className="mt-5 rounded-3xl border border-dashed border-line bg-surface p-6">

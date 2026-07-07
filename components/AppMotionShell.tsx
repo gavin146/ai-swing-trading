@@ -1,17 +1,13 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { ReactNode, useEffect, useState } from "react";
-
-type AppMotionShellProps = {
-  children: ReactNode;
-};
+import { useEffect, useState } from "react";
 
 function isModifiedClick(event: MouseEvent) {
   return event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0;
 }
 
-export function AppMotionShell({ children }: AppMotionShellProps) {
+export function AppMotionShell() {
   const pathname = usePathname();
   const [isNavigating, setIsNavigating] = useState(false);
 
@@ -67,9 +63,6 @@ export function AppMotionShell({ children }: AppMotionShellProps) {
           isNavigating ? "w-full opacity-100" : "w-0 opacity-0"
         }`}
       />
-      <div key={pathname} className="page-transition">
-        {children}
-      </div>
     </>
   );
 }

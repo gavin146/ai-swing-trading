@@ -81,13 +81,13 @@ export async function POST(request: NextRequest) {
       {
         role: "system",
         content:
-          "You explain swing-trading research for beginner investors. Be concise, factual, cautious, and never promise returns. Do not provide personalized financial advice. Prefer plain English over trading jargon.",
+          "You explain swing-trading research for beginner investors. Be concise, factual, cautious, and never promise returns. Do not provide personalized financial advice, do not say the user should buy, and prefer plain English over trading jargon.",
       },
       {
         role: "user",
         content: JSON.stringify({
           instruction:
-            "Explain why this stock ranked where it did. Include market-relative strength, sector-relative strength, catalyst quality, earnings/event risk, SEC filing risk when present, reward/risk, and what the investor should monitor. Keep it under 180 words.",
+            "Explain why this stock ranked where it did. Include market-relative strength, sector-relative strength, catalyst quality, earnings/event risk, SEC filing risk when present, reward/risk, data completeness, and what would invalidate the setup. Frame it as research to review, not a trade recommendation. Keep it under 180 words.",
           symbol: ranking.candidate.symbol,
           companyName: ranking.candidate.companyName,
           rank: ranking.rank,

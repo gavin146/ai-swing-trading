@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { BrandMark } from "@/components/BrandMark";
 import { CustomerStatus } from "@/components/CustomerStatus";
+import { SwingFiAssistant } from "@/components/SwingFiAssistant";
 import {
   getCurrentCustomer,
   isAdminCustomer,
@@ -30,6 +31,8 @@ const adminLinks = [
   { href: "/admin", key: "admin", label: "Admin", symbol: "A" },
 ] as const;
 
+type AppNavLink = (typeof customerLinks)[number] | (typeof adminLinks)[number];
+
 function navClass(isActive: boolean) {
   return `group flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-bold transition ${
     isActive
@@ -54,16 +57,53 @@ function topNavClass(isActive: boolean) {
   }`;
 }
 
-function mobileNavClass(isActive: boolean) {
-  return `shrink-0 rounded-xl px-3 py-2 text-center text-[13px] font-black transition ${
+function bottomNavClass(isActive: boolean) {
+  return `flex min-w-0 flex-col items-center justify-center gap-1 rounded-2xl px-2 py-2 text-center text-[11px] font-black leading-tight transition ${
     isActive
-      ? "bg-ink text-white shadow-[0_10px_24px_rgba(7,20,24,0.16)]"
-      : "bg-surface text-ink/64 hover:bg-white hover:text-ink"
+      ? "bg-ink text-white shadow-[0_10px_24px_rgba(7,20,24,0.18)]"
+      : "text-ink/58 hover:bg-surface hover:text-ink"
   }`;
 }
 
 function contentMaxWidth(active: AppShellProps["active"]) {
+  if (active === "admin") return "max-w-[96rem]";
   return active === "dashboard" ? "max-w-[88rem]" : "max-w-7xl";
+}
+
+function MobileBottomNav({
+  active,
+  links,
+}: {
+  active: AppShellProps["active"];
+  links: ReadonlyArray<AppNavLink>;
+}) {
+  return (
+    <nav className="fixed inset-x-0 bottom-0 z-50 border-t border-line/80 bg-white/92 px-3 pb-[calc(0.65rem+env(safe-area-inset-bottom))] pt-2 shadow-[0_-18px_44px_rgba(7,20,24,0.11)] backdrop-blur-2xl md:hidden">
+      <div
+        className="mx-auto grid max-w-md gap-1.5"
+        style={{ gridTemplateColumns: `repeat(${links.length}, minmax(0, 1fr))` }}
+      >
+        {links.map((item) => {
+          const isActive = active === item.key;
+
+          return (
+            <Link key={item.href} href={item.href} className={bottomNavClass(isActive)}>
+              <span
+                className={`grid h-7 w-7 place-items-center rounded-xl text-[11px] ring-1 ${
+                  isActive
+                    ? "bg-white/12 text-white ring-white/20"
+                    : "bg-surface text-ink/54 ring-line/75"
+                }`}
+              >
+                {item.symbol}
+              </span>
+              <span className="truncate">{item.label}</span>
+            </Link>
+          );
+        })}
+      </div>
+    </nav>
+  );
 }
 
 export function AppShell({ active, children, eyebrow, subtitle, title }: AppShellProps) {
@@ -104,9 +144,9 @@ export function AppShell({ active, children, eyebrow, subtitle, title }: AppShel
 
   if (!isOperationsPage) {
     return (
-      <main className="min-h-screen overflow-x-hidden bg-[linear-gradient(180deg,#f7fafb_0%,#eef4f6_46%,#f7fafb_100%)]">
+      <main className="min-h-screen overflow-x-hidden bg-[linear-gradient(180deg,#f7fafb_0%,#eef4f6_46%,#f7fafb_100%)] pb-[calc(5.75rem+env(safe-area-inset-bottom))] md:pb-0">
         <header className="relative z-30 border-b border-line/70 bg-surface/88 backdrop-blur-2xl">
-          <div className={`mx-auto flex ${contentMaxWidth(active)} flex-col gap-4 px-4 py-4 sm:px-6 lg:px-8`}>
+          <div className={`mx-auto flex ${contentMaxWidth(active)} flex-col gap-3 px-3 py-3 sm:px-6 sm:py-4 lg:px-8`}>
             <div className="flex items-center justify-between gap-4">
               <div className="min-w-0">
                 <div className="lg:hidden">
@@ -127,32 +167,18 @@ export function AppShell({ active, children, eyebrow, subtitle, title }: AppShel
 
               <CustomerStatus />
             </div>
-
-            <nav className="rounded-2xl border border-line/70 bg-white/74 p-1.5 shadow-[0_10px_28px_rgba(7,20,24,0.05)] md:hidden">
-              <div className="flex gap-1.5 overflow-x-auto pb-0.5">
-                {shellLinks.map((item) => (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    className={mobileNavClass(isActiveLink(item.key))}
-                  >
-                    {item.label}
-                  </Link>
-                ))}
-              </div>
-            </nav>
           </div>
         </header>
 
-        <section className={`mx-auto ${contentMaxWidth(active)} px-4 py-5 sm:px-6 lg:px-8`}>
-          <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+        <section className={`mx-auto ${contentMaxWidth(active)} px-3 py-4 sm:px-6 sm:py-5 lg:px-8`}>
+          <div className="mb-4 flex flex-col gap-2 lg:flex-row lg:items-end lg:justify-between">
             <div>
               {eyebrow ? (
                 <p className="text-xs font-black uppercase tracking-normal text-pine">
                   {eyebrow}
                 </p>
               ) : null}
-              <h1 className="mt-2 max-w-4xl text-3xl font-black tracking-normal text-ink sm:text-4xl">
+              <h1 className="mt-1 max-w-4xl text-[2rem] font-black leading-tight tracking-normal text-ink sm:mt-2 sm:text-4xl">
                 {title}
               </h1>
             </div>
@@ -164,12 +190,14 @@ export function AppShell({ active, children, eyebrow, subtitle, title }: AppShel
           </div>
           {children}
         </section>
+        <SwingFiAssistant enabled={Boolean(customer)} />
+        <MobileBottomNav active={active} links={shellLinks} />
       </main>
     );
   }
 
   return (
-    <main className="min-h-screen overflow-x-hidden bg-[linear-gradient(180deg,#f7fafb_0%,#eef4f6_46%,#f7fafb_100%)]">
+    <main className="min-h-screen overflow-x-hidden bg-[linear-gradient(180deg,#f7fafb_0%,#eef4f6_46%,#f7fafb_100%)] pb-[calc(5.75rem+env(safe-area-inset-bottom))] md:pb-0">
       <aside className="fixed inset-y-0 left-0 z-40 hidden w-72 border-r border-line/75 bg-white/82 px-4 py-5 shadow-[18px_0_54px_rgba(7,20,24,0.06)] backdrop-blur-2xl lg:block">
         <BrandMark />
         <nav className="mt-8 grid gap-2">
@@ -217,7 +245,7 @@ export function AppShell({ active, children, eyebrow, subtitle, title }: AppShel
 
       <div className="lg:pl-72">
         <header className="relative z-30 border-b border-line/70 bg-surface/82 backdrop-blur-2xl">
-          <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-4 sm:px-6 lg:px-8">
+          <div className={`mx-auto flex ${contentMaxWidth(active)} flex-col gap-3 px-3 py-3 sm:px-6 sm:py-4 lg:px-8`}>
             <div className="flex items-center justify-between gap-4 lg:hidden">
               <BrandMark compact />
               <CustomerStatus />
@@ -233,28 +261,15 @@ export function AppShell({ active, children, eyebrow, subtitle, title }: AppShel
               </div>
               <CustomerStatus />
             </div>
-            <nav className="rounded-2xl border border-line/70 bg-white/74 p-1.5 shadow-[0_10px_28px_rgba(7,20,24,0.05)] lg:hidden">
-              <div className="flex gap-1.5 overflow-x-auto pb-0.5">
-                {shellLinks.map((item) => (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    className={mobileNavClass(isActiveLink(item.key))}
-                  >
-                    {item.label}
-                  </Link>
-                ))}
-              </div>
-            </nav>
           </div>
         </header>
 
-        <section className="mx-auto max-w-7xl px-4 py-7 sm:px-6 lg:px-8">
+        <section className={`mx-auto ${contentMaxWidth(active)} px-3 py-4 sm:px-6 sm:py-6 lg:px-8`}>
           <div className="mb-6 lg:hidden">
             {eyebrow ? (
               <p className="text-xs font-black uppercase tracking-normal text-pine">{eyebrow}</p>
             ) : null}
-            <h1 className="mt-2 text-3xl font-black tracking-normal text-ink">{title}</h1>
+            <h1 className="mt-1 text-[2rem] font-black leading-tight tracking-normal text-ink sm:mt-2 sm:text-3xl">{title}</h1>
           </div>
           {subtitle ? (
             <p className="mb-6 max-w-3xl text-sm font-medium leading-7 text-ink/58 lg:-mt-2">
@@ -264,6 +279,8 @@ export function AppShell({ active, children, eyebrow, subtitle, title }: AppShel
           {children}
         </section>
       </div>
+      <SwingFiAssistant enabled={Boolean(customer)} />
+      <MobileBottomNav active={active} links={shellLinks} />
     </main>
   );
 }

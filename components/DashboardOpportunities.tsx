@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { type Dispatch, type SetStateAction, useEffect, useMemo, useState } from "react";
 import { OpportunityCard } from "@/components/OpportunityCard";
 import { ScoreGuide } from "@/components/ScoreGuide";
@@ -12,8 +13,14 @@ import {
   restoreAuthenticatedCustomerSession,
   type CustomerProfile,
 } from "@/lib/customer-store";
+import { loginHref, signupHref } from "@/lib/customer-flow";
 import { getPersonalizedDailyPicks } from "@/lib/customer-picks";
 import { opportunityFromRow, type Opportunity } from "@/lib/opportunities";
+import {
+  buildOpportunityPlainInsight,
+  type PlainLanguageInsight,
+} from "@/lib/plain-language-insights";
+import { getBeginnerTradeGuide } from "@/lib/trade-guidance";
 import type { OpportunityRow } from "@/lib/database.types";
 import {
   buildSectorRotation,
@@ -36,6 +43,7 @@ type DashboardOpportunitiesProps = {
 
 type DashboardView = "top" | "watchlist" | "higher-risk";
 type DashboardDisplayMode = "guided" | "cards";
+type TradeTimeWindow = "open" | "midday" | "afternoon" | "after_hours";
 
 type DashboardOpportunitiesPayload = {
   reason?: string;
@@ -116,6 +124,10 @@ async function fetchDashboardOpportunities(headers?: HeadersInit) {
 
         return payload;
       })
+      .catch(() => ({
+        reason: "Rankings could not be loaded because the local connection was interrupted. Refresh the page and try again.",
+        source: "empty" as OpportunityDataSource,
+      }))
       .finally(() => {
         dashboardOpportunitiesRequest = null;
       });
@@ -164,10 +176,10 @@ function AccessGate({
       ? "SwingFi stock analysis is available during an active trial or subscription. Your saved profile is still here, but live rankings are locked until billing is active."
       : "Create an account to start a 30-day free trial and unlock today’s ranked opportunities, trade plans, score explanations, and morning email links.";
   const primaryHref = needsEmailVerification
-    ? `/verify-email?sent=1&email=${encodeURIComponent(customer?.email ?? "")}`
+    ? `/verify-email?sent=1&email=${encodeURIComponent(customer?.email ?? "")}&next=%2Fdashboard`
     : customer
       ? "/pricing"
-      : "/signup";
+      : signupHref({ nextPath: "/dashboard" });
   const primaryLabel = needsEmailVerification
     ? "Confirm email"
     : customer
@@ -203,7 +215,7 @@ function AccessGate({
               {primaryLabel}
             </Link>
             <Link
-              href={customer ? "/settings" : "/login"}
+              href={customer ? "/settings" : loginHref("/dashboard")}
               className="rounded-2xl border border-line bg-surface px-5 py-3 text-center text-sm font-bold text-ink hover:border-pine"
             >
               {customer ? "Review account" : "Log in"}
@@ -287,7 +299,7 @@ function ActionItem({
   };
 
   return (
-    <div className={`rounded-2xl border p-3 ${classes[tone]}`}>
+    <div className={`rounded-2xl border px-3 py-2.5 ${classes[tone]}`}>
       <p className="text-xs font-black uppercase tracking-normal text-ink/45">{label}</p>
       <h3 className="mt-1 text-base font-black text-ink">{title}</h3>
       <p className="mt-1 text-xs font-semibold leading-5 text-ink/62">{body}</p>
@@ -300,6 +312,69 @@ function getRiskReward(opportunity: Opportunity) {
   const loss = Math.abs(percentNumber(opportunity.potentialLoss));
 
   return loss > 0 ? gain / loss : gain;
+}
+
+const tradeTimeWindowLabels: Record<TradeTimeWindow, { label: string; helper: string }> = {
+  after_hours: {
+    helper: "After the regular market session.",
+    label: "After hours",
+  },
+  afternoon: {
+    helper: "Later in the session, near the close.",
+    label: "Afternoon",
+  },
+  midday: {
+    helper: "Around the middle of the trading day.",
+    label: "Midday",
+  },
+  open: {
+    helper: "Near the first part of the session.",
+    label: "Near open",
+  },
+};
+
+function portfolioHrefForTrade(
+  opportunity: Opportunity,
+  date: string,
+  timeWindow: TradeTimeWindow,
+) {
+  const params = new URLSearchParams({
+    assetType: opportunity.assetType === "ETF" ? "etf" : opportunity.assetType === "Crypto" ? "crypto" : "stock",
+    entryDate: date,
+    entryHigh: String(opportunity.entryHigh),
+    entryLow: String(opportunity.entryLow),
+    entryTimeWindow: timeWindow,
+    holdingPeriodDays: String(opportunity.holdingPeriodDays),
+    opportunityId: opportunity.id,
+    source: "dashboard_track_trade",
+    stopLoss: String(opportunity.stopLossValue),
+    symbol: opportunity.symbol,
+    targetPrice: String(opportunity.targetPriceValue),
+  });
+
+  return `/portfolio?${params.toString()}`;
+}
+
+function todayIsoDate() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function opportunityInsightPayload(opportunity: Opportunity) {
+  return {
+    aiExplanation: opportunity.aiExplanation,
+    confidenceScore: opportunity.confidenceScore,
+    entryRange: opportunity.entryRange,
+    expectedGainValue: opportunity.expectedGainValue,
+    expectedLossValue: opportunity.expectedLossValue,
+    holdingPeriodDays: opportunity.holdingPeriodDays,
+    opportunityScore: opportunity.opportunityScore,
+    rankingSummary: opportunity.rankingSummary,
+    riskScore: opportunity.riskScore,
+    setupPattern: opportunity.setupPattern,
+    stopLoss: opportunity.stopLoss,
+    symbol: opportunity.symbol,
+    targetPrice: opportunity.targetPrice,
+  };
 }
 
 function GuidedMiniScore({
@@ -344,20 +419,20 @@ function TodayActionPlan({
     .join(", ");
 
   return (
-    <section className="mt-4 overflow-hidden rounded-3xl border border-line/80 bg-white shadow-[0_18px_54px_rgba(7,20,24,0.065)]">
-      <div className="grid gap-0 2xl:grid-cols-[300px_1fr]">
-        <div className="bg-[linear-gradient(145deg,#071418,#0b3d3f)] p-4 text-white sm:p-5">
-          <p className="text-xs font-black uppercase tracking-normal text-lime">
+    <section className="mt-4 rounded-3xl border border-line/80 bg-white p-3 shadow-[0_14px_42px_rgba(7,20,24,0.055)] sm:p-4">
+      <div className="grid gap-3 xl:grid-cols-[230px_1fr] xl:items-start">
+        <div className="rounded-2xl border border-line bg-surface px-4 py-3">
+          <p className="text-xs font-black uppercase tracking-normal text-pine">
             Today&apos;s action plan
           </p>
-          <h2 className="mt-2 text-2xl font-black tracking-normal">
+          <h2 className="mt-1 text-xl font-black tracking-normal text-ink">
             Start here
           </h2>
-          <p className="mt-2 text-sm font-semibold leading-6 text-white/68">
-            A quick review order before you open the cards.
+          <p className="mt-1 text-xs font-semibold leading-5 text-ink/56">
+            A quick order before opening individual analyses.
           </p>
         </div>
-        <div className="grid gap-2 p-3 sm:grid-cols-2 sm:p-4 xl:grid-cols-4">
+        <div className="grid gap-2 md:grid-cols-2 2xl:grid-cols-4">
           <ActionItem
             label="Review first"
             title={firstSymbols}
@@ -386,16 +461,149 @@ function TodayActionPlan({
   );
 }
 
+function TrackTradeModal({
+  onClose,
+  onConfirm,
+  opportunity,
+}: {
+  onClose: () => void;
+  onConfirm: (date: string, timeWindow: TradeTimeWindow) => void;
+  opportunity: Opportunity;
+}) {
+  const [date, setDate] = useState(todayIsoDate());
+  const [timeWindow, setTimeWindow] = useState<TradeTimeWindow>("open");
+
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-end bg-ink/45 px-3 py-3 backdrop-blur-sm sm:place-items-center sm:p-6">
+      <section className="w-full max-w-xl overflow-hidden rounded-[28px] border border-line bg-white shadow-[0_30px_90px_rgba(7,20,24,0.22)]">
+        <div className="bg-[linear-gradient(145deg,#071418,#0b3d3f)] p-5 text-white">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-xs font-black uppercase tracking-normal text-lime">
+                Track trade
+              </p>
+              <h2 className="mt-2 text-2xl font-black tracking-normal">
+                Add {opportunity.symbol} to Portfolio
+              </h2>
+              <p className="mt-2 text-sm font-semibold leading-6 text-white/68">
+                Tell SwingFi roughly when you bought it. Portfolio will estimate the
+                entry price, then carry over the target, stop, and swing countdown.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-black text-white/72 hover:bg-white/15"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+
+        <div className="grid gap-4 p-5">
+          <div className="grid gap-3 rounded-3xl border border-line bg-surface p-4 sm:grid-cols-3">
+            <MiniTradeStat label="Swing plan" value={`${opportunity.holdingPeriodDays} days`} />
+            <MiniTradeStat label="Target" value={opportunity.targetPrice} tone="text-pine" />
+            <MiniTradeStat label="Stop" value={opportunity.stopLoss} tone="text-coral" />
+          </div>
+
+          <label className="grid gap-2">
+            <span className="text-xs font-black uppercase tracking-normal text-ink/44">
+              Buy date
+            </span>
+            <input
+              type="date"
+              value={date}
+              onChange={(event) => setDate(event.target.value)}
+              className="rounded-2xl border border-line bg-surface px-4 py-3 text-sm font-bold text-ink outline-none transition focus:border-pine focus:bg-white"
+            />
+          </label>
+
+          <div className="grid gap-2">
+            <p className="text-xs font-black uppercase tracking-normal text-ink/44">
+              Rough buy time
+            </p>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {(Object.keys(tradeTimeWindowLabels) as TradeTimeWindow[]).map((value) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => setTimeWindow(value)}
+                  className={`rounded-2xl border p-3 text-left transition ${
+                    timeWindow === value
+                      ? "border-pine bg-mint text-pine"
+                      : "border-line bg-surface text-ink hover:border-pine/35"
+                  }`}
+                >
+                  <span className="block text-sm font-black">
+                    {tradeTimeWindowLabels[value].label}
+                  </span>
+                  <span className="mt-1 block text-xs font-semibold leading-5 opacity-65">
+                    {tradeTimeWindowLabels[value].helper}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-line bg-surface px-4 py-3 text-xs font-semibold leading-5 text-ink/55">
+            SwingFi will estimate the entry price from market data. You can still
+            edit it against your broker fill before saving the position.
+          </div>
+
+          <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
+            <button
+              type="button"
+              onClick={() => onConfirm(date, timeWindow)}
+              className="rounded-2xl bg-ink px-5 py-3 text-sm font-black text-white shadow-[0_16px_36px_rgba(7,20,24,0.18)] transition hover:bg-pine"
+            >
+              Continue to Portfolio
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-2xl border border-line bg-white px-5 py-3 text-sm font-black text-ink/58 transition hover:border-pine hover:text-pine"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function MiniTradeStat({
+  label,
+  tone = "text-ink",
+  value,
+}: {
+  label: string;
+  tone?: string;
+  value: string;
+}) {
+  return (
+    <div className="rounded-2xl border border-line bg-white p-3">
+      <p className="text-xs font-black uppercase tracking-normal text-ink/42">{label}</p>
+      <p className={`mt-1 text-sm font-black ${tone}`}>{value}</p>
+    </div>
+  );
+}
+
 function GuidedOpportunityList({
+  insightsBySymbol = {},
   onSave,
   onSkip,
+  onTrackTrade,
   onWatch,
   picks,
   savedSymbols,
   watchedSymbols,
 }: {
+  insightsBySymbol?: Record<string, PlainLanguageInsight>;
   onSave: (symbol: string) => void;
   onSkip: (symbol: string) => void;
+  onTrackTrade: (opportunity: Opportunity) => void;
   onWatch: (symbol: string) => void;
   picks: Opportunity[];
   savedSymbols: Set<string>;
@@ -403,138 +611,142 @@ function GuidedOpportunityList({
 }) {
   return (
     <div className="grid gap-3">
-      {picks.map((opportunity, index) => (
-        <article
-          key={opportunity.symbol}
-          className="motion-card rounded-3xl border border-line/80 bg-white p-4 shadow-[0_14px_42px_rgba(7,20,24,0.055)] transition hover:border-pine/35 hover:shadow-lift sm:p-5"
-          style={{ animationDelay: `${Math.min(index * 35, 280)}ms` }}
-        >
-          <div className="grid gap-4 xl:grid-cols-[1fr_420px] xl:items-center">
-            <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="rounded-full bg-ink px-3 py-1 text-xs font-black text-white">
-                  #{index + 1}
-                </span>
-                <span className="text-2xl font-black text-ink">{opportunity.symbol}</span>
-                <span className="rounded-full bg-surface px-3 py-1 text-xs font-bold text-ink/55 ring-1 ring-line">
-                  {opportunity.assetType}
-                </span>
-                <span className="rounded-full bg-mint px-3 py-1 text-xs font-black text-pine">
-                  {opportunity.tradeQuality}
-                </span>
-              </div>
-              <p className="mt-2 text-sm font-semibold leading-6 text-ink/62">
-                {opportunity.rankingSummary}
-              </p>
-              <p className="mt-2 rounded-2xl border border-pine/10 bg-mint/70 px-4 py-2 text-xs font-bold leading-5 text-ink/64">
-                Next check: price near {opportunity.entryRange}, target {opportunity.targetPrice},
-                stop {opportunity.stopLoss}.
-              </p>
-            </div>
+      {picks.map((opportunity, index) => {
+        const beginnerGuide = getBeginnerTradeGuide(opportunity);
+        const plainInsight = insightsBySymbol[opportunity.symbol];
+        const guideTone =
+          beginnerGuide.tone === "positive"
+            ? "border-pine/15 bg-mint/70"
+            : beginnerGuide.tone === "caution"
+              ? "border-coral/20 bg-coral/10"
+              : "border-amber/30 bg-amber/15";
 
-            <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-center">
-              <div className="grid grid-cols-3 gap-2">
-                <GuidedMiniScore label="Score" score={opportunity.opportunityScore} tone="text-pine" />
-                <GuidedMiniScore label="Confidence" score={opportunity.confidenceScore} />
-                <GuidedMiniScore label="Risk" score={opportunity.riskScore} tone="text-coral" />
+        return (
+          <article
+            key={opportunity.symbol}
+            className="motion-card rounded-3xl border border-line/80 bg-white p-4 shadow-[0_14px_42px_rgba(7,20,24,0.055)] transition hover:border-pine/35 hover:shadow-lift sm:p-5"
+            style={{ animationDelay: `${Math.min(index * 35, 280)}ms` }}
+          >
+            <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px] 2xl:grid-cols-[minmax(0,1fr)_400px]">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="rounded-full bg-ink px-3 py-1 text-xs font-black text-white">
+                    #{index + 1}
+                  </span>
+                  <span className="text-2xl font-black text-ink">{opportunity.symbol}</span>
+                  <span className="rounded-full bg-surface px-3 py-1 text-xs font-bold text-ink/55 ring-1 ring-line">
+                    {opportunity.assetType}
+                  </span>
+                  <span className="rounded-full bg-mint px-3 py-1 text-xs font-black text-pine">
+                    {opportunity.tradeQuality}
+                  </span>
+                </div>
+                <div className="mt-3 rounded-2xl border border-line bg-surface px-4 py-3">
+                  <p className="text-xs font-black uppercase tracking-normal text-pine">
+                    Plain-English read
+                  </p>
+                  <p className="mt-1 text-sm font-black leading-5 text-ink">
+                    {plainInsight?.headline ?? "Why this ticker is ranked"}
+                  </p>
+                  <p className="mt-2 text-xs font-semibold leading-5 text-ink/62">
+                    {plainInsight?.summary ?? opportunity.rankingSummary}
+                  </p>
+                  {plainInsight?.evidence?.length ? (
+                    <div className="mt-3 grid gap-2 md:grid-cols-3">
+                      {plainInsight.evidence.slice(0, 3).map((item) => (
+                        <p
+                          key={item}
+                          className="rounded-xl border border-line bg-white px-3 py-2 text-xs font-bold leading-5 text-ink/62"
+                        >
+                          {item}
+                        </p>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+                <div className={`mt-3 rounded-2xl border px-4 py-3 ${guideTone}`}>
+                  <p className="text-xs font-black uppercase tracking-normal text-ink/45">
+                    What to review next
+                  </p>
+                  <p className="mt-1 text-sm font-black leading-5 text-ink">
+                    {beginnerGuide.headline}
+                  </p>
+                  <p className="mt-2 text-xs font-semibold leading-5 text-ink/62">
+                    {plainInsight?.nextReview ?? beginnerGuide.plainEnglish}
+                  </p>
+                  <div className="mt-3 grid gap-2 md:grid-cols-3">
+                    {beginnerGuide.steps.map((step, stepIndex) => (
+                      <p
+                        key={step}
+                        className="rounded-xl border border-line bg-white/85 px-3 py-2 text-xs font-bold leading-5 text-ink/62"
+                      >
+                        <span className="mr-1 text-ink">{stepIndex + 1}.</span>{" "}
+                        {step}
+                      </p>
+                    ))}
+                  </div>
+                </div>
+                <p className="mt-2 rounded-2xl border border-line bg-surface px-4 py-2 text-xs font-bold leading-5 text-ink/58">
+                  Risk note: {plainInsight?.riskNote ?? `price near ${opportunity.entryRange}, target ${opportunity.targetPrice}, stop ${opportunity.stopLoss}.`}
+                </p>
               </div>
-              <div className="grid grid-cols-3 gap-2 sm:w-64">
-                <Link
-                  href={`/opportunities/${opportunity.symbol}`}
-                  className="rounded-2xl bg-ink px-3 py-3 text-center text-sm font-black text-white shadow-[0_12px_28px_rgba(7,20,24,0.14)] hover:bg-pine"
-                >
-                  Review
-                </Link>
+
+              <div className="grid content-start gap-3">
+                <div className="grid grid-cols-3 gap-2">
+                  <GuidedMiniScore label="Score" score={opportunity.opportunityScore} tone="text-pine" />
+                  <GuidedMiniScore label="Confidence" score={opportunity.confidenceScore} />
+                  <GuidedMiniScore label="Risk" score={opportunity.riskScore} tone="text-coral" />
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <Link
+                    href={`/opportunities/${opportunity.symbol}`}
+                    className="rounded-2xl bg-ink px-3 py-3 text-center text-sm font-black text-white shadow-[0_12px_28px_rgba(7,20,24,0.14)] hover:bg-pine"
+                  >
+                    Review
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={() => onTrackTrade(opportunity)}
+                    className="rounded-2xl border border-pine/25 bg-mint px-3 py-3 text-sm font-black text-pine transition hover:border-pine hover:bg-white"
+                  >
+                    Track trade
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onSave(opportunity.symbol)}
+                    className={`rounded-2xl border px-3 py-3 text-sm font-black transition ${
+                      savedSymbols.has(opportunity.symbol)
+                        ? "border-pine bg-mint text-pine"
+                        : "border-line bg-surface text-ink/66 hover:border-pine/35 hover:text-ink"
+                    }`}
+                  >
+                    {savedSymbols.has(opportunity.symbol) ? "Saved" : "Save"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onWatch(opportunity.symbol)}
+                    className={`rounded-2xl border px-3 py-3 text-sm font-black transition ${
+                      watchedSymbols.has(opportunity.symbol)
+                        ? "border-amber bg-amber/12 text-ink"
+                        : "border-line bg-surface text-ink/66 hover:border-amber/45 hover:text-ink"
+                    }`}
+                  >
+                    {watchedSymbols.has(opportunity.symbol) ? "Watching" : "Watch"}
+                  </button>
+                </div>
                 <button
                   type="button"
-                  onClick={() => onSave(opportunity.symbol)}
-                  className={`rounded-2xl border px-3 py-3 text-sm font-black transition ${
-                    savedSymbols.has(opportunity.symbol)
-                      ? "border-pine bg-mint text-pine"
-                      : "border-line bg-surface text-ink/66 hover:border-pine/35 hover:text-ink"
-                  }`}
+                  onClick={() => onSkip(opportunity.symbol)}
+                  className="rounded-2xl border border-line bg-white px-4 py-3 text-sm font-black text-ink/52 transition hover:border-coral/35 hover:text-coral"
                 >
-                  {savedSymbols.has(opportunity.symbol) ? "Saved" : "Save"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => onWatch(opportunity.symbol)}
-                  className={`rounded-2xl border px-3 py-3 text-sm font-black transition ${
-                    watchedSymbols.has(opportunity.symbol)
-                      ? "border-amber bg-amber/12 text-ink"
-                      : "border-line bg-surface text-ink/66 hover:border-amber/45 hover:text-ink"
-                  }`}
-                >
-                  {watchedSymbols.has(opportunity.symbol) ? "Watching" : "Watch"}
+                  Skip for now
                 </button>
               </div>
-              <button
-                type="button"
-                onClick={() => onSkip(opportunity.symbol)}
-                className="rounded-2xl border border-line bg-white px-4 py-3 text-sm font-black text-ink/52 transition hover:border-coral/35 hover:text-coral sm:col-span-2"
-              >
-                Skip for now
-              </button>
             </div>
-          </div>
-        </article>
-      ))}
+          </article>
+        );
+      })}
     </div>
-  );
-}
-
-function ReviewRoutinePanel() {
-  const steps = [
-    {
-      body: "Open Start here first. These are filtered to keep the starting point calmer and more relevant to your profile.",
-      label: "1",
-      title: "Start with the list",
-    },
-    {
-      body: "A strong score means review first, not buy. Compare score, confidence, and risk before opening the full analysis.",
-      label: "2",
-      title: "Read the three scores",
-    },
-    {
-      body: "Only consider deeper research if price is near the entry range and the stop loss is a risk you can accept.",
-      label: "3",
-      title: "Check entry and stop",
-    },
-    {
-      body: "Save, watch, or skip. If you make the trade, add it to Portfolio so the target and stop stay visible after rankings refresh.",
-      label: "4",
-      title: "Choose your next action",
-    },
-  ];
-
-  return (
-    <section className="mt-4 rounded-3xl border border-line/80 bg-white p-4 shadow-[0_18px_54px_rgba(7,20,24,0.06)] sm:p-5">
-      <div className="flex flex-col gap-2 lg:flex-row lg:items-end lg:justify-between">
-        <div>
-          <p className="text-xs font-black uppercase tracking-normal text-pine">
-            Beginner review routine
-          </p>
-          <h2 className="mt-2 text-2xl font-black text-ink">
-            Your first five minutes
-          </h2>
-        </div>
-        <p className="max-w-lg text-sm font-semibold leading-6 text-ink/58 lg:text-right">
-          This keeps the dashboard from turning into a noisy scanner. The goal is a
-          repeatable research routine, not more trades.
-        </p>
-      </div>
-      <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        {steps.map((step) => (
-          <div key={step.label} className="rounded-2xl border border-line bg-surface p-4">
-            <span className="grid h-8 w-8 place-items-center rounded-full bg-ink text-sm font-black text-white">
-              {step.label}
-            </span>
-            <h3 className="mt-3 text-base font-black text-ink">{step.title}</h3>
-            <p className="mt-2 text-sm font-semibold leading-6 text-ink/60">{step.body}</p>
-          </div>
-        ))}
-      </div>
-    </section>
   );
 }
 
@@ -1182,7 +1394,7 @@ function DashboardSessionReconnect({
           </p>
           <div className="mt-6 flex flex-col gap-3 sm:flex-row">
             <Link
-              href="/login"
+              href={loginHref("/dashboard")}
               className="rounded-2xl bg-ink px-5 py-3 text-center text-sm font-black text-white shadow-[0_18px_42px_rgba(7,20,24,0.18)] hover:bg-pine"
             >
               Log in again
@@ -1231,6 +1443,7 @@ export function DashboardOpportunities({
   fallbackReason,
   initialOpportunities,
 }: DashboardOpportunitiesProps) {
+  const router = useRouter();
   const [opportunities, setOpportunities] = useState(initialOpportunities);
   const [currentDataSource, setCurrentDataSource] = useState<OpportunityDataSource>(dataSource);
   const [currentFallbackReason, setCurrentFallbackReason] = useState(fallbackReason);
@@ -1243,7 +1456,11 @@ export function DashboardOpportunities({
   const [opportunityRefreshToken, setOpportunityRefreshToken] = useState(0);
   const [savedSymbols, setSavedSymbols] = useState<Set<string>>(new Set());
   const [skippedSymbols, setSkippedSymbols] = useState<Set<string>>(new Set());
+  const [trackingOpportunity, setTrackingOpportunity] = useState<Opportunity | null>(null);
   const [watchedSymbols, setWatchedSymbols] = useState<Set<string>>(new Set());
+  const [insightsBySymbol, setInsightsBySymbol] = useState<Record<string, PlainLanguageInsight>>(
+    {},
+  );
 
   useEffect(() => {
     try {
@@ -1439,6 +1656,58 @@ export function DashboardOpportunities({
       );
   }, [activeView, customer, dailyPicks, savedSymbols, skippedSymbols, watchedSymbols]);
 
+  useEffect(() => {
+    if (!ready || !dailyPicks.length) {
+      setInsightsBySymbol({});
+      return;
+    }
+
+    let isActive = true;
+    const fallbackInsights = Object.fromEntries(
+      dailyPicks.map((opportunity) => [
+        opportunity.symbol,
+        buildOpportunityPlainInsight(opportunityInsightPayload(opportunity)),
+      ]),
+    );
+
+    setInsightsBySymbol(fallbackInsights);
+
+    async function loadInsights() {
+      const authHeaders = await getCustomerAuthHeaders();
+
+      if (!authHeaders && !getAccessState(customer).isAdmin) return;
+
+      const response = await fetch("/api/insights/opportunities", {
+        body: JSON.stringify({
+          opportunities: dailyPicks.map(opportunityInsightPayload),
+        }),
+        headers: {
+          ...(authHeaders ?? {}),
+          "Content-Type": "application/json",
+        },
+        method: "POST",
+      });
+      const payload = (await response.json().catch(() => null)) as {
+        insights?: Record<string, PlainLanguageInsight>;
+      } | null;
+
+      if (!isActive || !payload?.insights) return;
+
+      setInsightsBySymbol((current) => ({
+        ...current,
+        ...payload.insights,
+      }));
+    }
+
+    loadInsights().catch(() => {
+      if (isActive) setInsightsBySymbol(fallbackInsights);
+    });
+
+    return () => {
+      isActive = false;
+    };
+  }, [customer, dailyPicks, ready]);
+
   const viewOptions = useMemo(
     () => {
       const activePicks = dailyPicks.filter((item) => !skippedSymbols.has(item.symbol));
@@ -1509,6 +1778,11 @@ export function DashboardOpportunities({
       }
       return next;
     });
+  };
+
+  const confirmTrackTrade = (opportunity: Opportunity, date: string, timeWindow: TradeTimeWindow) => {
+    setTrackingOpportunity(null);
+    router.push(portfolioHrefForTrade(opportunity, date, timeWindow));
   };
 
   const summary = useMemo(() => {
@@ -1634,6 +1908,15 @@ export function DashboardOpportunities({
 
   return (
     <>
+      {trackingOpportunity ? (
+        <TrackTradeModal
+          opportunity={trackingOpportunity}
+          onClose={() => setTrackingOpportunity(null)}
+          onConfirm={(date, timeWindow) =>
+            confirmTrackTrade(trackingOpportunity, date, timeWindow)
+          }
+        />
+      ) : null}
       <div className="motion-card overflow-hidden rounded-3xl border border-line/80 bg-white shadow-[0_20px_64px_rgba(7,20,24,0.07)]">
         <div className="grid gap-0 lg:grid-cols-[1fr_260px] 2xl:grid-cols-[1fr_300px]">
           <div className="p-5 sm:p-6">
@@ -1747,34 +2030,61 @@ export function DashboardOpportunities({
 
       <FirstLoginWalkthrough customer={customer} />
 
-      <ReviewRoutinePanel />
-
       <TodayActionPlan customer={customer} dailyPicks={dailyPicks} />
 
-      <WatchlistChangeAlerts
-        picks={dailyPicks}
-        savedSymbols={savedSymbols}
-        watchedSymbols={watchedSymbols}
-      />
-
-      <div className="mt-4 rounded-3xl border border-line/80 bg-surface/88 p-3 shadow-[0_14px_42px_rgba(7,20,24,0.065)] backdrop-blur-2xl">
-        <div className="grid gap-3 xl:grid-cols-[300px_1fr] xl:items-stretch">
-          <div>
-            <p className="text-xs font-black uppercase tracking-normal text-pine">
-              Choose your review path
-            </p>
-            <p className="mt-1 text-sm font-semibold text-ink/58">
-              Start here first. Move to Monitor or Bigger upside only when you want a
-              broader review.
-            </p>
+      <section className="mt-5 overflow-hidden rounded-3xl border border-line/80 bg-white shadow-[0_20px_64px_rgba(7,20,24,0.07)]">
+        <div className="border-b border-line bg-surface/90 p-4 sm:p-5">
+          <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-end">
+            <div className="min-w-0">
+              <p className="text-xs font-black uppercase tracking-normal text-pine">
+                Review queue
+              </p>
+              <h2 className="mt-2 text-2xl font-black tracking-normal text-ink">
+                {activeViewCopy.title}
+              </h2>
+              <p className="mt-1 max-w-3xl text-sm font-semibold leading-6 text-ink/58">
+                Showing {visiblePicks.length} ticker analyses. {activeViewCopy.note}
+              </p>
+            </div>
+            <div className="flex flex-col gap-2 sm:flex-row xl:justify-end">
+              <div className="grid grid-cols-2 rounded-2xl border border-line bg-white p-1 shadow-[0_10px_28px_rgba(7,20,24,0.045)]">
+                {[
+                  ["guided", "Simple list"],
+                  ["cards", "Full cards"],
+                ].map(([mode, label]) => (
+                  <button
+                    key={mode}
+                    type="button"
+                    onClick={() => setDisplayMode(mode as DashboardDisplayMode)}
+                    className={`rounded-xl px-3 py-2 text-sm font-black transition ${
+                      displayMode === mode
+                        ? "bg-ink text-white"
+                        : "text-ink/58 hover:bg-surface hover:text-ink"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              {skippedSymbols.size > 0 ? (
+                <button
+                  type="button"
+                  onClick={() => setSkippedSymbols(new Set())}
+                  className="rounded-2xl border border-line bg-white px-4 py-2 text-sm font-black text-ink/62 transition hover:border-pine/35 hover:text-ink"
+                >
+                  Restore skipped
+                </button>
+              ) : null}
+            </div>
           </div>
-          <div className="grid gap-2 sm:grid-cols-3">
+
+          <div className="mt-4 grid gap-2 md:grid-cols-3">
             {viewOptions.map((option) => (
               <button
                 key={option.key}
                 type="button"
                 onClick={() => setActiveView(option.key)}
-                className={`rounded-2xl border px-4 py-3 text-left transition xl:min-h-full ${
+                className={`rounded-2xl border px-4 py-3 text-left transition ${
                   activeView === option.key
                     ? "border-ink bg-ink text-white shadow-[0_14px_34px_rgba(7,20,24,0.16)]"
                     : "border-line/80 bg-white text-ink hover:border-pine/35"
@@ -1796,70 +2106,23 @@ export function DashboardOpportunities({
               </button>
             ))}
           </div>
-        </div>
-        <p className="mt-2 rounded-2xl border border-line/70 bg-white/68 px-4 py-2.5 text-xs font-semibold leading-5 text-ink/54">
-          This changes the list you are reviewing. It does not change SwingFi&apos;s
-          original ranking or turn any idea into a buy recommendation. The number on
-          each path is how many ideas currently match that path after skipped picks
-          are removed.
-          {skippedSymbols.size > 0 ? ` ${skippedSymbols.size} skipped ideas are hidden.` : ""}
-        </p>
-      </div>
 
-      <div className="mt-5 flex flex-col gap-4">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <p className="text-xs font-black uppercase tracking-normal text-pine">
-              {activeViewCopy.eyebrow}
-            </p>
-            <h2 className="mt-2 text-2xl font-black tracking-normal text-ink">
-              {activeViewCopy.title}
-            </h2>
-            <p className="mt-1 text-sm font-semibold leading-6 text-ink/58">
-              Showing {visiblePicks.length} ticker analyses. {activeViewCopy.note}
-            </p>
-          </div>
-          <div className="flex flex-col gap-2 sm:flex-row">
-            <div className="grid grid-cols-2 rounded-2xl border border-line bg-white p-1 shadow-[0_10px_28px_rgba(7,20,24,0.045)]">
-              {[
-                ["guided", "Simple list"],
-                ["cards", "Full cards"],
-              ].map(([mode, label]) => (
-                <button
-                  key={mode}
-                  type="button"
-                  onClick={() => setDisplayMode(mode as DashboardDisplayMode)}
-                  className={`rounded-xl px-3 py-2 text-sm font-black transition ${
-                    displayMode === mode
-                      ? "bg-ink text-white"
-                      : "text-ink/58 hover:bg-surface hover:text-ink"
-                  }`}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-            {skippedSymbols.size > 0 ? (
-              <button
-                type="button"
-                onClick={() => setSkippedSymbols(new Set())}
-                className="rounded-2xl border border-line bg-white px-4 py-2 text-sm font-black text-ink/62 transition hover:border-pine/35 hover:text-ink"
-              >
-                Restore skipped
-              </button>
-            ) : null}
-          </div>
+          <p className="mt-3 rounded-2xl border border-line/70 bg-white/72 px-4 py-2.5 text-xs font-semibold leading-5 text-ink/54">
+            Start with the first path, then open one to three ideas. The path counts
+            reflect available analyses after skipped picks are removed.
+            {skippedSymbols.size > 0 ? ` ${skippedSymbols.size} skipped ideas are hidden.` : ""}
+          </p>
         </div>
-        <p className="rounded-2xl border border-line/80 bg-white/78 px-4 py-3 text-xs font-semibold leading-5 text-ink/56">
-          Simple list is the default for a calmer first review. Full cards show more
-          model details when you want to compare every signal on screen.
-        </p>
+
+        <div className="grid gap-4 p-3 sm:p-4">
         {displayMode === "guided" && visiblePicks.length > 0 ? (
           <GuidedOpportunityList
+            insightsBySymbol={insightsBySymbol}
             picks={visiblePicks}
             savedSymbols={savedSymbols}
             watchedSymbols={watchedSymbols}
             onSave={(symbol) => toggleSymbol(symbol, setSavedSymbols)}
+            onTrackTrade={(opportunity) => setTrackingOpportunity(opportunity)}
             onWatch={(symbol) => toggleSymbol(symbol, setWatchedSymbols)}
             onSkip={(symbol) =>
               setSkippedSymbols((current) => new Set(current).add(symbol))
@@ -1891,9 +2154,11 @@ export function DashboardOpportunities({
                 isSaved={savedSymbols.has(opportunity.symbol)}
                 isWatched={watchedSymbols.has(opportunity.symbol)}
                 opportunity={opportunity}
+                plainInsight={insightsBySymbol[opportunity.symbol]}
                 rank={index + 1}
                 animationDelay={Math.min(index * 35, 360)}
                 onSave={() => toggleSymbol(opportunity.symbol, setSavedSymbols)}
+                onTrackTrade={() => setTrackingOpportunity(opportunity)}
                 onWatch={() => toggleSymbol(opportunity.symbol, setWatchedSymbols)}
                 onSkip={() =>
                   setSkippedSymbols((current) => new Set(current).add(opportunity.symbol))
@@ -1915,7 +2180,15 @@ export function DashboardOpportunities({
             </div>
           )}
         </div>
-      </div>
+        </div>
+      </section>
+
+      <WatchlistChangeAlerts
+        picks={dailyPicks}
+        savedSymbols={savedSymbols}
+        watchedSymbols={watchedSymbols}
+      />
+
       <BeginnerLessonCards picks={dailyPicks} />
 
       <PortfolioFitPanel
@@ -1923,31 +2196,6 @@ export function DashboardOpportunities({
         savedSymbols={savedSymbols}
         watchedSymbols={watchedSymbols}
       />
-
-      <div className="mt-5 grid gap-3 md:grid-cols-3">
-        {[
-          [
-            "1. Start with rank",
-            "Higher-ranked ideas are the first setups to review. A rank is not a buy order.",
-          ],
-          [
-            "2. Check risk",
-            "Compare the stop loss and potential loss with your comfort level before focusing on upside.",
-          ],
-          [
-            "3. Use the entry range",
-            "If price has moved far past the entry range, the trade plan may no longer be attractive.",
-          ],
-        ].map(([title, text]) => (
-          <div
-            key={title}
-            className="rounded-2xl border border-line/80 bg-white/78 p-4 shadow-[0_10px_28px_rgba(7,20,24,0.045)]"
-          >
-            <p className="text-sm font-black text-ink">{title}</p>
-            <p className="mt-2 text-xs font-semibold leading-5 text-ink/58">{text}</p>
-          </div>
-        ))}
-      </div>
 
       <section className="mt-8 border-y border-line/80 py-5">
         <details>

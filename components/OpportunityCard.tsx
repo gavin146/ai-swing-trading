@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import type { Opportunity } from "@/lib/opportunities";
+import type { PlainLanguageInsight } from "@/lib/plain-language-insights";
+import { getBeginnerTradeGuide } from "@/lib/trade-guidance";
 import { MetricPill } from "./MetricPill";
 import { ScoreMeter } from "./ScoreMeter";
 
@@ -12,8 +14,10 @@ type OpportunityCardProps = {
   isWatched?: boolean;
   onSave?: () => void;
   onSkip?: () => void;
+  onTrackTrade?: () => void;
   onWatch?: () => void;
   opportunity: Opportunity;
+  plainInsight?: PlainLanguageInsight;
   rank: number;
 };
 
@@ -62,10 +66,20 @@ export function OpportunityCard({
   isWatched = false,
   onSave,
   onSkip,
+  onTrackTrade,
   onWatch,
   opportunity,
+  plainInsight,
   rank,
 }: OpportunityCardProps) {
+  const beginnerGuide = getBeginnerTradeGuide(opportunity);
+  const guideTone =
+    beginnerGuide.tone === "positive"
+      ? "border-pine/15 bg-mint/75 text-pine"
+      : beginnerGuide.tone === "caution"
+        ? "border-coral/20 bg-coral/10 text-coral"
+        : "border-amber/30 bg-amber/15 text-ink";
+
   return (
     <article
       className={`motion-card flex h-full flex-col overflow-hidden border border-line/80 bg-white shadow-[0_20px_70px_rgba(7,20,24,0.075)] transition will-change-transform hover:-translate-y-1 hover:border-pine/35 hover:shadow-lift ${
@@ -135,18 +149,64 @@ export function OpportunityCard({
           </div>
         )}
 
-        <p className={`mt-5 rounded-2xl border border-line/80 bg-surface text-sm font-medium leading-7 text-ink/68 ${
+        <div className={`mt-5 rounded-2xl border border-line/80 bg-surface text-sm font-medium leading-7 text-ink/68 ${
           compact ? "p-3 2xl:mt-4 2xl:leading-6" : "p-4"
         }`}>
-          {opportunity.rankingSummary}
-        </p>
+          <p className="text-xs font-black uppercase tracking-normal text-pine">
+            Plain-English read
+          </p>
+          <p className="mt-2 font-bold text-ink">
+            {plainInsight?.headline ?? "Why this ticker is ranked"}
+          </p>
+          <p className="mt-2">
+            {plainInsight?.summary ?? opportunity.rankingSummary}
+          </p>
+          {plainInsight?.evidence?.length ? (
+            <div className="mt-3 grid gap-2">
+              {plainInsight.evidence.slice(0, 3).map((item) => (
+                <p
+                  key={item}
+                  className="rounded-xl border border-line bg-white px-3 py-2 text-xs font-bold leading-5 text-ink/62"
+                >
+                  {item}
+                </p>
+              ))}
+            </div>
+          ) : null}
+        </div>
 
         <div className={`mt-3 rounded-2xl border border-pine/10 bg-mint/70 ${compact ? "p-3" : "p-4"}`}>
           <p className="text-xs font-black uppercase tracking-normal text-pine/70">
             What this means
           </p>
           <p className="mt-2 text-sm font-semibold leading-6 text-ink/68 2xl:text-xs 2xl:leading-5">
-            {nextStep(opportunity)}
+            {plainInsight?.nextReview ?? nextStep(opportunity)}
+          </p>
+        </div>
+
+        <div className={`mt-3 rounded-2xl border ${guideTone} ${compact ? "p-3" : "p-4"}`}>
+          <p className="text-xs font-black uppercase tracking-normal opacity-70">
+            Beginner action guide
+          </p>
+          <p className="mt-2 text-base font-black leading-tight text-ink">
+            {beginnerGuide.headline}
+          </p>
+          <p className="mt-2 text-sm font-semibold leading-6 text-ink/66 2xl:text-xs 2xl:leading-5">
+            {beginnerGuide.plainEnglish}
+          </p>
+          <div className="mt-3 grid gap-2">
+            {beginnerGuide.steps.map((step, stepIndex) => (
+              <p
+                key={step}
+                className="rounded-xl border border-line bg-white/85 px-3 py-2 text-xs font-bold leading-5 text-ink/64"
+              >
+                <span className="mr-2 text-ink">{stepIndex + 1}.</span>{" "}
+                {step}
+              </p>
+            ))}
+          </div>
+          <p className="mt-3 rounded-xl border border-line bg-white/75 px-3 py-2 text-xs font-bold leading-5 text-ink/56">
+            {plainInsight?.riskNote ?? beginnerGuide.avoid}
           </p>
         </div>
 
@@ -228,13 +288,20 @@ export function OpportunityCard({
         </div>
 
         {compact ? (
-          <div className="mt-5 grid gap-2 sm:grid-cols-[1.2fr_1fr_1fr_0.9fr]">
+          <div className="mt-5 grid gap-2 sm:grid-cols-[1.1fr_1fr_0.8fr_0.8fr_0.8fr]">
             <Link
               href={`/opportunities/${opportunity.symbol}`}
               className="rounded-2xl bg-ink px-4 py-3 text-center text-sm font-black text-white shadow-[0_16px_36px_rgba(7,20,24,0.18)] hover:bg-pine"
             >
               Review
             </Link>
+            <button
+              type="button"
+              onClick={onTrackTrade}
+              className="rounded-2xl border border-pine/25 bg-mint px-4 py-3 text-sm font-black text-pine transition hover:border-pine hover:bg-white"
+            >
+              Track trade
+            </button>
             <button
               type="button"
               onClick={onSave}

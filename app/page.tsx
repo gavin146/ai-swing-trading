@@ -143,13 +143,13 @@ export default async function LandingPage() {
               Pricing
             </Link>
             <Link
-              href="/login"
+              href="/login?next=%2Fdashboard"
               className="rounded-lg border border-line bg-surface px-3 py-2 text-ink hover:border-pine sm:px-4"
             >
               Log in
             </Link>
             <Link
-              href="/signup"
+              href="/signup?next=%2Fdashboard"
               className="rounded-lg bg-ink px-3 py-2 text-white shadow-[0_12px_28px_rgba(7,20,24,0.16)] hover:bg-pine sm:px-4"
             >
               Sign up
@@ -521,7 +521,7 @@ export default async function LandingPage() {
               Choose plan
             </Link>
             <Link
-              href="/login"
+              href="/login?next=%2Fdashboard"
               className="rounded-lg border border-white/20 px-5 py-3 text-center text-sm font-bold text-white hover:bg-white/10"
             >
               Log in

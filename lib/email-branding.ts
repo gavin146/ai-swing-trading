@@ -1,4 +1,5 @@
 import type { OpportunityRow } from "@/lib/database.types";
+import type { MorningPortfolioDigest } from "@/lib/portfolio/morning-digest";
 
 type BrandedMorningEmailArgs = {
   analysisUrl: (symbol: string) => string;
@@ -7,6 +8,8 @@ type BrandedMorningEmailArgs = {
   marketRegime: string;
   openTrackingUrl?: string;
   opportunities: OpportunityRow[];
+  portfolioDigest?: MorningPortfolioDigest | null;
+  portfolioUrl?: string;
   signoff: string;
   subject?: string;
   unsubscribeUrl?: string;
@@ -19,6 +22,143 @@ type BrandedEmailArgs = {
   preheader?: string;
   title: string;
 };
+
+const darkModeSafetyCss = `
+  :root {
+    color-scheme: light only;
+    supported-color-schemes: light;
+  }
+  html,
+  body,
+  .sf-email-bg {
+    background-color: #f5f7fb !important;
+    color-scheme: light only !important;
+    supported-color-schemes: light !important;
+  }
+  @media (prefers-color-scheme: dark) {
+    html,
+    body,
+    .sf-email-bg {
+      background-color: #f5f7fb !important;
+      color-scheme: light only !important;
+      supported-color-schemes: light !important;
+    }
+    [style*="background:#ffffff"],
+    [style*="background: #ffffff"],
+    [style*="background-color:#ffffff"],
+    [style*="background-color: #ffffff"] {
+      background: #ffffff !important;
+      background-color: #ffffff !important;
+    }
+    [style*="background:#f5f7fb"],
+    [style*="background: #f5f7fb"],
+    [style*="background-color:#f5f7fb"],
+    [style*="background-color: #f5f7fb"],
+    [style*="background:#f8fbfa"],
+    [style*="background: #f8fbfa"],
+    [style*="background:#f4f8f5"],
+    [style*="background: #f4f8f5"] {
+      background: #f5f7fb !important;
+      background-color: #f5f7fb !important;
+    }
+    [style*="background:#dbf7e8"],
+    [style*="background: #dbf7e8"] {
+      background: #dbf7e8 !important;
+      background-color: #dbf7e8 !important;
+    }
+    [style*="background:#fff7f5"],
+    [style*="background: #fff7f5"],
+    [style*="background:#fff0ec"],
+    [style*="background: #fff0ec"] {
+      background: #fff7f5 !important;
+      background-color: #fff7f5 !important;
+    }
+    [style*="background:#071418"],
+    [style*="background: #071418"] {
+      background: #071418 !important;
+      background-color: #071418 !important;
+    }
+    [style*="color:#071418"],
+    [style*="color: #071418"] {
+      color: #071418 !important;
+    }
+    [style*="color:#33423d"],
+    [style*="color: #33423d"] {
+      color: #33423d !important;
+    }
+    [style*="color:#3f4d47"],
+    [style*="color: #3f4d47"] {
+      color: #3f4d47 !important;
+    }
+    [style*="color:#65736d"],
+    [style*="color: #65736d"] {
+      color: #65736d !important;
+    }
+    [style*="color:#0b3d3f"],
+    [style*="color: #0b3d3f"] {
+      color: #0b3d3f !important;
+    }
+    [style*="color:#b4533f"],
+    [style*="color: #b4533f"] {
+      color: #b4533f !important;
+    }
+    [style*="color:#ffffff"],
+    [style*="color: #ffffff"] {
+      color: #ffffff !important;
+    }
+    [style*="color:#eef8f4"],
+    [style*="color: #eef8f4"],
+    [style*="color:#e7f3ee"],
+    [style*="color: #e7f3ee"] {
+      color: #eef8f4 !important;
+    }
+    [style*="color:#b7f34b"],
+    [style*="color: #b7f34b"] {
+      color: #b7f34b !important;
+    }
+    [style*="border:1px solid #d8e0ea"],
+    [style*="border: 1px solid #d8e0ea"] {
+      border-color: #d8e0ea !important;
+    }
+  }
+  [data-ogsc] .sf-email-bg {
+    background-color: #f5f7fb !important;
+  }
+  [data-ogsc] [style*="background:#ffffff"],
+  [data-ogsc] [style*="background: #ffffff"] {
+    background: #ffffff !important;
+    background-color: #ffffff !important;
+  }
+  [data-ogsc] [style*="color:#071418"],
+  [data-ogsc] [style*="color: #071418"] {
+    color: #071418 !important;
+  }
+  [data-ogsc] [style*="color:#33423d"],
+  [data-ogsc] [style*="color: #33423d"] {
+    color: #33423d !important;
+  }
+  [data-ogsc] [style*="color:#ffffff"],
+  [data-ogsc] [style*="color: #ffffff"] {
+    color: #ffffff !important;
+  }
+`;
+
+function wrapEmailDocument(preheader: string, bodyHtml: string) {
+  return `<!doctype html>
+<html lang="en" style="margin:0;padding:0;background:#f5f7fb;color-scheme:light only;supported-color-schemes:light;">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="color-scheme" content="light only" />
+    <meta name="supported-color-schemes" content="light" />
+    <title>${escapeHtml(preheader)}</title>
+    <style>${darkModeSafetyCss}</style>
+  </head>
+  <body class="sf-email-bg" style="margin:0;padding:0;background:#f5f7fb;color-scheme:light only;supported-color-schemes:light;">
+    ${bodyHtml}
+  </body>
+</html>`;
+}
 
 export function escapeHtml(value: string) {
   return value
@@ -53,12 +193,12 @@ export function buildBrandedEmail(args: BrandedEmailArgs) {
       "SwingFi is research software, not financial advice. Always review risk and do your own research before making trading decisions.",
   );
 
-  return `
+  const content = `
     <div style="display:none;max-height:0;overflow:hidden;color:transparent;opacity:0;">
       ${safePreheader}
     </div>
-    <div style="margin:0;padding:0;background:#f5f7fb;">
-      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;background:#f5f7fb;">
+    <div class="sf-email-bg" style="margin:0;padding:0;background:#f5f7fb;color-scheme:light only;supported-color-schemes:light;">
+      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;background:#f5f7fb;color-scheme:light only;supported-color-schemes:light;">
         <tr>
           <td align="center" style="padding:28px 14px;">
             <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:640px;border-collapse:collapse;font-family:Inter,Arial,sans-serif;color:#071418;">
@@ -95,6 +235,11 @@ export function buildBrandedEmail(args: BrandedEmailArgs) {
         </tr>
       </table>
     </div>`;
+
+  return wrapEmailDocument(
+    args.preheader ?? "SwingFi daily swing trade intelligence.",
+    content,
+  );
 }
 
 function currency(value: number) {
@@ -102,6 +247,16 @@ function currency(value: number) {
     maximumFractionDigits: value >= 1000 ? 0 : 2,
     minimumFractionDigits: value >= 1000 ? 0 : 2,
   })}`;
+}
+
+function percent(value: number | null | undefined) {
+  if (value === null || value === undefined || !Number.isFinite(value)) {
+    return "Pending";
+  }
+
+  const sign = value > 0 ? "+" : "";
+
+  return `${sign}${value.toFixed(1)}%`;
 }
 
 function scoreTone(score: number) {
@@ -129,6 +284,110 @@ function getGreeting(customerName: string) {
   }
 
   return `Good morning ${cleaned.split(/\s+/)[0]}.`;
+}
+
+function buildPortfolioEmailSection(args: {
+  digest?: MorningPortfolioDigest | null;
+  portfolioUrl?: string;
+}) {
+  const digest = args.digest;
+  const portfolioUrl = args.portfolioUrl ?? "#";
+
+  if (!digest?.positions.length) {
+    return {
+      html: `
+        <div style="margin-top:22px;border:1px solid #d8e0ea;border-radius:16px;background:#f8fbfa;padding:18px;">
+          <p style="margin:0;color:#0b3d3f;font-size:12px;font-weight:900;letter-spacing:.03em;text-transform:uppercase;">Portfolio check</p>
+          <h2 style="margin:8px 0 6px;color:#071418;font-size:22px;line-height:1.2;font-weight:900;">No tracked swing positions yet</h2>
+          <p style="margin:0;color:#33423d;font-size:13px;line-height:1.6;">Add trades to your SwingFi portfolio to receive morning plan checks, countdowns, and headline watch items alongside daily rankings.</p>
+          ${brandedButton("Open portfolio", portfolioUrl)}
+        </div>`,
+      text:
+        "Portfolio check: no tracked swing positions yet. Add trades to your SwingFi portfolio to receive morning plan checks and headline watch items.",
+    };
+  }
+
+  const rows = digest.positions
+    .map((position) => {
+      const newsRows = position.latestNews.length
+        ? position.latestNews
+            .map((item) => {
+              const title = escapeHtml(item.title);
+              const site = escapeHtml(item.site ?? "Market news");
+              const url = item.url ? escapeHtml(item.url) : "";
+
+              return `<li style="margin:7px 0;color:#33423d;font-size:12px;line-height:1.5;">${url ? `<a href="${url}" style="color:#0b3d3f;text-decoration:underline;font-weight:800;">${title}</a>` : title} <span style="color:#65736d;">${site}</span></li>`;
+            })
+            .join("")
+        : `<li style="margin:7px 0;color:#33423d;font-size:12px;line-height:1.5;">No fresh ticker headlines were available during this check.</li>`;
+      const holdWindow = position.plannedHoldingDays
+        ? `${position.daysHeld}/${position.plannedHoldingDays} days`
+        : `${position.daysHeld} days`;
+
+      return `
+        <div style="margin-top:12px;border:1px solid #d8e0ea;border-radius:14px;background:#ffffff;padding:15px;">
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;">
+            <tr>
+              <td>
+                <p style="margin:0;color:#071418;font-size:19px;font-weight:900;">${escapeHtml(position.symbol)}</p>
+                <p style="margin:5px 0 0;color:#3f4d47;font-size:11px;font-weight:900;text-transform:uppercase;">${escapeHtml(position.planStatus)} · day ${escapeHtml(holdWindow)}</p>
+              </td>
+              <td align="right">
+                <span style="display:inline-block;border-radius:12px;background:${(position.unrealizedReturnPct ?? 0) >= 0 ? "#dbf7e8" : "#fff0ec"};color:${(position.unrealizedReturnPct ?? 0) >= 0 ? "#0b3d3f" : "#b4533f"};font-size:16px;font-weight:900;padding:9px 12px;">${escapeHtml(percent(position.unrealizedReturnPct))}</span>
+              </td>
+            </tr>
+          </table>
+          <p style="margin:12px 0 0;color:#33423d;font-size:13px;line-height:1.6;">${escapeHtml(position.nextReview)}</p>
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;margin-top:12px;">
+            <tr>
+              <td style="width:33.33%;padding:0 6px 0 0;">
+                <div style="border-radius:12px;background:#f5f7fb;border:1px solid #e6ece8;padding:11px;">
+                  <p style="margin:0 0 5px;color:#3f4d47;font-size:10px;font-weight:900;text-transform:uppercase;">Latest</p>
+                  <p style="margin:0;color:#071418;font-size:14px;font-weight:900;">${position.currentPrice ? currency(position.currentPrice) : "Pending"}</p>
+                </div>
+              </td>
+              <td style="width:33.33%;padding:0 6px;">
+                <div style="border-radius:12px;background:#f5f7fb;border:1px solid #e6ece8;padding:11px;">
+                  <p style="margin:0 0 5px;color:#3f4d47;font-size:10px;font-weight:900;text-transform:uppercase;">Target</p>
+                  <p style="margin:0;color:#0b3d3f;font-size:14px;font-weight:900;">${currency(position.targetPrice)}</p>
+                </div>
+              </td>
+              <td style="width:33.33%;padding:0 0 0 6px;">
+                <div style="border-radius:12px;background:#fff7f5;border:1px solid #f0d5ce;padding:11px;">
+                  <p style="margin:0 0 5px;color:#3f4d47;font-size:10px;font-weight:900;text-transform:uppercase;">Stop</p>
+                  <p style="margin:0;color:#b4533f;font-size:14px;font-weight:900;">${currency(position.stopLoss)}</p>
+                </div>
+              </td>
+            </tr>
+          </table>
+          <p style="margin:13px 0 0;color:#071418;font-size:12px;font-weight:900;">Watch before holding longer</p>
+          <p style="margin:5px 0 0;color:#33423d;font-size:12px;line-height:1.55;">${escapeHtml(position.watchItems.join(" · "))}</p>
+          <ul style="margin:10px 0 0;padding-left:18px;">${newsRows}</ul>
+        </div>`;
+    })
+    .join("");
+
+  const text = digest.positions
+    .map((position) => {
+      const headlines = position.latestNews.length
+        ? ` Headlines: ${position.latestNews.map((item) => item.title).join(" | ")}`
+        : " Headlines: none available during this check.";
+
+      return `${position.symbol}: ${position.planStatus}, ${percent(position.unrealizedReturnPct)} open return, day ${position.daysHeld}${position.plannedHoldingDays ? `/${position.plannedHoldingDays}` : ""}. ${position.nextReview}${headlines}`;
+    })
+    .join("\n");
+
+  return {
+    html: `
+      <div style="margin-top:22px;border:1px solid #d8e0ea;border-radius:16px;background:#f8fbfa;padding:18px;">
+        <p style="margin:0;color:#0b3d3f;font-size:12px;font-weight:900;letter-spacing:.03em;text-transform:uppercase;">Portfolio check</p>
+        <h2 style="margin:8px 0 6px;color:#071418;font-size:22px;line-height:1.2;font-weight:900;">${digest.needsReviewCount ? `${digest.needsReviewCount} position${digest.needsReviewCount === 1 ? "" : "s"} need review` : "Tracked positions are inside plan"}</h2>
+        <p style="margin:0;color:#33423d;font-size:13px;line-height:1.6;">SwingFi checked ${digest.openCount} open swing plan${digest.openCount === 1 ? "" : "s"} against latest price, target, stop, planned hold window, and fresh ticker news.</p>
+        ${rows}
+        ${brandedButton("Open portfolio", portfolioUrl)}
+      </div>`,
+    text: `Portfolio check: SwingFi checked ${digest.openCount} open swing plan${digest.openCount === 1 ? "" : "s"}. ${digest.needsReviewCount} need review.\n${text}\nOpen portfolio: ${portfolioUrl}`,
+  };
 }
 
 export function buildBrandedMorningEmail(args: BrandedMorningEmailArgs) {
@@ -225,6 +484,10 @@ export function buildBrandedMorningEmail(args: BrandedMorningEmailArgs) {
           `${index + 1}. ${item.symbol}: score ${item.score}, confidence ${item.confidence}, risk ${item.risk_score}, entry ${currency(item.entry_low)}-${currency(item.entry_high)}, target ${currency(item.target_price)}, stop ${currency(item.stop_loss)}. Analysis: ${args.analysisUrl(item.symbol)}`,
       )
       .join("\n") || "No live ranked opportunities have been saved yet.";
+  const portfolioSection = buildPortfolioEmailSection({
+    digest: args.portfolioDigest,
+    portfolioUrl: args.portfolioUrl,
+  });
   const subject =
     args.subject ??
     `SwingFi morning picks${top.length ? `: ${top.map((item) => item.symbol).join(", ")}` : ""}`;
@@ -234,14 +497,14 @@ export function buildBrandedMorningEmail(args: BrandedMorningEmailArgs) {
   const openPixel = args.openTrackingUrl
     ? `<img src="${args.openTrackingUrl}" width="1" height="1" alt="" style="display:none;width:1px;height:1px;opacity:0;border:0;" />`
     : "";
-
-  return {
-    subject,
-    text: `${greeting}\n\n${args.intro}\nMarket regime: ${args.marketRegime}\n\nTop opportunities:\n${textRows}\n\n${args.signoff}\n\nSwingFi is research software, not financial advice.${args.unsubscribeUrl ? `\n\nUnsubscribe: ${args.unsubscribeUrl}` : ""}`,
-    html: `
-      <div style="margin:0;padding:0;background:#f5f7fb;">
+  const preheader = `SwingFi morning brief${top.length ? `: ${top.map((item) => item.symbol).join(", ")}` : ""}`;
+  const html = `
+      <div class="sf-email-bg" style="margin:0;padding:0;background:#f5f7fb;color-scheme:light only;supported-color-schemes:light;">
+        <div style="display:none;max-height:0;overflow:hidden;color:transparent;opacity:0;">
+          ${escapeHtml(preheader)}
+        </div>
         ${openPixel}
-        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;background:#f5f7fb;">
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;background:#f5f7fb;color-scheme:light only;supported-color-schemes:light;">
           <tr>
             <td align="center" style="padding:28px 14px;">
               <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:780px;border-collapse:collapse;font-family:Inter,Arial,sans-serif;color:#071418;">
@@ -274,6 +537,7 @@ export function buildBrandedMorningEmail(args: BrandedMorningEmailArgs) {
                       </tr>
                     </table>
                     <div style="margin-top:8px;">${rows}</div>
+                    ${portfolioSection.html}
                     <div style="margin-top:20px;border-radius:14px;background:#f5f7fb;border:1px solid #d8e0ea;padding:16px;">
                       <p style="margin:0;color:#071418;font-size:14px;font-weight:900;">Before trading</p>
                       <p style="margin:6px 0 0;color:#33423d;font-size:13px;line-height:1.6;">${safeSignoff} SwingFi is research software, not financial advice.</p>
@@ -287,6 +551,11 @@ export function buildBrandedMorningEmail(args: BrandedMorningEmailArgs) {
             </td>
           </tr>
         </table>
-      </div>`,
+      </div>`;
+
+  return {
+    subject,
+    text: `${greeting}\n\n${args.intro}\nMarket regime: ${args.marketRegime}\n\nTop opportunities:\n${textRows}\n\n${portfolioSection.text}\n\n${args.signoff}\n\nSwingFi is research software, not financial advice.${args.unsubscribeUrl ? `\n\nUnsubscribe: ${args.unsubscribeUrl}` : ""}`,
+    html: wrapEmailDocument(preheader, html),
   };
 }

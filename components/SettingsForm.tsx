@@ -17,6 +17,7 @@ import {
   type SetupPreference,
 } from "@/lib/customer-store";
 import { brokerageOptions, type PreferredBrokerage } from "@/lib/brokerages";
+import { loginHref, signupHref } from "@/lib/customer-flow";
 import { ToastNotice } from "@/components/ToastNotice";
 import type { RiskProfile } from "@/lib/database.types";
 
@@ -154,6 +155,43 @@ const alertChannelOptions: Array<ChoiceOption<AlertChannel>> = [
   },
 ];
 
+const alertTimeOptions = [
+  {
+    description: "Good if you want more time before the open.",
+    label: "Early brief",
+    value: "07:30",
+  },
+  {
+    description: "Balanced timing before most users start reviewing.",
+    label: "Pre-market",
+    value: "08:00",
+  },
+  {
+    description: "Recommended timing before the 9:30 AM market open.",
+    label: "Market prep",
+    value: "08:30",
+  },
+  {
+    description: "Closer to the open for a faster morning routine.",
+    label: "Final check",
+    value: "09:00",
+  },
+];
+
+function confidenceLabel(value: number) {
+  if (value >= 82) return "Very selective";
+  if (value >= 72) return "Quality first";
+  if (value >= 62) return "Balanced";
+  return "Broader list";
+}
+
+function riskLabel(value: number) {
+  if (value <= 45) return "Calmer setups";
+  if (value <= 62) return "Balanced risk";
+  if (value <= 78) return "Higher movement";
+  return "Very aggressive";
+}
+
 function getChoicesFromCustomer(customer: CustomerProfile): SettingsChoices {
   return {
     accountBudget: customer.accountBudget,
@@ -224,9 +262,112 @@ function ChoiceCards<T extends string>({
   );
 }
 
+function PreferenceSlider({
+  description,
+  highLabel = "Stricter",
+  label,
+  lowLabel = "Broader",
+  max,
+  min,
+  name,
+  onChange,
+  value,
+  valueLabel,
+}: {
+  description: string;
+  highLabel?: string;
+  label: string;
+  lowLabel?: string;
+  max: number;
+  min: number;
+  name: string;
+  onChange: (value: number) => void;
+  value: number;
+  valueLabel: string;
+}) {
+  return (
+    <div className="rounded-3xl border border-line bg-surface p-4">
+      <input type="hidden" name={name} value={value} />
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <p className="text-sm font-black text-ink">{label}</p>
+          <p className="mt-1 text-xs font-semibold leading-5 text-ink/55">{description}</p>
+        </div>
+        <div className="shrink-0 rounded-2xl bg-white px-4 py-3 text-right ring-1 ring-line">
+          <p className="text-2xl font-black text-ink">{value}</p>
+          <p className="text-xs font-black text-pine">{valueLabel}</p>
+        </div>
+      </div>
+      <input
+        aria-label={label}
+        type="range"
+        min={min}
+        max={max}
+        value={value}
+        onChange={(event) => onChange(Number(event.target.value))}
+        className="mt-5 h-2 w-full cursor-pointer accent-pine"
+      />
+      <div className="mt-2 flex justify-between text-[11px] font-black uppercase tracking-normal text-ink/38">
+        <span>{lowLabel}</span>
+        <span>{highLabel}</span>
+      </div>
+    </div>
+  );
+}
+
+function TimeChoiceCards({
+  onChange,
+  value,
+}: {
+  onChange: (value: string) => void;
+  value: string;
+}) {
+  return (
+    <div>
+      <input type="hidden" name="alertTime" value={value} />
+      <div className="grid gap-3 sm:grid-cols-2">
+        {alertTimeOptions.map((option) => {
+          const selected = option.value === value;
+
+          return (
+            <button
+              key={option.value}
+              type="button"
+              onClick={() => onChange(option.value)}
+              className={`rounded-2xl border p-4 text-left transition ${
+                selected
+                  ? "border-pine/30 bg-mint shadow-[0_16px_40px_rgba(27,115,102,0.10)]"
+                  : "border-line bg-surface hover:border-pine/30 hover:bg-white"
+              }`}
+            >
+              <span className="flex items-center justify-between gap-3">
+                <span>
+                  <span className="block text-sm font-black text-ink">{option.label}</span>
+                  <span className="mt-1 block text-xs font-black text-pine">{option.value} ET</span>
+                </span>
+                <span
+                  className={`h-3 w-3 rounded-full border ${
+                    selected ? "border-pine bg-pine" : "border-ink/20 bg-white"
+                  }`}
+                />
+              </span>
+              <span className="mt-2 block text-xs font-semibold leading-5 text-ink/58">
+                {option.description}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export function SettingsForm() {
   const [customer, setCustomer] = useState<CustomerProfile | null>(null);
   const [choices, setChoices] = useState<SettingsChoices | null>(null);
+  const [minimumConfidence, setMinimumConfidence] = useState(70);
+  const [maxRiskScore, setMaxRiskScore] = useState(65);
+  const [alertTime, setAlertTime] = useState("08:30");
   const [loaded, setLoaded] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
@@ -240,7 +381,12 @@ export function SettingsForm() {
   }, []);
 
   useEffect(() => {
-    if (customer) setChoices(getChoicesFromCustomer(customer));
+    if (customer) {
+      setChoices(getChoicesFromCustomer(customer));
+      setMinimumConfidence(customer.minimumConfidence);
+      setMaxRiskScore(customer.maxRiskScore);
+      setAlertTime(customer.alertTime);
+    }
   }, [customer]);
 
   function updateChoice<K extends keyof SettingsChoices>(key: K, value: SettingsChoices[K]) {
@@ -324,13 +470,13 @@ export function SettingsForm() {
         </p>
         <div className="mt-5 flex flex-col gap-3 sm:flex-row">
           <Link
-            href="/signup"
+            href={signupHref({ nextPath: "/settings" })}
             className="rounded-2xl bg-ink px-4 py-3 text-center text-sm font-black text-white hover:bg-pine"
           >
-            Create account
+            Create free account
           </Link>
           <Link
-            href="/login"
+            href={loginHref("/settings")}
             className="rounded-2xl border border-line bg-surface px-4 py-3 text-center text-sm font-bold text-ink hover:border-pine"
           >
             Log in
@@ -441,6 +587,33 @@ export function SettingsForm() {
           Subscription checkout and billing are handled by Stripe. SwingFi never stores
           card numbers.
         </p>
+      </section>
+      <section className="rounded-3xl border border-line/80 bg-[linear-gradient(145deg,#071418,#0b3d3f)] p-6 text-white shadow-[0_20px_70px_rgba(7,20,24,0.08)]">
+        <p className="text-sm font-black uppercase tracking-normal text-lime">
+          Your SwingFi setup
+        </p>
+        <h2 className="mt-3 text-2xl font-black">
+          A calmer app profile, not a pile of settings
+        </h2>
+        <p className="mt-2 max-w-3xl text-sm font-semibold leading-6 text-white/62">
+          These choices shape how the dashboard is organized for you. You can always
+          come back and tune them as you learn what kind of swing trades fit you best.
+        </p>
+        <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {[
+            ["Risk feel", riskOptions.find((option) => option.value === activeChoices.riskProfile)?.label ?? "Balanced"],
+            ["Confidence", `${minimumConfidence}+ · ${confidenceLabel(minimumConfidence)}`],
+            ["Risk cap", `${maxRiskScore}/100 · ${riskLabel(maxRiskScore)}`],
+            ["Morning brief", `${alertTime} ET`],
+          ].map(([label, value]) => (
+            <div key={label} className="rounded-2xl border border-white/12 bg-white/8 p-4">
+              <p className="text-xs font-black uppercase tracking-normal text-lime/80">
+                {label}
+              </p>
+              <p className="mt-2 text-sm font-black text-white">{value}</p>
+            </div>
+          ))}
+        </div>
       </section>
       <section className="rounded-3xl border border-line/80 bg-white p-6 shadow-[0_20px_70px_rgba(7,20,24,0.07)]">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -570,34 +743,30 @@ export function SettingsForm() {
         </div>
 
         <div className="mt-6 grid gap-4 sm:grid-cols-2">
-          <label className="grid gap-2 text-sm font-bold text-ink">
-            Minimum confidence
-            <input
-              name="minimumConfidence"
-              type="number"
-              min="0"
-              max="100"
-              defaultValue={customer.minimumConfidence}
-              className="rounded-xl border border-line bg-surface px-4 py-3 font-medium outline-none transition focus:border-pine focus:bg-panel"
-            />
-            <span className="text-xs font-semibold leading-5 text-ink/50">
-              Higher means fewer ideas, but stronger data agreement.
-            </span>
-          </label>
-          <label className="grid gap-2 text-sm font-bold text-ink">
-            Max risk score
-            <input
-              name="maxRiskScore"
-              type="number"
-              min="0"
-              max="100"
-              defaultValue={customer.maxRiskScore}
-              className="rounded-xl border border-line bg-surface px-4 py-3 font-medium outline-none transition focus:border-pine focus:bg-panel"
-            />
-            <span className="text-xs font-semibold leading-5 text-ink/50">
-              Lower means calmer setups; higher allows more volatile opportunities.
-            </span>
-          </label>
+          <PreferenceSlider
+            description="Higher means fewer ideas, but stronger signal agreement before a ticker reaches your dashboard."
+            highLabel="Cleaner"
+            label="Minimum confidence"
+            lowLabel="More ideas"
+            max={95}
+            min={50}
+            name="minimumConfidence"
+            onChange={setMinimumConfidence}
+            value={minimumConfidence}
+            valueLabel={confidenceLabel(minimumConfidence)}
+          />
+          <PreferenceSlider
+            description="Lower keeps the list calmer. Higher allows more volatile opportunities when upside is stronger."
+            highLabel="More risk"
+            label="Max risk score"
+            lowLabel="Calmer"
+            max={90}
+            min={25}
+            name="maxRiskScore"
+            onChange={setMaxRiskScore}
+            value={maxRiskScore}
+            valueLabel={riskLabel(maxRiskScore)}
+          />
         </div>
       </section>
 
@@ -622,7 +791,7 @@ export function SettingsForm() {
           </label>
         </div>
 
-        <div className="mt-5 grid gap-5 lg:grid-cols-[1fr_240px]">
+        <div className="mt-5 grid gap-5">
           <div className="grid gap-3">
             <p className="text-sm font-black text-ink">Delivery channel</p>
             <ChoiceCards
@@ -641,15 +810,10 @@ export function SettingsForm() {
               </div>
             ) : null}
           </div>
-          <label className="grid gap-2 text-sm font-bold text-ink">
-            Alert time
-            <input
-              name="alertTime"
-              type="time"
-              defaultValue={customer.alertTime}
-              className="rounded-xl border border-line bg-surface px-4 py-3 font-medium outline-none transition focus:border-pine focus:bg-panel"
-            />
-          </label>
+          <div className="grid gap-3">
+            <p className="text-sm font-black text-ink">Morning timing</p>
+            <TimeChoiceCards onChange={setAlertTime} value={alertTime} />
+          </div>
         </div>
 
         <div className="mt-5 flex flex-col gap-3 sm:flex-row">

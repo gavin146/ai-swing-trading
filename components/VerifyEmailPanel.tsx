@@ -3,17 +3,24 @@
 import Link from "next/link";
 import { useState } from "react";
 import { ToastNotice } from "@/components/ToastNotice";
+import { customerDestinationLabel, loginHref } from "@/lib/customer-flow";
 
 type VerifyEmailPanelProps = {
   email?: string;
   initialMode: "sent" | "expired" | "invalid" | "unconfigured";
+  nextPath?: string;
 };
 
-export function VerifyEmailPanel({ email = "", initialMode }: VerifyEmailPanelProps) {
+export function VerifyEmailPanel({
+  email = "",
+  initialMode,
+  nextPath = "/dashboard",
+}: VerifyEmailPanelProps) {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [emailValue, setEmailValue] = useState(email);
+  const destinationLabel = customerDestinationLabel(nextPath);
 
   async function handleResend() {
     const normalizedEmail = emailValue.trim().toLowerCase();
@@ -122,10 +129,10 @@ export function VerifyEmailPanel({ email = "", initialMode }: VerifyEmailPanelPr
         </button>
         <div className="grid gap-3 sm:grid-cols-2">
           <Link
-            href="/login"
+            href={loginHref(nextPath)}
             className="rounded-2xl border border-line bg-surface px-5 py-3 text-center text-sm font-bold text-ink transition hover:border-pine"
           >
-            Go to login
+            Continue to {destinationLabel}
           </Link>
           <Link
             href="/"

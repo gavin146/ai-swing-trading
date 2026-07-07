@@ -3,6 +3,7 @@ import { buildMorningEmailAlert } from "@/lib/alerts";
 import { getAdminUnauthorizedResponse, isAdminApiRequest } from "@/lib/auth/admin";
 import { sendEmail } from "@/lib/email";
 import { recordAppEvent } from "@/lib/persistence";
+import type { MorningPortfolioDigest } from "@/lib/portfolio/morning-digest";
 import { listLatestOpportunities } from "@/lib/repositories/opportunities";
 import { sendTwilioSms } from "@/lib/twilio";
 
@@ -18,6 +19,52 @@ type CommunicationTestRequest = {
   sms?: string;
   subject?: string;
   text?: string;
+};
+
+const samplePortfolioDigest: MorningPortfolioDigest = {
+  generatedAt: new Date().toISOString(),
+  needsReviewCount: 1,
+  openCount: 2,
+  positions: [
+    {
+      currentPrice: 104.2,
+      daysHeld: 5,
+      latestNews: [
+        {
+          publishedDate: null,
+          site: "SwingFi preview",
+          title: "Sample catalyst headline used only for the admin test email.",
+          url: null,
+        },
+      ],
+      nextReview:
+        "Price is close to the target. Review whether to protect gains if momentum slows.",
+      openedAt: new Date().toISOString(),
+      planStatus: "Near target",
+      plannedHoldingDays: 7,
+      stopLoss: 94.5,
+      symbol: "SAMPLE",
+      targetPrice: 106,
+      unrealizedReturnPct: 4.2,
+      watchItems: ["Target-zone rejection", "Open gain versus remaining upside"],
+    },
+    {
+      currentPrice: 48.65,
+      daysHeld: 2,
+      latestNews: [],
+      nextReview:
+        "No urgent exit signal from the saved plan. Keep watching target, stop, and new headlines.",
+      openedAt: new Date().toISOString(),
+      planStatus: "Inside plan",
+      plannedHoldingDays: 10,
+      stopLoss: 44.8,
+      symbol: "DEMO",
+      targetPrice: 53.4,
+      unrealizedReturnPct: 1.1,
+      watchItems: ["Target progress", "Stop area", "Fresh catalyst changes"],
+    },
+  ],
+  source: "supabase",
 };
 
 export async function POST(request: NextRequest) {
@@ -44,6 +91,7 @@ export async function POST(request: NextRequest) {
         customerId: "admin-test",
         marketRegime: "balanced",
         opportunities: opportunityResult.rows,
+        portfolioDigest: samplePortfolioDigest,
       });
       const delivery = await sendEmail({
         to: email,

@@ -8,6 +8,7 @@ import {
   restoreAuthenticatedCustomerSession,
   type CustomerProfile,
 } from "@/lib/customer-store";
+import { loginHref, signupHref } from "@/lib/customer-flow";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 
 type PickHistoryItem = {
@@ -171,11 +172,11 @@ export function PickHistoryPanel() {
         setPerformance(null);
         setStatus("Create an account or log in to see your saved daily picks.");
         setGate({
-          actionHref: "/login",
-          actionLabel: "Log in",
+          actionHref: signupHref({ nextPath: "/history" }),
+          actionLabel: "Create free account",
           message:
             "History is tied to your SwingFi account so saved picks, outcomes, and portfolio notes stay private.",
-          title: "Log in to view saved history",
+          title: "Create an account to view saved history",
         });
         setIsLoading(false);
         return;
@@ -251,7 +252,7 @@ export function PickHistoryPanel() {
       setPerformance(null);
       setStatus(message);
       setGate({
-        actionHref: message.toLowerCase().includes("login session") ? "/login" : undefined,
+        actionHref: message.toLowerCase().includes("login session") ? loginHref("/history") : undefined,
         actionLabel: message.toLowerCase().includes("login session") ? "Log in again" : undefined,
         message:
           "SwingFi could not verify the saved-picks connection for this session. Refresh the page, or log in again if your session expired.",
