@@ -33,6 +33,11 @@ const promptCards = [
     label: "Portfolio next",
     question: "Which portfolio position needs attention first and what should I review next?",
   },
+  {
+    body: "See whether adding would be near the plan or chasing.",
+    label: "Add exposure",
+    question: "Would adding to any portfolio position be chasing right now?",
+  },
 ];
 
 const contextPills = [
@@ -48,7 +53,7 @@ function messageId() {
 
 function splitAnswer(text: string) {
   return text
-    .split(/\n{2,}|\n-\s+|\n\d+\.\s+/)
+    .split(/\n{2,}|\n-\s+|\n\d+[.)]\s+/)
     .map((item) => item.trim())
     .filter(Boolean);
 }
@@ -78,7 +83,7 @@ export function SwingFiAssistant({ enabled }: { enabled: boolean }) {
       id: "welcome",
       role: "assistant",
       text:
-        "Ask me for a plain-English read on a ticker, today's top rankings, or your tracked portfolio. I will use SwingFi data only: scores, entry range, target, stop, current portfolio prices, headlines, and prediction outcomes.",
+        "Ask me for a plain-English read on a ticker, today's top rankings, or your tracked portfolio. I can compare current price against entry, target, stop, days left, headlines, and whether adding exposure would be near the plan or chasing.",
     },
   ]);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
@@ -221,7 +226,7 @@ export function SwingFiAssistant({ enabled }: { enabled: boolean }) {
 
             <div className="flex-1 overflow-y-auto bg-surface p-3 sm:p-4">
               {messages.length === 1 ? (
-                <div className="mb-3 grid gap-2 sm:grid-cols-3">
+                <div className="mb-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
                   {promptCards.map((prompt) => (
                     <button
                       key={prompt.question}
@@ -337,7 +342,8 @@ export function SwingFiAssistant({ enabled }: { enabled: boolean }) {
               </form>
               <p className="mt-2 text-xs font-semibold leading-5 text-ink/45">
                 Better questions include a ticker or goal, like “explain AMZN” or
-                “which position is closest to target?” SwingFi does not place trades.
+                “would adding be chasing?” or “which position is closest to target?”
+                SwingFi does not place trades.
               </p>
             </div>
           </section>

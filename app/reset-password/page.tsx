@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { BrandMark } from "@/components/BrandMark";
 import { LoginForm } from "@/components/LoginForm";
 
@@ -21,7 +22,19 @@ export default function ResetPasswordPage() {
           </div>
         </div>
         <div className="grid place-items-center p-5 sm:p-8">
-          <LoginForm />
+          <Suspense
+            fallback={
+              <div className="w-full max-w-md rounded-3xl border border-line bg-white p-6 shadow-soft">
+                <div className="skeleton h-5 w-36 rounded-full" />
+                <div className="mt-4 grid gap-3">
+                  <div className="skeleton h-12 rounded-2xl" />
+                  <div className="skeleton h-12 rounded-2xl" />
+                </div>
+              </div>
+            }
+          >
+            <LoginForm />
+          </Suspense>
         </div>
       </section>
     </main>

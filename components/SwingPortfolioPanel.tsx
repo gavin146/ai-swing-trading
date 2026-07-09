@@ -2353,9 +2353,14 @@ export function SwingPortfolioPanel({ initialTrade }: { initialTrade?: InitialTr
                                   </p>
                                   <div className="mt-2 grid gap-2">
                                     {trade.latestNews.length ? (
-                                      trade.latestNews.map((item) => (
+                                      trade.latestNews.map((item, newsIndex) => (
                                         <a
-                                          key={`${trade.id}-${item.title}`}
+                                          key={[
+                                            trade.id,
+                                            newsIndex,
+                                            item.publishedDate ?? "no-date",
+                                            item.url ?? item.title,
+                                          ].join("-")}
                                           href={item.url ?? "#"}
                                           target="_blank"
                                           rel="noreferrer"
