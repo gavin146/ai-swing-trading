@@ -257,15 +257,15 @@ export function AdminWorkspace() {
   const activeTabMeta = adminTabs.find((tab) => tab.key === activeTab) ?? adminTabs[0];
 
   return (
-    <div className="grid min-w-0 gap-4 xl:grid-cols-[250px_minmax(0,1fr)] 2xl:grid-cols-[280px_minmax(0,1fr)] xl:gap-5">
-      <aside className="premium-panel min-w-0 rounded-[24px] p-3 sm:rounded-3xl sm:p-4 xl:sticky xl:top-24 xl:self-start">
-        <div className="rounded-[20px] bg-ink p-3 text-white sm:grid sm:grid-cols-[1fr_auto] sm:items-center sm:gap-4 sm:p-4 xl:block">
+    <div className="grid min-w-0 gap-3 sm:gap-4 xl:grid-cols-[250px_minmax(0,1fr)] 2xl:grid-cols-[280px_minmax(0,1fr)] xl:gap-5">
+      <aside className="premium-panel min-w-0 rounded-[22px] p-2.5 sm:rounded-3xl sm:p-4 xl:sticky xl:top-24 xl:self-start">
+        <div className="rounded-[18px] bg-ink p-3 text-white sm:grid sm:grid-cols-[1fr_auto] sm:items-center sm:gap-4 sm:p-4 xl:block">
           <div className="min-w-0">
             <p className="text-xs font-black uppercase tracking-normal text-white/60">
               SwingFi admin
             </p>
             <p className="mt-1 break-words text-sm font-bold">{adminCustomer.email}</p>
-            <p className="mt-1 hidden text-xs font-semibold leading-5 text-white/62 sm:block">
+            <p className="mt-1 hidden text-xs font-semibold leading-5 text-white/62 md:block">
               Full access to operations, alerts, customers, and opportunity management.
             </p>
           </div>
@@ -274,19 +274,19 @@ export function AdminWorkspace() {
           </span>
         </div>
 
-        <div className="mt-3 rounded-[20px] border border-line bg-surface p-3 xl:hidden">
+        <div className="mt-2 rounded-[18px] border border-line bg-surface p-3 sm:mt-3 xl:hidden">
           <p className="text-[11px] font-black uppercase tracking-normal text-pine">
             Current section
           </p>
-          <p className="mt-1 text-lg font-black leading-tight text-ink">
+          <p className="mt-1 text-base font-black leading-tight text-ink sm:text-lg">
             {activeTabMeta.label}
           </p>
-          <p className="mt-1 text-xs font-semibold leading-5 text-ink/58">
+          <p className="mt-1 line-clamp-2 text-xs font-semibold leading-5 text-ink/58 sm:line-clamp-none">
             {activeTabMeta.description}
           </p>
         </div>
 
-        <nav className="-mx-3 mt-3 overflow-x-auto px-3 pb-1 xl:hidden" aria-label="Admin sections">
+        <nav className="-mx-2.5 mt-2 overflow-x-auto px-2.5 pb-1 sm:-mx-3 sm:mt-3 sm:px-3 xl:hidden" aria-label="Admin sections">
           <div className="flex min-w-max gap-2">
             {adminTabGroups.map((group) => (
               <div key={group.label} className="flex shrink-0 gap-2">
@@ -298,7 +298,7 @@ export function AdminWorkspace() {
                       key={tab.key}
                       type="button"
                       onClick={() => selectTab(tab.key)}
-                      className={`min-h-11 w-32 shrink-0 rounded-2xl border px-3 py-2 text-center text-xs font-black leading-tight transition sm:w-40 sm:text-sm ${
+                      className={`min-h-10 w-28 shrink-0 rounded-2xl border px-2.5 py-2 text-center text-xs font-black leading-tight transition sm:min-h-11 sm:w-40 sm:px-3 sm:text-sm ${
                         isActive
                           ? "border-pine bg-mint text-ink shadow-soft"
                           : "border-line/70 bg-white text-ink/62 hover:border-pine/30 hover:bg-white"
@@ -348,7 +348,7 @@ export function AdminWorkspace() {
 
       </aside>
 
-      <div className="min-w-0 overflow-hidden rounded-[24px] sm:rounded-3xl [&_*]:min-w-0 [&_table]:min-w-full [&>section]:mb-0">
+      <div className="min-w-0 overflow-hidden rounded-[22px] sm:rounded-3xl [&_*]:min-w-0 [&_h1]:text-2xl [&_h2]:leading-tight [&_p]:break-words [&_table]:min-w-full [&>section]:mb-0">
         {activePanel}
       </div>
     </div>

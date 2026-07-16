@@ -3,7 +3,7 @@
 import Link from "next/link";
 import type { Opportunity } from "@/lib/opportunities";
 import type { PlainLanguageInsight } from "@/lib/plain-language-insights";
-import { getBeginnerTradeGuide } from "@/lib/trade-guidance";
+import { getCoachVerdict } from "@/lib/trade-guidance";
 import { MetricPill } from "./MetricPill";
 import { ScoreMeter } from "./ScoreMeter";
 
@@ -25,18 +25,6 @@ function scoreTone(score: number) {
   if (score >= 85) return "positive";
   if (score >= 70) return "neutral";
   return "caution";
-}
-
-function nextStep(opportunity: Opportunity) {
-  if (opportunity.opportunityScore >= 80 && opportunity.confidenceScore >= 75 && opportunity.riskScore <= 55) {
-    return "High-priority review: check whether the current price is still inside the entry range and whether the stop fits your risk limit.";
-  }
-
-  if (opportunity.opportunityScore >= 65) {
-    return "Watchlist review: useful setup, but wait for a clean entry and keep the stop loss in mind before acting.";
-  }
-
-  return "Lower-priority review: consider waiting for stronger confirmation before spending much time on this idea.";
 }
 
 function MiniScore({
@@ -72,11 +60,11 @@ export function OpportunityCard({
   plainInsight,
   rank,
 }: OpportunityCardProps) {
-  const beginnerGuide = getBeginnerTradeGuide(opportunity);
-  const guideTone =
-    beginnerGuide.tone === "positive"
+  const coach = getCoachVerdict(opportunity);
+  const verdictTone =
+    coach.badgeTone === "positive"
       ? "border-pine/15 bg-mint/75 text-pine"
-      : beginnerGuide.tone === "caution"
+      : coach.badgeTone === "caution"
         ? "border-coral/20 bg-coral/10 text-coral"
         : "border-amber/30 bg-amber/15 text-ink";
 
@@ -98,8 +86,8 @@ export function OpportunityCard({
               <span className="rounded-full bg-surface px-3 py-1 text-xs font-bold text-ink/58 ring-1 ring-line/70">
                 {opportunity.assetType}
               </span>
-              <span className="rounded-full bg-mint px-3 py-1 text-xs font-black text-pine">
-                {opportunity.tradeQuality}
+              <span className={`rounded-full px-3 py-1 text-xs font-black ring-1 ${verdictTone}`}>
+                {coach.actionLabel}
               </span>
               <span className="rounded-full bg-sky px-3 py-1 text-xs font-bold text-ink/64 ring-1 ring-line/60">
                 {opportunity.setupPattern}
@@ -149,64 +137,62 @@ export function OpportunityCard({
           </div>
         )}
 
-        <div className={`mt-5 rounded-2xl border border-line/80 bg-surface text-sm font-medium leading-7 text-ink/68 ${
+        <div className={`mt-5 rounded-2xl border ${verdictTone} text-sm font-medium leading-7 ${
           compact ? "p-3 2xl:mt-4 2xl:leading-6" : "p-4"
         }`}>
-          <p className="text-xs font-black uppercase tracking-normal text-pine">
-            Plain-English read
+          <p className="text-xs font-black uppercase tracking-normal opacity-70">
+            SwingFi verdict
           </p>
-          <p className="mt-2 font-bold text-ink">
+          <p className="mt-2 text-lg font-black leading-6 text-ink">
+            {coach.actionText}
+          </p>
+          <p className="mt-2 font-bold leading-6 text-ink/70">
+            {coach.directionText}
+          </p>
+        </div>
+
+        <div className="mt-3 grid gap-2 sm:grid-cols-3">
+          <MetricPill label="Expected" value={coach.direction} tone={coach.badgeTone === "caution" ? "risk" : "positive"} />
+          <MetricPill label="Gain / risk" value={`${opportunity.potentialGain} / ${opportunity.potentialLoss}`} tone="neutral" />
+          <MetricPill label="Forecast range" value={coach.forecastRange} tone="positive" />
+        </div>
+
+        <div className={`mt-3 rounded-2xl border border-line/80 bg-surface ${compact ? "p-3" : "p-4"}`}>
+          <p className="text-xs font-black uppercase tracking-normal text-pine/70">
+            Why it matters
+          </p>
+          <p className="mt-2 text-sm font-semibold leading-6 text-ink/68 2xl:text-xs 2xl:leading-5">
+            {coach.reason}
+          </p>
+          <p className="mt-2 text-xs font-bold leading-5 text-ink/58">
+            {coach.guardrail}
+          </p>
+        </div>
+
+        <div className={`mt-3 rounded-2xl border border-line bg-white ${compact ? "p-3" : "p-4"}`}>
+          <p className="text-xs font-black uppercase tracking-normal opacity-70">
+            Data behind the verdict
+          </p>
+          <p className="mt-2 text-base font-black leading-tight text-ink">
             {plainInsight?.headline ?? "Why this ticker is ranked"}
           </p>
-          <p className="mt-2">
+          <p className="mt-2 text-sm font-semibold leading-6 text-ink/66 2xl:text-xs 2xl:leading-5">
             {plainInsight?.summary ?? opportunity.rankingSummary}
           </p>
           {plainInsight?.evidence?.length ? (
-            <div className="mt-3 grid gap-2">
-              {plainInsight.evidence.slice(0, 3).map((item) => (
-                <p
-                  key={item}
-                  className="rounded-xl border border-line bg-white px-3 py-2 text-xs font-bold leading-5 text-ink/62"
-                >
-                  {item}
-                </p>
-              ))}
-            </div>
-          ) : null}
-        </div>
-
-        <div className={`mt-3 rounded-2xl border border-pine/10 bg-mint/70 ${compact ? "p-3" : "p-4"}`}>
-          <p className="text-xs font-black uppercase tracking-normal text-pine/70">
-            What this means
-          </p>
-          <p className="mt-2 text-sm font-semibold leading-6 text-ink/68 2xl:text-xs 2xl:leading-5">
-            {plainInsight?.nextReview ?? nextStep(opportunity)}
-          </p>
-        </div>
-
-        <div className={`mt-3 rounded-2xl border ${guideTone} ${compact ? "p-3" : "p-4"}`}>
-          <p className="text-xs font-black uppercase tracking-normal opacity-70">
-            Beginner action guide
-          </p>
-          <p className="mt-2 text-base font-black leading-tight text-ink">
-            {beginnerGuide.headline}
-          </p>
-          <p className="mt-2 text-sm font-semibold leading-6 text-ink/66 2xl:text-xs 2xl:leading-5">
-            {beginnerGuide.plainEnglish}
-          </p>
-          <div className="mt-3 grid gap-2">
-            {beginnerGuide.steps.map((step, stepIndex) => (
+          <div className="mt-3 hidden gap-2 sm:grid">
+            {plainInsight.evidence.slice(0, 3).map((item) => (
               <p
-                key={step}
+                key={item}
                 className="rounded-xl border border-line bg-white/85 px-3 py-2 text-xs font-bold leading-5 text-ink/64"
               >
-                <span className="mr-2 text-ink">{stepIndex + 1}.</span>{" "}
-                {step}
+                {item}
               </p>
             ))}
           </div>
+          ) : null}
           <p className="mt-3 rounded-xl border border-line bg-white/75 px-3 py-2 text-xs font-bold leading-5 text-ink/56">
-            {plainInsight?.riskNote ?? beginnerGuide.avoid}
+            {plainInsight?.riskNote ?? coach.riskText}
           </p>
         </div>
 

@@ -261,11 +261,11 @@ export function getTradeLiveIntelligence(trade: TradeIntelligenceInput) {
   }
 
   return {
-    decisionZone: "Needs confirmation",
+    decisionZone: "Hold plan; do not add yet",
     directionRead: `${trade.symbol} is trading ${formatPercent(openReturn)} from your tracked entry and remains between the stop and target.`,
-    liveRead: "The setup has not failed, but price is not yet proving the entry right.",
+    liveRead: "The setup has not failed, but the price has not moved enough in your favor to justify getting more aggressive.",
     news,
-    nextReview: "Look for price to reclaim the entry area or improve relative to the stop before giving the setup more confidence.",
+    nextReview: "Keep the stop visible. Wait for price to move back above your entry or closer to the target before treating the trade as stronger.",
     priceFacts,
     tone: news.tone === "caution" ? "caution" : "neutral" as const,
   };

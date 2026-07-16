@@ -19,7 +19,17 @@ function outcomeLabel(value: string) {
   if (value === "target_hit") return "Target hit";
   if (value === "stop_hit") return "Stop hit";
   if (value === "expired") return "Expired";
-  return "No data";
+  if (value === "no_data") return "No entry/data";
+  return value;
+}
+
+function formatDateTime(value: string | null | undefined) {
+  if (!value) return "Not saved yet";
+
+  return new Intl.DateTimeFormat("en", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(new Date(value));
 }
 
 export function BacktestPanel() {
@@ -28,6 +38,41 @@ export function BacktestPanel() {
   const [checkedAccess, setCheckedAccess] = useState(false);
   const [summary, setSummary] = useState<BacktestSummary | null>(null);
   const [message, setMessage] = useState("Ready to verify recent picks");
+
+  async function loadLatestBacktest() {
+    if (!adminAllowed && !isAdminCustomer(getCurrentCustomer())) {
+      setStatus("error");
+      setSummary(null);
+      setMessage("Admin access is required to view backtest results.");
+      return;
+    }
+
+    setStatus("loading");
+    setMessage("Loading latest saved verification report...");
+
+    try {
+      const response = await fetch("/api/backtests/rolling?mode=latest", {
+        headers: await getAdminHeaders(),
+      });
+
+      if (!response.ok) {
+        const payload = (await response.json().catch(() => ({}))) as { error?: string };
+        throw new Error(payload.error ?? "No saved backtest report found.");
+      }
+
+      const payload = (await response.json()) as BacktestSummary;
+      setSummary(payload);
+      setStatus("ready");
+      setMessage("Latest saved verification report loaded");
+    } catch (error) {
+      setStatus("error");
+      setMessage(
+        error instanceof Error
+          ? error.message
+          : "No saved backtest report found. Run verification once to create one.",
+      );
+    }
+  }
 
   async function runBacktest() {
     if (!adminAllowed && !isAdminCustomer(getCurrentCustomer())) {
@@ -53,7 +98,7 @@ export function BacktestPanel() {
       const payload = (await response.json()) as BacktestSummary;
       setSummary(payload);
       setStatus("ready");
-      setMessage("Verification run complete");
+      setMessage("New verification run complete and saved");
     } catch (error) {
       setStatus("error");
       setMessage(error instanceof Error ? error.message : "Verification run failed");
@@ -73,27 +118,31 @@ export function BacktestPanel() {
 
       if (allowed) {
         setStatus("loading");
-        setMessage("Running rolling verification against historical candles...");
+        setMessage("Loading latest saved verification report...");
 
         try {
-          const response = await fetch("/api/backtests/rolling?windows=5&intervalDays=21&limit=6", {
+          const response = await fetch("/api/backtests/rolling?mode=latest", {
             headers: await getAdminHeaders(),
           });
 
           if (!response.ok) {
             const payload = (await response.json().catch(() => ({}))) as { error?: string };
-            throw new Error(payload.error ?? "Backtest failed");
+            throw new Error(payload.error ?? "No saved backtest report found.");
           }
 
           if (!active) return;
           const payload = (await response.json()) as BacktestSummary;
           setSummary(payload);
           setStatus("ready");
-          setMessage("Verification run complete");
+          setMessage("Latest saved verification report loaded");
         } catch (error) {
           if (!active) return;
           setStatus("error");
-          setMessage(error instanceof Error ? error.message : "Verification run failed");
+          setMessage(
+            error instanceof Error
+              ? error.message
+              : "No saved backtest report found. Run verification once to create one.",
+          );
         }
       } else {
         setStatus("error");
@@ -157,13 +206,27 @@ export function BacktestPanel() {
             className="rounded-md bg-pine px-4 py-3 text-sm font-bold text-white transition hover:bg-ink disabled:cursor-not-allowed disabled:opacity-60"
             disabled={status === "loading"}
           >
-            Run verification
+            Run new verification
           </button>
         </div>
 
-        <div className="mt-6 rounded-lg border border-line bg-surface p-4">
-          <p className="text-xs font-bold uppercase tracking-normal text-ink/55">Status</p>
-          <p className="mt-2 text-xl font-bold text-ink">{message}</p>
+        <div className="mt-6 grid gap-3 lg:grid-cols-[1fr_auto] lg:items-center">
+          <div className="rounded-lg border border-line bg-surface p-4">
+            <p className="text-xs font-bold uppercase tracking-normal text-ink/55">Status</p>
+            <p className="mt-2 text-xl font-bold text-ink">{message}</p>
+            <p className="mt-2 text-sm font-semibold leading-6 text-ink/60">
+              Latest report: {formatDateTime(summary?.generatedAt)}. This is a historical
+              simulation report, not live forward accuracy.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => void loadLatestBacktest()}
+            className="rounded-md border border-line bg-surface px-4 py-3 text-sm font-bold text-ink transition hover:border-pine disabled:cursor-not-allowed disabled:opacity-60"
+            disabled={status === "loading"}
+          >
+            Load latest saved
+          </button>
         </div>
       </section>
 
@@ -195,6 +258,9 @@ export function BacktestPanel() {
                 Trades tested
               </p>
               <p className="mt-2 text-3xl font-bold text-ink">{summary.tradesTested}</p>
+              <p className="mt-2 text-xs font-semibold leading-5 text-ink/55">
+                {summary.windowsTested} windows across {summary.symbols.length} symbols
+              </p>
             </div>
             <div className="rounded-lg border border-line bg-panel p-5 shadow-soft">
               <p className="text-xs font-bold uppercase tracking-normal text-ink/55">
@@ -202,6 +268,27 @@ export function BacktestPanel() {
               </p>
               <p className="mt-2 text-3xl font-bold text-ink">
                 {summary.averageRewardRiskRatio.toFixed(2)}R
+              </p>
+            </div>
+          </section>
+
+          <section className="min-w-0 rounded-xl border border-amber/30 bg-amber/[0.14] p-5 shadow-soft">
+            <p className="text-sm font-bold uppercase tracking-normal text-ink/60">
+              How to read this report
+            </p>
+            <div className="mt-3 grid gap-3 text-sm font-semibold leading-6 text-ink/68 lg:grid-cols-3">
+              <p>
+                This backtest re-runs the current ranking engine on older dates, then checks
+                what happened afterward with FMP historical candles.
+              </p>
+              <p>
+                It is useful for finding weak scoring patterns, but it is not perfect
+                point-in-time research because some fundamentals/news inputs may reflect
+                current availability.
+              </p>
+              <p>
+                The stronger production truth source is forward prediction accuracy, because
+                that measures picks saved before their outcomes happened.
               </p>
             </div>
           </section>

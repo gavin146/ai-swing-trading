@@ -1,5 +1,5 @@
 import type { TradeHistoryRow, TradeStatus } from "@/lib/database.types";
-import { getFmpCompanyProfile, getFmpStockNews } from "@/lib/providers/fmp";
+import { getFmpCompanyProfile, getFmpHistoricalCandles, getFmpStockNews } from "@/lib/providers/fmp";
 import { createSupabaseAdminClient, hasSupabaseAdminConfig } from "@/lib/supabase/server";
 
 export type MorningPortfolioNewsItem = {
@@ -64,6 +64,26 @@ function getPlannedHoldingDays(notes: unknown) {
   const parsed = Number(match?.[1]);
 
   return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
+function dateDaysAgo(days: number) {
+  const date = new Date();
+  date.setDate(date.getDate() - days);
+  return date.toISOString().slice(0, 10);
+}
+
+async function getLatestPortfolioPrice(symbol: string, profilePrice: unknown) {
+  const currentPrice = parsePositiveNumber(profilePrice);
+
+  if (currentPrice !== null) return currentPrice;
+
+  const candles = await getFmpHistoricalCandles(symbol, dateDaysAgo(14), new Date().toISOString().slice(0, 10))
+    .catch(() => []);
+  const latestClose = [...candles]
+    .filter((candle) => parsePositiveNumber(candle.close) !== null)
+    .sort((a, b) => String(b.date).localeCompare(String(a.date)))[0]?.close;
+
+  return parsePositiveNumber(latestClose);
 }
 
 function buildPositionPlan(trade: {
@@ -166,7 +186,7 @@ async function enrichPosition(row: TradeHistoryRow) {
     getFmpCompanyProfile(symbol).catch(() => null),
     getFmpStockNews(symbol, 2).catch(() => []),
   ]);
-  const currentPrice = parsePositiveNumber(profile?.price);
+  const currentPrice = await getLatestPortfolioPrice(symbol, profile?.price);
   const entryPrice = Number(row.entry_price);
   const targetPrice = Number(row.target_price);
   const stopLoss = Number(row.stop_loss);

@@ -3,13 +3,16 @@ import type {
   RankedEquityOpportunity,
   RankingCalibrationRule,
 } from "@/lib/agent";
-import type { BacktestSummary } from "@/lib/backtesting";
+import type { BacktestSummary, BacktestTrade } from "@/lib/backtesting";
 import type {
   AccountBudget,
   AlertChannel,
   AlertStatus,
+  BacktestRunRow,
+  BacktestTradeRow,
   Json,
   OpportunityRow,
+  RankingCalibrationRuleRow,
   RiskProfile,
   SetupPreference,
 } from "@/lib/database.types";
@@ -729,6 +732,168 @@ export async function persistBacktestSummary(summary: BacktestSummary) {
   }
 
   return { persisted: true } satisfies PersistenceResult;
+}
+
+function parseScoreBands(value: Json): BacktestSummary["scoreBands"] {
+  if (!Array.isArray(value)) return [];
+
+  return value
+    .filter((item) => Boolean(item) && typeof item === "object" && !Array.isArray(item))
+    .map((item) => ({
+      averageReturnPct: Number((item as Record<string, unknown>).averageReturnPct ?? 0),
+      averageRiskScore: Number((item as Record<string, unknown>).averageRiskScore ?? 0),
+      count: Number((item as Record<string, unknown>).count ?? 0),
+      label: String((item as Record<string, unknown>).label ?? "Unknown"),
+      targetHitRate: Number((item as Record<string, unknown>).targetHitRate ?? 0),
+    }));
+}
+
+function toBacktestTrade(row: BacktestTradeRow): BacktestTrade {
+  return {
+    asOf: row.as_of,
+    confidence: row.confidence,
+    entryDate: row.entry_date,
+    entryPrice: row.entry_price,
+    exitDate: row.exit_date,
+    exitPrice: row.exit_price,
+    holdingPeriodDays: row.holding_period_days,
+    maxDrawdownPct: row.max_drawdown_pct,
+    maxGainPct: row.max_gain_pct,
+    outcome: row.outcome,
+    rank: row.rank,
+    returnPct: row.return_pct,
+    rewardRiskRatio: row.reward_risk_ratio,
+    riskScore: row.risk_score,
+    score: row.score,
+    stopLoss: row.stop_loss,
+    symbol: row.symbol,
+    targetPrice: row.target_price,
+  };
+}
+
+function toCalibrationRule(row: RankingCalibrationRuleRow): RankingCalibrationRule {
+  return {
+    active: row.active,
+    averageReturnPct: row.average_return_pct,
+    confidence: row.confidence,
+    confidencePenalty: row.confidence_penalty,
+    createdAt: row.created_at,
+    description: row.description,
+    id: row.id,
+    label: row.label,
+    riskAdjustment: row.risk_adjustment,
+    ruleKey: row.rule_key as RankingCalibrationRule["ruleKey"],
+    sampleSize: row.sample_size,
+    scorePenalty: row.score_penalty,
+    source: "backtest",
+    stopHitRate: row.stop_hit_rate,
+    targetHitRate: row.target_hit_rate,
+    triggerDescription: row.trigger_description,
+  };
+}
+
+function toBacktestSummary(
+  run: BacktestRunRow,
+  trades: BacktestTradeRow[],
+  rules: RankingCalibrationRuleRow[],
+): BacktestSummary {
+  const calibrationRules = rules.map(toCalibrationRule);
+
+  return {
+    averageMaxDrawdownPct: run.average_max_drawdown_pct,
+    averageMaxGainPct: run.average_max_gain_pct,
+    averageReturnPct: run.average_return_pct,
+    averageRewardRiskRatio: run.average_reward_risk_ratio,
+    averageScore: run.average_score,
+    calibrationTable: calibrationRules,
+    expiredRate: run.expired_rate,
+    generatedAt: run.generated_at,
+    learningFeedback: {
+      calibrationRules: calibrationRules.length
+        ? calibrationRules.map((rule) => rule.description)
+        : ["No active calibration rules were generated for this saved backtest."],
+      confidence: run.trades_tested >= 60 ? "high" : run.trades_tested >= 25 ? "medium" : "low",
+      openAiInstruction: run.openai_instruction,
+      summary: run.learning_summary,
+    },
+    notes: run.notes,
+    runId: run.id,
+    scoreBands: parseScoreBands(run.score_bands),
+    stopHitRate: run.stop_hit_rate,
+    symbols: run.symbols,
+    targetHitRate: run.target_hit_rate,
+    trades: trades.map(toBacktestTrade),
+    tradesTested: run.trades_tested,
+    windowsTested: run.windows_tested,
+  };
+}
+
+export async function getLatestBacktestSummary() {
+  const supabase = createSupabaseAdminClient();
+
+  if (!supabase) {
+    return {
+      summary: null,
+      persistence: notConfigured(),
+    };
+  }
+
+  const { data: run, error: runError } = await supabase
+    .from("backtest_runs")
+    .select("*")
+    .order("generated_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (runError) {
+    return {
+      summary: null,
+      persistence: { persisted: false, error: runError.message } satisfies PersistenceResult,
+    };
+  }
+
+  if (!run) {
+    return {
+      summary: null,
+      persistence: {
+        persisted: false,
+        reason: "No saved backtest reports exist yet. Run verification once to create the first report.",
+      } satisfies PersistenceResult,
+    };
+  }
+
+  const [tradesResult, rulesResult] = await Promise.all([
+    supabase
+      .from("backtest_trades")
+      .select("*")
+      .eq("backtest_run_id", run.id)
+      .order("as_of", { ascending: false })
+      .order("rank", { ascending: true }),
+    supabase
+      .from("ranking_calibration_rules")
+      .select("*")
+      .eq("source_backtest_run_id", run.id)
+      .order("created_at", { ascending: true }),
+  ]);
+
+  if (tradesResult.error || rulesResult.error) {
+    return {
+      summary: null,
+      persistence: {
+        persisted: false,
+        error: tradesResult.error?.message ?? rulesResult.error?.message,
+      } satisfies PersistenceResult,
+    };
+  }
+
+  return {
+    summary: toBacktestSummary(
+      run as BacktestRunRow,
+      (tradesResult.data ?? []) as BacktestTradeRow[],
+      (rulesResult.data ?? []) as RankingCalibrationRuleRow[],
+    ),
+    persistence: { persisted: true } satisfies PersistenceResult,
+  };
 }
 
 export async function persistEmailLinkClick(args: {

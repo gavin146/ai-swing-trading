@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminUnauthorizedResponse, isAdminApiRequest } from "@/lib/auth/admin";
 import { runRollingBacktest } from "@/lib/backtesting";
-import { persistBacktestSummary, recordAppEvent } from "@/lib/persistence";
+import { getLatestBacktestSummary, persistBacktestSummary, recordAppEvent } from "@/lib/persistence";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -19,6 +19,27 @@ function parseNumber(value: string | null, fallback: number, min: number, max: n
 export async function GET(request: NextRequest) {
   if (!(await isAdminApiRequest(request))) {
     return NextResponse.json(getAdminUnauthorizedResponse(), { status: 403 });
+  }
+
+  const mode = request.nextUrl.searchParams.get("mode");
+
+  if (mode === "latest") {
+    const latest = await getLatestBacktestSummary();
+
+    if (!latest.summary) {
+      return NextResponse.json(
+        {
+          error: latest.persistence.error ?? latest.persistence.reason ?? "No saved backtest report found.",
+          persistence: latest.persistence,
+        },
+        { status: 404 },
+      );
+    }
+
+    return NextResponse.json({
+      ...latest.summary,
+      persistence: latest.persistence,
+    });
   }
 
   const windows = parseNumber(request.nextUrl.searchParams.get("windows"), 5, 1, 8);

@@ -19,6 +19,7 @@ import type { OpportunityRow } from "@/lib/database.types";
 import { opportunityFromRow, type Opportunity } from "@/lib/opportunities";
 import type { OpportunityDataSource } from "@/lib/repositories/opportunities";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
+import { getCoachVerdict } from "@/lib/trade-guidance";
 
 type OpportunityDetailViewProps = {
   dataSource: OpportunityDataSource;
@@ -140,6 +141,12 @@ function checklistTone(status: "pass" | "review" | "caution") {
   if (status === "pass") return "border-pine/20 bg-mint text-pine";
   if (status === "caution") return "border-coral/25 bg-coral/10 text-coral";
   return "border-amber/30 bg-amber/12 text-ink";
+}
+
+function coachToneClasses(tone: "positive" | "neutral" | "caution") {
+  if (tone === "positive") return "border-pine/15 bg-mint text-pine";
+  if (tone === "caution") return "border-coral/20 bg-coral/10 text-coral";
+  return "border-amber/30 bg-amber/15 text-ink";
 }
 
 function DecisionChecklist({
@@ -651,6 +658,7 @@ export function OpportunityDetailView({
     );
   }
 
+  const coach = getCoachVerdict(opportunity);
   const trackTradeHref = portfolioHref(opportunity);
 
   return (
@@ -676,8 +684,8 @@ export function OpportunityDetailView({
               <span className="rounded-full bg-ink px-3 py-1 text-xs font-black text-white">
                 {opportunity.assetType}
               </span>
-              <span className="rounded-full bg-mint px-3 py-1 text-xs font-black text-pine">
-                {opportunity.tradeQuality}
+              <span className={`rounded-full px-3 py-1 text-xs font-black ring-1 ${coachToneClasses(coach.badgeTone)}`}>
+                {coach.actionLabel}
               </span>
               <span className="rounded-full bg-surface px-3 py-1 text-xs font-bold text-ink/55 ring-1 ring-line">
                 {opportunity.timeHorizon}
@@ -693,46 +701,75 @@ export function OpportunityDetailView({
               {opportunity.symbol}
             </h2>
             <p className="mt-2 text-base font-semibold text-ink/58">{opportunity.name}</p>
-            <p className="mt-5 max-w-3xl text-sm font-medium leading-7 text-ink/66">
-              {opportunity.rankingSummary}
-            </p>
-            <div className="mt-5 grid gap-3 sm:grid-cols-2">
+            <div className={`mt-5 rounded-3xl border p-4 sm:p-5 ${coachToneClasses(coach.badgeTone)}`}>
+              <p className="text-xs font-black uppercase tracking-normal opacity-70">
+                SwingFi research verdict
+              </p>
+              <h3 className="mt-2 text-2xl font-black leading-tight text-ink">
+                {coach.actionText}
+              </h3>
+              <p className="mt-3 text-sm font-bold leading-6 text-ink/72">
+                {coach.directionText}
+              </p>
+            </div>
+            <div className="mt-4 grid gap-3 sm:grid-cols-3">
               <div className="rounded-2xl border border-line bg-surface p-4">
                 <p className="text-xs font-black uppercase tracking-normal text-ink/42">
-                  Score movement
+                  Expected direction
                 </p>
                 <p className="mt-2 text-base font-black text-ink">
-                  {opportunity.scoreMovement.label}
+                  {coach.direction}
                 </p>
                 <p className="mt-2 text-sm font-semibold leading-6 text-ink/58">
-                  {opportunity.scoreMovement.reason}
+                  {coach.reason}
                 </p>
               </div>
               <div className="rounded-2xl border border-line bg-surface p-4">
                 <p className="text-xs font-black uppercase tracking-normal text-ink/42">
-                  Beginner lesson
+                  Gain vs risk
                 </p>
                 <p className="mt-2 text-base font-black text-ink">
-                  {opportunity.beginnerLesson.title}
+                  {opportunity.potentialGain} / {opportunity.potentialLoss}
                 </p>
                 <p className="mt-2 text-sm font-semibold leading-6 text-ink/58">
-                  {opportunity.beginnerLesson.body}
+                  {coach.riskText}
+                </p>
+              </div>
+              <div className="rounded-2xl border border-line bg-surface p-4">
+                <p className="text-xs font-black uppercase tracking-normal text-ink/42">
+                  Price forecast
+                </p>
+                <p className="mt-2 text-base font-black text-ink">
+                  {coach.forecastRange}
+                </p>
+                <p className="mt-2 text-sm font-semibold leading-6 text-ink/58">
+                  {coach.guardrail}
                 </p>
               </div>
             </div>
           </div>
           <div className="border-t border-line bg-[linear-gradient(145deg,#071418,#0b3d3f)] p-6 text-white lg:border-l lg:border-t-0">
             <p className="text-xs font-black uppercase tracking-normal text-lime">
-              Opportunity score
+              Coach summary
             </p>
-            <p className="mt-4 text-6xl font-black text-lime">
-              {opportunity.opportunityScore}
-              <span className="text-lg text-white/42">/100</span>
+            <p className="mt-4 text-3xl font-black leading-tight text-lime">
+              {coach.oneLine}
             </p>
             <p className="mt-3 text-sm font-semibold leading-7 text-white/68">
-              {opportunity.scoreLabel}. Review the entry range and stop before deciding
-              whether the setup fits your plan.
+              {coach.percentageText} {coach.confidenceText}. Research only; you make the final trade decision.
             </p>
+            <div className="mt-5 rounded-2xl border border-white/14 bg-white/8 p-4">
+              <p className="text-xs font-black uppercase tracking-normal text-white/48">
+                Opportunity score
+              </p>
+              <p className="mt-2 text-4xl font-black text-white">
+                {opportunity.opportunityScore}
+                <span className="text-base text-white/42">/100</span>
+              </p>
+              <p className="mt-2 text-xs font-semibold leading-5 text-white/58">
+                Score is still shown for comparison, but the verdict above is the beginner-first read.
+              </p>
+            </div>
           </div>
         </div>
       </div>

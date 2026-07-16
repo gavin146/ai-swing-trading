@@ -153,7 +153,16 @@ function formatCurrency(value: number | null | undefined) {
 
 function formatPercent(value: number | null | undefined) {
   if (typeof value !== "number" || !Number.isFinite(value)) return "Not available";
-  return `${value >= 0 ? "+" : ""}${value.toFixed(1)}%`;
+  const roundedValue = Math.abs(value) < 0.05 ? 0 : value;
+  return `${roundedValue > 0 ? "+" : ""}${roundedValue.toFixed(1)}%`;
+}
+
+function percentTone(value: number | null | undefined) {
+  if (typeof value !== "number" || !Number.isFinite(value) || Math.abs(value) < 0.05) {
+    return "text-ink";
+  }
+
+  return value > 0 ? "text-pine" : "text-coral";
 }
 
 function formatTime(value: string | null) {
@@ -174,6 +183,71 @@ function clamp(value: number, min = 0, max = 100) {
 function toNumber(value: string | undefined) {
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
+function numberOrNull(value: unknown) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function positiveNumberOrNull(value: unknown) {
+  const parsed = numberOrNull(value);
+  return parsed !== null && parsed > 0 ? parsed : null;
+}
+
+function getTradeEntryPrice(trade: PortfolioTrade) {
+  return positiveNumberOrNull(trade.entry_price);
+}
+
+function getTradeCurrentPrice(trade: PortfolioTrade) {
+  return positiveNumberOrNull(trade.currentPrice);
+}
+
+function getTradeTargetPrice(trade: PortfolioTrade) {
+  return positiveNumberOrNull(trade.target_price);
+}
+
+function getTradeStopLoss(trade: PortfolioTrade) {
+  return positiveNumberOrNull(trade.stop_loss);
+}
+
+function getTradeQuantity(trade: PortfolioTrade) {
+  return positiveNumberOrNull(trade.quantity) ?? 1;
+}
+
+function getOpenReturnPct(trade: PortfolioTrade) {
+  const current = getTradeCurrentPrice(trade);
+  const entry = getTradeEntryPrice(trade);
+
+  if (current !== null && entry !== null) {
+    return ((current - entry) / entry) * 100;
+  }
+
+  return numberOrNull(trade.unrealizedReturnPct);
+}
+
+function getOpenPnlDollars(trade: PortfolioTrade) {
+  const current = getTradeCurrentPrice(trade);
+  const entry = getTradeEntryPrice(trade);
+
+  if (current === null || entry === null) return null;
+  return (current - entry) * getTradeQuantity(trade);
+}
+
+function getRemainingUpsidePct(trade: PortfolioTrade) {
+  const current = getTradeCurrentPrice(trade);
+  const target = getTradeTargetPrice(trade);
+
+  if (current === null || target === null) return null;
+  return ((target - current) / current) * 100;
+}
+
+function getDownsideToStopPct(trade: PortfolioTrade) {
+  const current = getTradeCurrentPrice(trade);
+  const stop = getTradeStopLoss(trade);
+
+  if (current === null || stop === null) return null;
+  return ((stop - current) / current) * 100;
 }
 
 function validateTradePlan(form: FormState) {
@@ -325,9 +399,12 @@ function dataQualityLabel(value: ExitPlan["dataQuality"]) {
 }
 
 function rewardRiskForTrade(trade: PortfolioTrade) {
-  const entry = Number(trade.entry_price);
-  const target = Number(trade.target_price);
-  const stop = Number(trade.stop_loss);
+  const entry = getTradeEntryPrice(trade);
+  const target = getTradeTargetPrice(trade);
+  const stop = getTradeStopLoss(trade);
+
+  if (entry === null || target === null || stop === null) return 0;
+
   const reward = target - entry;
   const risk = entry - stop;
 
@@ -343,9 +420,10 @@ function percentDistance(from: number | null, to: number) {
 function getTradeReview(trade: PortfolioTrade) {
   const countdown = reviewCountdown(trade);
   const rewardRisk = rewardRiskForTrade(trade);
-  const targetDistance = percentDistance(trade.currentPrice, Number(trade.target_price));
-  const stopDistance = percentDistance(trade.currentPrice, Number(trade.stop_loss));
-  const lossFromEntry = trade.unrealizedReturnPct !== null && trade.unrealizedReturnPct < 0;
+  const targetDistance = percentDistance(getTradeCurrentPrice(trade), getTradeTargetPrice(trade) ?? NaN);
+  const stopDistance = percentDistance(getTradeCurrentPrice(trade), getTradeStopLoss(trade) ?? NaN);
+  const openReturnPct = getOpenReturnPct(trade);
+  const lossFromEntry = openReturnPct !== null && openReturnPct < 0;
   const hasFreshNews = trade.latestNews.length > 0;
   const nearTarget = trade.planStatus === "At or above target" || trade.planStatus === "Near target";
   const nearStop = trade.planStatus === "Below stop" || trade.planStatus === "Near stop";
@@ -405,15 +483,14 @@ function getTradeReview(trade: PortfolioTrade) {
 }
 
 function getExitDecisionGuide(trade: PortfolioTrade) {
-  const current = trade.currentPrice;
-  const entry = Number(trade.entry_price);
-  const target = Number(trade.target_price);
-  const stop = Number(trade.stop_loss);
+  const current = getTradeCurrentPrice(trade);
+  const target = getTradeTargetPrice(trade);
+  const stop = getTradeStopLoss(trade);
   const countdown = reviewCountdown(trade);
-  const targetDistance = percentDistance(current, target);
-  const stopDistance = percentDistance(current, stop);
+  const targetDistance = percentDistance(current, target ?? NaN);
+  const stopDistance = percentDistance(current, stop ?? NaN);
   const rewardRisk = rewardRiskForTrade(trade);
-  const gainPct = current && entry > 0 ? ((current - entry) / entry) * 100 : null;
+  const gainPct = getOpenReturnPct(trade);
   const daysLeft = trade.plannedHoldingDays ? trade.plannedHoldingDays - trade.daysHeld : null;
   const inDecisionWindow =
     trade.planStatus === "Review time window" ||
@@ -629,17 +706,105 @@ function getExitDecisionGuide(trade: PortfolioTrade) {
 }
 
 function tradeRiskDollars(trade: PortfolioTrade) {
-  return Math.max(0, (Number(trade.entry_price) - Number(trade.stop_loss)) * Number(trade.quantity));
+  const entry = getTradeEntryPrice(trade);
+  const stop = getTradeStopLoss(trade);
+
+  if (entry === null || stop === null) return 0;
+  return Math.max(0, (entry - stop) * getTradeQuantity(trade));
 }
 
 function tradeUpsideDollars(trade: PortfolioTrade) {
-  return Math.max(0, (Number(trade.target_price) - Number(trade.entry_price)) * Number(trade.quantity));
+  const entry = getTradeEntryPrice(trade);
+  const target = getTradeTargetPrice(trade);
+
+  if (entry === null || target === null) return 0;
+  return Math.max(0, (target - entry) * getTradeQuantity(trade));
 }
 
 function reviewTone(tone: ReturnType<typeof getTradeReview>["tone"]) {
   if (tone === "positive") return "border-pine/20 bg-mint text-pine";
   if (tone === "caution") return "border-coral/25 bg-coral/10 text-coral";
   return "border-amber/30 bg-amber/15 text-ink";
+}
+
+function planConfidence(trade: PortfolioTrade, liveTone: string) {
+  const countdown = reviewCountdown(trade);
+  const openReturn = getOpenReturnPct(trade) ?? 0;
+  let score =
+    trade.planStatus === "Below stop"
+      ? 18
+      : trade.planStatus === "Near stop"
+        ? 38
+        : trade.planStatus === "At or above target"
+          ? 88
+          : trade.planStatus === "Near target"
+            ? 78
+            : trade.planStatus === "Review time window" || countdown.urgency === "high"
+              ? 58
+              : 72;
+
+  if (liveTone === "positive") score += 8;
+  if (liveTone === "caution") score -= 12;
+  if (openReturn > 3) score += 6;
+  if (openReturn < -3) score -= 8;
+  if (countdown.urgency === "watch") score -= 4;
+
+  score = Math.round(clamp(score, 10, 95));
+
+  return {
+    label: score >= 75 ? "Strong" : score >= 55 ? "Watch" : "Weak",
+    score,
+    tone: score >= 75 ? "text-pine" : score >= 55 ? "text-amber" : "text-coral",
+  };
+}
+
+function plannedPacePrice(trade: PortfolioTrade) {
+  if (!trade.plannedHoldingDays || trade.plannedHoldingDays <= 0) return null;
+
+  const entry = getTradeEntryPrice(trade);
+  const target = getTradeTargetPrice(trade);
+  const progress = clamp(trade.daysHeld / trade.plannedHoldingDays, 0, 1);
+
+  if (entry === null || target === null) return null;
+
+  return entry + (target - entry) * progress;
+}
+
+function paceLabel(trade: PortfolioTrade) {
+  const expected = plannedPacePrice(trade);
+  const current = getTradeCurrentPrice(trade);
+
+  if (!expected || !current) {
+    return {
+      label: "Pace unavailable",
+      tone: "text-ink",
+      value: "Waiting for quote",
+    };
+  }
+
+  const gap = ((current - expected) / expected) * 100;
+
+  return {
+    label: gap >= 0 ? "Ahead of plan" : "Behind plan",
+    tone: gap >= 0 ? "text-pine" : "text-amber",
+    value: `${formatCurrency(current)} vs ${formatCurrency(expected)}`,
+  };
+}
+
+function remainingUpsideLabel(trade: PortfolioTrade) {
+  const targetDistance = getRemainingUpsidePct(trade);
+
+  if (targetDistance === null) return "Unavailable";
+  if (targetDistance < 0) return "Target reached";
+  return `+${targetDistance.toFixed(1)}%`;
+}
+
+function downsideToStopLabel(trade: PortfolioTrade) {
+  const stopDistance = getDownsideToStopPct(trade);
+
+  if (stopDistance === null) return "Unavailable";
+  if (stopDistance >= 0) return "Stop breached";
+  return `-${Math.abs(stopDistance).toFixed(1)}%`;
 }
 
 function isEntryPriceEstimate(value: unknown): value is EntryPriceEstimate {
@@ -789,33 +954,38 @@ export function SwingPortfolioPanel({ initialTrade }: { initialTrade?: InitialTr
 
     let isActive = true;
     const tradePayloads = openTrades.map((trade) => {
+      const currentPrice = getTradeCurrentPrice(trade);
+      const entryPrice = getTradeEntryPrice(trade) ?? 0;
+      const stopLoss = getTradeStopLoss(trade) ?? 0;
+      const targetPrice = getTradeTargetPrice(trade) ?? 0;
+      const unrealizedReturnPct = getOpenReturnPct(trade);
       const liveIntelligence = getTradeLiveIntelligence({
-        currentPrice: trade.currentPrice,
+        currentPrice,
         daysHeld: trade.daysHeld,
-        entryPrice: Number(trade.entry_price),
+        entryPrice,
         latestNews: trade.latestNews,
         plannedHoldingDays: trade.plannedHoldingDays,
         planStatus: trade.planStatus,
-        stopLoss: Number(trade.stop_loss),
+        stopLoss,
         symbol: trade.symbol,
-        targetPrice: Number(trade.target_price),
-        unrealizedReturnPct: trade.unrealizedReturnPct,
+        targetPrice,
+        unrealizedReturnPct,
       });
 
       return {
-        currentPrice: trade.currentPrice,
+        currentPrice,
         daysHeld: trade.daysHeld,
         directionRead: liveIntelligence.directionRead,
-        entryPrice: Number(trade.entry_price),
+        entryPrice,
         latestNews: trade.latestNews.map((item) => ({ title: item.title })),
         liveRead: liveIntelligence.liveRead,
         nextReview: liveIntelligence.nextReview,
         planStatus: trade.planStatus,
         plannedHoldingDays: trade.plannedHoldingDays,
-        stopLoss: Number(trade.stop_loss),
+        stopLoss,
         symbol: trade.symbol,
-        targetPrice: Number(trade.target_price),
-        unrealizedReturnPct: trade.unrealizedReturnPct,
+        targetPrice,
+        unrealizedReturnPct,
       };
     });
     const fallbackInsights = Object.fromEntries(
@@ -859,12 +1029,11 @@ export function SwingPortfolioPanel({ initialTrade }: { initialTrade?: InitialTr
 
   const portfolioStats = useMemo(() => {
     const invested = openTrades.reduce(
-      (total, trade) => total + Number(trade.entry_price) * Number(trade.quantity),
+      (total, trade) => total + (getTradeEntryPrice(trade) ?? 0) * getTradeQuantity(trade),
       0,
     );
     const openReturn = openTrades.reduce((total, trade) => {
-      if (!trade.currentPrice) return total;
-      return total + (trade.currentPrice - Number(trade.entry_price)) * Number(trade.quantity);
+      return total + (getOpenPnlDollars(trade) ?? 0);
     }, 0);
     const needsReview = openTrades.filter((trade) =>
       ["Below stop", "Near stop", "At or above target", "Review time window"].includes(trade.planStatus),
@@ -1003,7 +1172,7 @@ export function SwingPortfolioPanel({ initialTrade }: { initialTrade?: InitialTr
             planStatus: trade.planStatus,
             rewardRisk: rewardRiskForTrade(trade),
             symbol: trade.symbol,
-            unrealizedReturnPct: trade.unrealizedReturnPct,
+            unrealizedReturnPct: getOpenReturnPct(trade),
           })),
         }),
         headers: {
@@ -1521,7 +1690,7 @@ export function SwingPortfolioPanel({ initialTrade }: { initialTrade?: InitialTr
   }
 
   return (
-    <section className="grid gap-6">
+    <section className="grid gap-4 sm:gap-6">
       {message ? (
         <div
           className={`rounded-2xl border px-4 py-3 text-sm font-bold ${
@@ -1537,15 +1706,15 @@ export function SwingPortfolioPanel({ initialTrade }: { initialTrade?: InitialTr
       ) : null}
 
       {!showAddTrade ? (
-      <div className="grid gap-4">
-        <div className={`rounded-3xl border p-5 shadow-[0_18px_60px_rgba(7,20,24,0.06)] ${reviewTone(portfolioBriefing.tone)}`}>
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+      <div data-testid="portfolio-briefing" className="order-2 grid gap-3 sm:gap-4">
+        <div className={`rounded-[24px] border p-4 shadow-[0_18px_60px_rgba(7,20,24,0.06)] sm:rounded-3xl sm:p-5 ${reviewTone(portfolioBriefing.tone)}`}>
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <p className="text-xs font-black uppercase tracking-normal opacity-70">
                 Today&apos;s portfolio briefing
               </p>
-              <h2 className="mt-2 text-2xl font-black">{portfolioBriefing.headline}</h2>
-              <p className="mt-2 max-w-3xl text-sm font-bold leading-6 opacity-75">
+              <h2 className="mt-1 text-xl font-black sm:mt-2 sm:text-2xl">{portfolioBriefing.headline}</h2>
+              <p className="mt-2 max-w-3xl text-xs font-bold leading-5 opacity-75 sm:text-sm sm:leading-6">
                 {portfolioBriefing.body}
               </p>
             </div>
@@ -1558,55 +1727,55 @@ export function SwingPortfolioPanel({ initialTrade }: { initialTrade?: InitialTr
                 }
                 setPositionFilter(attentionTrades.length ? "attention" : "all");
               }}
-              className="rounded-2xl bg-white/80 px-4 py-3 text-sm font-black text-ink ring-1 ring-line transition hover:bg-white"
+              className="rounded-2xl bg-white/80 px-4 py-2.5 text-sm font-black text-ink ring-1 ring-line transition hover:bg-white sm:py-3"
             >
               {portfolioBriefing.cta}
             </button>
           </div>
         </div>
-        <details className="rounded-3xl border border-line bg-white p-4 shadow-[0_18px_60px_rgba(7,20,24,0.06)]">
+        <details className="rounded-[24px] border border-line bg-white p-3 shadow-[0_18px_60px_rgba(7,20,24,0.06)] sm:rounded-3xl sm:p-4">
           <summary className="cursor-pointer text-sm font-black text-ink">
             Portfolio health details
           </summary>
           <p className="mt-2 text-xs font-semibold leading-5 text-ink/50">
             Open this when you want the math, AI coach, and portfolio-level risk view.
           </p>
-        <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-          <div className="rounded-3xl border border-line bg-white p-5 shadow-[0_18px_60px_rgba(7,20,24,0.06)]">
+        <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+          <div className="rounded-2xl border border-line bg-white p-4 shadow-[0_18px_60px_rgba(7,20,24,0.06)] sm:rounded-3xl sm:p-5">
             <p className="text-xs font-black uppercase tracking-normal text-pine">Open trades</p>
-            <p className="mt-2 text-4xl font-black text-ink">{openTrades.length}</p>
+            <p className="mt-2 text-3xl font-black text-ink sm:text-4xl">{openTrades.length}</p>
             <p className="mt-2 text-sm font-semibold text-ink/55">
               Current swing plans saved from SwingFi rankings or added manually.
             </p>
           </div>
-          <div className="rounded-3xl border border-line bg-white p-5 shadow-[0_18px_60px_rgba(7,20,24,0.06)]">
+          <div className="rounded-2xl border border-line bg-white p-4 shadow-[0_18px_60px_rgba(7,20,24,0.06)] sm:rounded-3xl sm:p-5">
             <p className="text-xs font-black uppercase tracking-normal text-pine">Open P/L estimate</p>
-            <p className={`mt-2 text-4xl font-black ${portfolioStats.openReturn >= 0 ? "text-pine" : "text-coral"}`}>
+            <p className={`mt-2 text-3xl font-black sm:text-4xl ${portfolioStats.openReturn >= 0 ? "text-pine" : "text-coral"}`}>
               {formatCurrency(portfolioStats.openReturn)}
             </p>
             <p className="mt-2 text-sm font-semibold text-ink/55">
               Refreshes every 5 minutes while this page is open; broker balances remain separate.
             </p>
           </div>
-          <div className="rounded-3xl border border-line bg-white p-5 shadow-[0_18px_60px_rgba(7,20,24,0.06)]">
+          <div className="rounded-2xl border border-line bg-white p-4 shadow-[0_18px_60px_rgba(7,20,24,0.06)] sm:rounded-3xl sm:p-5">
             <p className="text-xs font-black uppercase tracking-normal text-pine">Needs review</p>
-            <p className="mt-2 text-4xl font-black text-ink">{attentionTrades.length}</p>
+            <p className="mt-2 text-3xl font-black text-ink sm:text-4xl">{attentionTrades.length}</p>
             <p className="mt-2 text-sm font-semibold text-ink/55">
               Near target, near stop, below stop, or close to the review window.
             </p>
           </div>
-          <div className="rounded-3xl border border-line bg-white p-5 shadow-[0_18px_60px_rgba(7,20,24,0.06)]">
+          <div className="rounded-2xl border border-line bg-white p-4 shadow-[0_18px_60px_rgba(7,20,24,0.06)] sm:rounded-3xl sm:p-5">
             <p className="text-xs font-black uppercase tracking-normal text-pine">Plan health</p>
-            <p className={`mt-2 text-4xl font-black ${portfolioStats.healthScore >= 75 ? "text-pine" : portfolioStats.healthScore >= 55 ? "text-ink" : "text-coral"}`}>
+            <p className={`mt-2 text-3xl font-black sm:text-4xl ${portfolioStats.healthScore >= 75 ? "text-pine" : portfolioStats.healthScore >= 55 ? "text-ink" : "text-coral"}`}>
               {portfolioStats.healthScore}
             </p>
             <p className="mt-2 text-sm font-semibold text-ink/55">
               Combines attention items, stop risk, and reward/risk quality.
             </p>
           </div>
-          <div className="rounded-3xl border border-line bg-white p-5 shadow-[0_18px_60px_rgba(7,20,24,0.06)]">
+          <div className="rounded-2xl border border-line bg-white p-4 shadow-[0_18px_60px_rgba(7,20,24,0.06)] sm:rounded-3xl sm:p-5">
             <p className="text-xs font-black uppercase tracking-normal text-pine">Risk at stops</p>
-            <p className="mt-2 text-4xl font-black text-coral">{formatCurrency(portfolioStats.riskAtStop)}</p>
+            <p className="mt-2 text-3xl font-black text-coral sm:text-4xl">{formatCurrency(portfolioStats.riskAtStop)}</p>
             <p className="mt-2 text-sm font-semibold text-ink/55">
               About {portfolioStats.riskPercentOfInvested.toFixed(1)}% of tracked entry value if every stop hit.
             </p>
@@ -1651,15 +1820,15 @@ export function SwingPortfolioPanel({ initialTrade }: { initialTrade?: InitialTr
       </div>
       ) : null}
 
-      <div className={showAddTrade ? "mx-auto grid w-full max-w-3xl gap-6" : "grid gap-6"}>
+      <div className={showAddTrade ? "mx-auto grid w-full max-w-3xl gap-4 sm:gap-6" : "order-1 grid gap-4 sm:gap-6"}>
         {showAddTrade ? (
-        <section className="rounded-3xl border border-line bg-white p-5 shadow-[0_18px_60px_rgba(7,20,24,0.06)] sm:p-6">
+        <section className="rounded-[24px] border border-line bg-white p-4 shadow-[0_18px_60px_rgba(7,20,24,0.06)] sm:rounded-3xl sm:p-6">
           <div className="flex items-start justify-between gap-3">
             <div>
               <p className="text-xs font-black uppercase tracking-normal text-pine">
                 Add trade
               </p>
-              <h2 className="mt-2 text-3xl font-black text-ink">
+              <h2 className="mt-1 text-2xl font-black text-ink sm:mt-2 sm:text-3xl">
                 Add a position to track
               </h2>
             </div>
@@ -2002,22 +2171,22 @@ export function SwingPortfolioPanel({ initialTrade }: { initialTrade?: InitialTr
         ) : null}
 
         {!showAddTrade ? (
-        <section className="order-1 grid gap-5">
-          <div className="rounded-3xl border border-line bg-white p-5 shadow-[0_18px_60px_rgba(7,20,24,0.06)] sm:p-6">
+        <section data-testid="portfolio-current-positions" className="order-1 grid gap-4 sm:gap-5">
+          <div className="rounded-[24px] border border-line bg-white p-4 shadow-[0_18px_60px_rgba(7,20,24,0.06)] sm:rounded-3xl sm:p-6">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
               <div>
                 <p className="text-xs font-black uppercase tracking-normal text-pine">Current positions</p>
-                <h2 className="mt-2 text-2xl font-black text-ink">Your open swing plans</h2>
+                <h2 className="mt-1 text-xl font-black text-ink sm:mt-2 sm:text-2xl">Your open swing plans</h2>
                 <p className="mt-2 text-xs font-bold leading-5 text-ink/48">
                   Current price, status, latest headlines, and countdown refresh every 5 minutes while the page is open.
                   Last updated {formatTime(lastUpdatedAt)}.
                 </p>
               </div>
-              <div className="flex flex-col gap-2 sm:flex-row">
+              <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-row">
                 <button
                   type="button"
                   onClick={() => setShowAddTrade((current) => !current)}
-                  className="rounded-2xl bg-ink px-4 py-3 text-center text-sm font-black text-white shadow-[0_12px_30px_rgba(7,20,24,0.14)] transition hover:bg-pine"
+                  className="rounded-2xl bg-ink px-4 py-2.5 text-center text-sm font-black text-white shadow-[0_12px_30px_rgba(7,20,24,0.14)] transition hover:bg-pine sm:py-3"
                 >
                   {showAddTrade ? "Hide add trade" : "Add trade"}
                 </button>
@@ -2025,13 +2194,13 @@ export function SwingPortfolioPanel({ initialTrade }: { initialTrade?: InitialTr
                   type="button"
                   onClick={() => void loadPortfolio({ quiet: true })}
                   disabled={refreshing}
-                  className="rounded-2xl border border-line bg-white px-4 py-3 text-center text-sm font-black text-ink transition hover:border-pine disabled:cursor-not-allowed disabled:opacity-55"
+                  className="rounded-2xl border border-line bg-white px-4 py-2.5 text-center text-sm font-black text-ink transition hover:border-pine disabled:cursor-not-allowed disabled:opacity-55 sm:py-3"
                 >
                   {refreshing ? "Refreshing..." : "Refresh now"}
                 </button>
                 <Link
                   href="/dashboard"
-                  className="rounded-2xl border border-line bg-surface px-4 py-3 text-center text-sm font-black text-ink hover:border-pine"
+                  className="col-span-2 rounded-2xl border border-line bg-surface px-4 py-2.5 text-center text-sm font-black text-ink hover:border-pine sm:col-span-1 sm:py-3"
                 >
                   Review rankings
                 </Link>
@@ -2040,43 +2209,87 @@ export function SwingPortfolioPanel({ initialTrade }: { initialTrade?: InitialTr
 
             {openTrades.length ? (
               <div className="mt-5 grid gap-4">
-                <div className="grid gap-2 sm:grid-cols-3">
-                  {[
-                    ["all", `All open (${openTrades.length})`],
-                    ["attention", `Needs attention (${attentionTrades.length})`],
-                    ["inside_plan", `Inside plan (${Math.max(openTrades.length - attentionTrades.length, 0)})`],
-                  ].map(([value, label]) => (
-                    <button
-                      key={value}
-                      type="button"
-                      onClick={() => setPositionFilter(value as typeof positionFilter)}
-                      className={`rounded-2xl border px-4 py-3 text-sm font-black transition ${
-                        positionFilter === value
-                          ? "border-pine bg-mint text-pine"
-                          : "border-line bg-surface text-ink/58 hover:border-pine/35"
-                      }`}
-                    >
-                      {label}
-                    </button>
-                  ))}
+                <div className="rounded-[24px] border border-line/80 bg-white p-2 shadow-[0_12px_34px_rgba(7,20,24,0.05)]">
+                  <div className="mb-2 flex flex-wrap items-center justify-between gap-2 px-1 sm:px-2">
+                    <div>
+                      <p className="text-[11px] font-black uppercase tracking-normal text-pine">
+                        Filter positions
+                      </p>
+                      <p className="text-xs font-semibold text-ink/50">
+                        Tap a view to change which trades are shown.
+                      </p>
+                    </div>
+                    <span className="rounded-full border border-line bg-surface px-3 py-1 text-[11px] font-black uppercase tracking-normal text-ink/48">
+                      Showing {visibleOpenTrades.length}
+                    </span>
+                  </div>
+                  <div className="-mx-2 overflow-x-auto px-2 pb-1 sm:mx-0 sm:overflow-visible sm:px-0 sm:pb-0">
+                    <div className="inline-flex min-w-max gap-1.5 rounded-[20px] bg-surface p-1 ring-1 ring-line/80 sm:grid sm:w-full sm:min-w-0 sm:grid-cols-3">
+                    {[
+                      ["all", "All open", openTrades.length, "Every active plan"],
+                      ["attention", "Needs attention", attentionTrades.length, "Review first"],
+                      ["inside_plan", "Inside plan", Math.max(openTrades.length - attentionTrades.length, 0), "No urgent flag"],
+                    ].map(([value, label, count, helper]) => (
+                      <button
+                        key={value}
+                        type="button"
+                        aria-pressed={positionFilter === value}
+                        onClick={() => setPositionFilter(value as typeof positionFilter)}
+                        className={`group relative w-40 shrink-0 rounded-2xl px-3 py-2.5 text-left transition sm:w-auto sm:px-4 sm:py-3 ${
+                          positionFilter === value
+                            ? "bg-ink text-white shadow-[0_14px_30px_rgba(7,20,24,0.18)]"
+                            : "bg-white text-ink ring-1 ring-line/80 hover:bg-mint hover:ring-pine/25"
+                        }`}
+                      >
+                        <span className="flex items-center justify-between gap-3">
+                          <span className="text-sm font-black">{label}</span>
+                          <span
+                            className={`rounded-full px-2 py-0.5 text-[11px] font-black ${
+                              positionFilter === value
+                                ? "bg-white/14 text-white"
+                                : "bg-surface text-ink/50 group-hover:bg-white"
+                            }`}
+                          >
+                            {count}
+                          </span>
+                        </span>
+                        <span
+                          className={`mt-1 block truncate text-xs font-semibold ${
+                            positionFilter === value ? "text-white/62" : "text-ink/52"
+                          }`}
+                        >
+                          {helper}
+                        </span>
+                        {positionFilter === value ? (
+                          <span className="absolute inset-x-4 -bottom-1 h-1 rounded-full bg-lime" />
+                        ) : null}
+                      </button>
+                    ))}
+                    </div>
+                  </div>
                 </div>
 
                 {visibleOpenTrades.length ? visibleOpenTrades.map((trade) => {
+                  const currentPrice = getTradeCurrentPrice(trade);
+                  const entryPrice = getTradeEntryPrice(trade) ?? 0;
+                  const stopLoss = getTradeStopLoss(trade) ?? 0;
+                  const targetPrice = getTradeTargetPrice(trade) ?? 0;
+                  const openReturnPct = getOpenReturnPct(trade);
                   const countdown = reviewCountdown(trade);
                   const decisionGuide = getExitDecisionGuide(trade);
                   const review = tradeReviews.get(trade.id) ?? getTradeReview(trade);
                   const decisionTone = reviewTone(decisionGuide.tone);
                   const liveIntelligence = getTradeLiveIntelligence({
-                    currentPrice: trade.currentPrice,
+                    currentPrice,
                     daysHeld: trade.daysHeld,
-                    entryPrice: Number(trade.entry_price),
+                    entryPrice,
                     latestNews: trade.latestNews,
                     plannedHoldingDays: trade.plannedHoldingDays,
                     planStatus: trade.planStatus,
-                    stopLoss: Number(trade.stop_loss),
+                    stopLoss,
                     symbol: trade.symbol,
-                    targetPrice: Number(trade.target_price),
-                    unrealizedReturnPct: trade.unrealizedReturnPct,
+                    targetPrice,
+                    unrealizedReturnPct: openReturnPct,
                   });
                   const liveTone =
                     liveIntelligence.tone === "positive"
@@ -2087,19 +2300,19 @@ export function SwingPortfolioPanel({ initialTrade }: { initialTrade?: InitialTr
                   const plainInsight =
                     portfolioInsightsBySymbol[trade.symbol] ??
                     buildPortfolioPlainInsight({
-                      currentPrice: trade.currentPrice,
+                      currentPrice,
                       daysHeld: trade.daysHeld,
                       directionRead: liveIntelligence.directionRead,
-                      entryPrice: Number(trade.entry_price),
+                      entryPrice,
                       latestNews: trade.latestNews.map((item) => ({ title: item.title })),
                       liveRead: liveIntelligence.liveRead,
                       nextReview: liveIntelligence.nextReview,
                       planStatus: trade.planStatus,
                       plannedHoldingDays: trade.plannedHoldingDays,
-                      stopLoss: Number(trade.stop_loss),
+                      stopLoss,
                       symbol: trade.symbol,
-                      targetPrice: Number(trade.target_price),
-                      unrealizedReturnPct: trade.unrealizedReturnPct,
+                      targetPrice,
+                      unrealizedReturnPct: openReturnPct,
                     });
                   const priorityLabel =
                     review.priority >= 90
@@ -2107,19 +2320,35 @@ export function SwingPortfolioPanel({ initialTrade }: { initialTrade?: InitialTr
                       : review.priority >= 66
                         ? "Plan today"
                         : "Monitor";
+                  const cardAccentClass =
+                    decisionGuide.tone === "caution"
+                      ? "bg-coral"
+                      : decisionGuide.tone === "positive"
+                        ? "bg-pine"
+                        : "bg-amber";
+                  const coachBadgeClass =
+                    decisionGuide.tone === "caution"
+                      ? "border-coral/20 bg-coral/10 text-coral"
+                      : decisionGuide.tone === "positive"
+                        ? "border-pine/15 bg-mint text-pine"
+                        : "border-amber/30 bg-amber/15 text-ink";
+                  const confidence = planConfidence(trade, liveIntelligence.tone);
+                  const pace = paceLabel(trade);
 
                   return (
                     <article
                       key={trade.id}
-                      className="overflow-hidden rounded-[28px] border border-line bg-white shadow-[0_18px_60px_rgba(7,20,24,0.06)]"
+                      data-testid="portfolio-plan-card"
+                      className="overflow-hidden rounded-[24px] border border-line/80 bg-white shadow-[0_18px_60px_rgba(7,20,24,0.06)] transition hover:border-pine/35 hover:shadow-[0_24px_70px_rgba(7,20,24,0.09)] sm:rounded-[28px]"
                     >
-                      <div className="grid gap-0 xl:grid-cols-[minmax(0,1fr)_300px]">
-                        <div className="min-w-0 p-4 sm:p-5">
+                      <div className={`h-1.5 ${cardAccentClass}`} />
+                      <div className="grid gap-0">
+                        <div className="min-w-0 p-3 sm:p-5">
                           <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                             <div className="min-w-0">
                               <div className="flex flex-wrap items-center gap-2">
-                                <span className="rounded-full bg-ink px-3 py-1 text-xs font-black text-white">
-                                  {trade.symbol}
+                                <span className="rounded-full bg-surface px-3 py-1 text-xs font-bold text-ink/55 ring-1 ring-line">
+                                  {assetLabels[trade.asset_type]}
                                 </span>
                                 <span className={`rounded-full border px-3 py-1 text-xs font-black ${statusTone(trade.planStatus)}`}>
                                   {planStatusLabel(trade.planStatus)}
@@ -2128,35 +2357,107 @@ export function SwingPortfolioPanel({ initialTrade }: { initialTrade?: InitialTr
                                   {priorityLabel}
                                 </span>
                               </div>
-                              <h3 className="mt-4 text-2xl font-black leading-tight text-ink">
-                                {decisionGuide.headline}
+                              <h3 className="mt-3 text-3xl font-black leading-none tracking-normal text-ink sm:mt-4 sm:text-4xl">
+                                {trade.symbol}
                               </h3>
-                              <p className="mt-2 max-w-3xl text-sm font-semibold leading-6 text-ink/62">
-                                {decisionGuide.helper}
+                              <p className="mt-1 text-sm font-bold text-ink/52">
+                                Open swing plan · held {trade.daysHeld} day{trade.daysHeld === 1 ? "" : "s"}
                               </p>
                             </div>
-                            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 md:min-w-[360px] xl:hidden">
-                              <MiniStat label="Current" value={formatCurrency(trade.currentPrice)} />
-                              <MiniStat label="Open P/L" value={formatPercent(trade.unrealizedReturnPct)} tone={(trade.unrealizedReturnPct ?? 0) >= 0 ? "text-pine" : "text-coral"} />
-                              <MiniStat label="Target" value={formatCurrency(Number(trade.target_price))} tone="text-pine" />
-                              <MiniStat label="Stop" value={formatCurrency(Number(trade.stop_loss))} tone="text-coral" />
+                            <div className={`w-fit rounded-2xl border px-3 py-2 text-sm font-black shadow-[0_10px_24px_rgba(7,20,24,0.045)] ${coachBadgeClass}`}>
+                              {decisionGuide.status}
                             </div>
                           </div>
 
-                          <div className={`mt-5 rounded-3xl border p-4 sm:p-5 ${liveTone}`}>
+                          <div className="mt-4 rounded-[22px] border border-line bg-surface p-3 sm:rounded-3xl sm:p-4">
+                            <div className="grid gap-3 lg:grid-cols-[1fr_220px] lg:items-start">
+                              <div>
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <span className={`rounded-full border px-3 py-1 text-xs font-black ${coachBadgeClass}`}>
+                                    Confidence {confidence.score}/100
+                                  </span>
+                                  <span className={`rounded-full border border-line bg-white px-3 py-1 text-xs font-black ${confidence.tone}`}>
+                                    {confidence.label}
+                                  </span>
+                                </div>
+                                <h4 className="mt-3 text-xl font-black leading-7 text-ink sm:text-2xl">
+                                  {decisionGuide.headline}
+                                </h4>
+                                <p className="mt-2 hidden max-w-3xl text-sm font-bold leading-6 text-ink/64 sm:block">
+                                  {decisionGuide.primaryAction}
+                                </p>
+                              </div>
+                              <div className="rounded-2xl border border-line bg-white p-3">
+                                <p className="text-xs font-black uppercase tracking-normal text-ink/42">
+                                  Swing plan progress
+                                </p>
+                                <p className="mt-2 text-sm font-black text-ink">{countdown.label}</p>
+                                <div className="mt-3 h-2 overflow-hidden rounded-full bg-surface">
+                                  <div
+                                    className={`h-full rounded-full transition-all ${
+                                      countdown.urgency === "high"
+                                        ? "bg-coral"
+                                        : countdown.urgency === "watch"
+                                          ? "bg-amber"
+                                          : "bg-pine"
+                                    }`}
+                                    style={{ width: `${countdown.progress}%` }}
+                                  />
+                                </div>
+                                <p className="mt-2 text-xs font-semibold leading-5 text-ink/52">
+                                  {countdown.detail}
+                                </p>
+                              </div>
+                            </div>
+
+                            <div className="mt-3 grid grid-cols-2 gap-2 lg:grid-cols-5">
+                              <MiniStat label="Current price" value={formatCurrency(currentPrice)} />
+                              <MiniStat label="Planned pace" value={pace.value} tone={pace.tone} />
+                              <MiniStat label="Remaining upside" value={remainingUpsideLabel(trade)} tone="text-pine" />
+                              <MiniStat label="Downside to stop" value={downsideToStopLabel(trade)} tone="text-coral" />
+                              <MiniStat
+                                label="Open P/L"
+                                value={formatPercent(openReturnPct)}
+                                tone={percentTone(openReturnPct)}
+                              />
+                            </div>
+
+                            <p className="mt-3 rounded-2xl border border-line bg-white px-3 py-2.5 text-xs font-bold leading-5 text-ink/58">
+                              {pace.label}. SwingFi expected this plan to be around {formatCurrency(plannedPacePrice(trade))} by now based on the saved entry, target, and review window.
+                            </p>
+                          </div>
+
+                          <details className="mt-3 rounded-[22px] border border-line bg-white p-3 sm:mt-4 sm:rounded-3xl sm:p-4">
+                            <summary className="cursor-pointer list-none">
+                              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                                <span>
+                                  <span className="block text-xs font-black uppercase tracking-normal text-pine">
+                                    See full plan
+                                  </span>
+                                  <span className="mt-1 block text-sm font-bold text-ink/58">
+                                    Open details, news, decision notes, and close/remove tools.
+                                  </span>
+                                </span>
+                                <span className="w-fit rounded-2xl bg-ink px-4 py-2 text-sm font-black text-white">
+                                  Open plan
+                                </span>
+                              </div>
+                            </summary>
+
+                          <div className={`mt-4 rounded-[22px] border p-3 sm:rounded-3xl sm:p-5 ${liveTone}`}>
                             <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                               <div className="min-w-0">
                                 <p className="text-xs font-black uppercase tracking-normal opacity-70">
                                   Why SwingFi flagged this
                                 </p>
-                                <h4 className="mt-2 text-xl font-black leading-tight">
+                                <h4 className="mt-1 text-lg font-black leading-tight sm:mt-2 sm:text-xl">
                                   {liveIntelligence.decisionZone}
                                 </h4>
-                                <p className="mt-2 text-sm font-bold leading-6 opacity-78">
+                                <p className="mt-2 text-xs font-bold leading-5 opacity-78 sm:text-sm sm:leading-6">
                                   {liveIntelligence.directionRead}
                                 </p>
                               </div>
-                              <div className="rounded-2xl bg-white/75 px-4 py-3 text-left ring-1 ring-line lg:min-w-44 lg:text-right">
+                              <div className="rounded-2xl bg-white/75 px-3 py-2.5 text-left ring-1 ring-line lg:min-w-44 lg:text-right">
                                 <p className="text-xs font-black uppercase tracking-normal text-ink/42">
                                   News read
                                 </p>
@@ -2165,21 +2466,21 @@ export function SwingPortfolioPanel({ initialTrade }: { initialTrade?: InitialTr
                                 </p>
                               </div>
                             </div>
-                            <p className="mt-4 rounded-2xl border border-line bg-white/85 px-4 py-3 text-sm font-bold leading-6 text-ink/66">
+                            <p className="mt-3 rounded-2xl border border-line bg-white/85 px-3 py-2.5 text-xs font-bold leading-5 text-ink/66 sm:mt-4 sm:px-4 sm:py-3 sm:text-sm sm:leading-6">
                               {liveIntelligence.liveRead}
                             </p>
-                            <p className="mt-3 rounded-2xl border border-line bg-white/85 px-4 py-3 text-xs font-bold leading-5 text-ink/58">
+                            <p className="mt-3 hidden rounded-2xl border border-line bg-white/85 px-4 py-3 text-xs font-bold leading-5 text-ink/58 sm:block">
                               Data behind the flag: SwingFi compares your latest refreshed price
                               against the target, stop, open return, plan countdown, and latest
                               headline tone. The flag changes when those inputs change.
                             </p>
-                            <div className="mt-3 rounded-2xl border border-line bg-white/90 p-4 text-ink">
+                            <div className="mt-3 rounded-2xl border border-line bg-white/90 p-3 text-ink sm:p-4">
                               <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                                 <div>
                                   <p className="text-xs font-black uppercase tracking-normal text-pine">
                                     Plain-English position read
                                   </p>
-                                  <h4 className="mt-1 text-lg font-black leading-tight">
+                                  <h4 className="mt-1 text-base font-black leading-tight sm:text-lg">
                                     {plainInsight.headline}
                                   </h4>
                                 </div>
@@ -2187,10 +2488,10 @@ export function SwingPortfolioPanel({ initialTrade }: { initialTrade?: InitialTr
                                   {plainInsight.mode === "openai" ? "AI explained" : "SwingFi read"}
                                 </span>
                               </div>
-                              <p className="mt-3 text-sm font-bold leading-6 text-ink/66">
+                              <p className="mt-2 line-clamp-3 text-xs font-bold leading-5 text-ink/66 sm:mt-3 sm:line-clamp-none sm:text-sm sm:leading-6">
                                 {plainInsight.summary}
                               </p>
-                              <div className="mt-3 grid gap-2 md:grid-cols-3">
+                              <div className="mt-3 hidden gap-2 sm:grid md:grid-cols-3">
                                 {plainInsight.evidence.slice(0, 3).map((item) => (
                                   <p
                                     key={item}
@@ -2214,7 +2515,7 @@ export function SwingPortfolioPanel({ initialTrade }: { initialTrade?: InitialTr
                                 </p>
                               ))}
                             </div>
-                            <div className="mt-3 grid gap-3 lg:grid-cols-[1fr_0.9fr]">
+                            <div className="mt-3 hidden gap-3 sm:grid lg:grid-cols-[1fr_0.9fr]">
                               <p className="rounded-2xl border border-line bg-white/80 px-4 py-3 text-xs font-bold leading-5 text-ink/60">
                                 <span className="block text-[11px] font-black uppercase tracking-normal text-ink/42">
                                   Next review
@@ -2230,16 +2531,16 @@ export function SwingPortfolioPanel({ initialTrade }: { initialTrade?: InitialTr
                             </div>
                           </div>
 
-                          <div className={`mt-5 rounded-3xl border p-4 sm:p-5 ${decisionTone}`}>
+                          <div className={`mt-4 rounded-[22px] border p-3 sm:mt-5 sm:rounded-3xl sm:p-5 ${decisionTone}`}>
                             <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                               <div>
                                 <p className="text-xs font-black uppercase tracking-normal opacity-70">
-                                  SwingFi decision path
+                                  Decision details
                                 </p>
-                                <p className="mt-2 text-xl font-black leading-tight">
-                                  {decisionGuide.primaryAction}
+                                <p className="mt-1 text-lg font-black leading-tight sm:mt-2 sm:text-xl">
+                                  What to do with this position next
                                 </p>
-                                <p className="mt-2 text-sm font-bold leading-6 opacity-75">
+                                <p className="mt-2 text-xs font-bold leading-5 opacity-75 sm:text-sm sm:leading-6">
                                   {decisionGuide.secondaryAction}
                                 </p>
                               </div>
@@ -2253,14 +2554,14 @@ export function SwingPortfolioPanel({ initialTrade }: { initialTrade?: InitialTr
                               </div>
                             </div>
 
-                            <div className="mt-4 rounded-2xl border border-line bg-white/85 p-4 text-ink">
+                            <div className="mt-3 rounded-2xl border border-line bg-white/85 p-3 text-ink sm:mt-4 sm:p-4">
                               <p className="text-xs font-black uppercase tracking-normal text-pine">
                                 In beginner terms
                               </p>
-                              <p className="mt-2 text-sm font-bold leading-6 text-ink/66">
+                              <p className="mt-2 text-xs font-bold leading-5 text-ink/66 sm:text-sm sm:leading-6">
                                 {decisionGuide.beginnerMeaning}
                               </p>
-                              <div className="mt-3 grid gap-2 md:grid-cols-3">
+                              <div className="mt-3 hidden gap-2 sm:grid md:grid-cols-3">
                                 {decisionGuide.decisionChoices.map((choice, choiceIndex) => (
                                   <p
                                     key={choice}
@@ -2273,7 +2574,7 @@ export function SwingPortfolioPanel({ initialTrade }: { initialTrade?: InitialTr
                               </div>
                             </div>
 
-                            <div className="mt-4 grid gap-3 lg:grid-cols-3">
+                            <div className="mt-3 grid gap-2 sm:mt-4 sm:gap-3 lg:grid-cols-3">
                               <div className="rounded-2xl border border-line bg-white/80 p-3 text-ink">
                                 <p className="text-xs font-black uppercase tracking-normal text-pine">
                                   If holding longer
@@ -2308,7 +2609,7 @@ export function SwingPortfolioPanel({ initialTrade }: { initialTrade?: InitialTr
                             </div>
                           </div>
 
-                          <div className="mt-4 grid gap-3 lg:grid-cols-[1fr_0.8fr]">
+                          <div className="mt-4 hidden gap-3 sm:grid lg:grid-cols-[1fr_0.8fr]">
                             <div className="rounded-2xl border border-line bg-surface p-4">
                               <p className="text-xs font-black uppercase tracking-normal text-ink/42">
                                 What to check before acting
@@ -2418,18 +2719,18 @@ export function SwingPortfolioPanel({ initialTrade }: { initialTrade?: InitialTr
                                   placeholder="Exit price"
                                   className="mt-3 w-full rounded-xl border border-line bg-surface px-3 py-2 text-sm font-bold text-ink outline-none focus:border-pine focus:bg-white"
                                 />
-                                {trade.currentPrice ? (
+                                {currentPrice ? (
                                   <button
                                     type="button"
                                     onClick={() =>
                                       setClosePrices((current) => ({
                                         ...current,
-                                        [trade.id]: String(trade.currentPrice?.toFixed(2) ?? ""),
+                                        [trade.id]: String(currentPrice.toFixed(2)),
                                       }))
                                     }
                                     className="mt-2 w-full rounded-xl border border-line bg-surface px-4 py-2 text-sm font-black text-ink/62 transition hover:border-pine hover:text-pine"
                                   >
-                                    Use latest price {formatCurrency(trade.currentPrice)}
+                                    Use latest price {formatCurrency(currentPrice)}
                                   </button>
                                 ) : null}
                                 <button
@@ -2478,19 +2779,8 @@ export function SwingPortfolioPanel({ initialTrade }: { initialTrade?: InitialTr
                               </div>
                             </div>
                           </details>
+                          </details>
                         </div>
-
-                        <aside className="grid gap-2 border-t border-line bg-surface p-4 xl:border-l xl:border-t-0">
-                          <MiniStat label="Current" value={formatCurrency(trade.currentPrice)} />
-                          <MiniStat label="Open P/L" value={formatPercent(trade.unrealizedReturnPct)} tone={(trade.unrealizedReturnPct ?? 0) >= 0 ? "text-pine" : "text-coral"} />
-                          <MiniStat label="Entry" value={formatCurrency(Number(trade.entry_price))} />
-                          <MiniStat label="Target" value={formatCurrency(Number(trade.target_price))} tone="text-pine" />
-                          <MiniStat label="Stop" value={formatCurrency(Number(trade.stop_loss))} tone="text-coral" />
-                          <MiniStat label="Reward/risk" value={`${rewardRiskForTrade(trade).toFixed(1)}R`} />
-                          <p className="rounded-2xl border border-line bg-white px-3 py-2 text-xs font-semibold leading-5 text-ink/50">
-                            Research only. Final trade decisions happen in your brokerage account.
-                          </p>
-                        </aside>
                       </div>
                     </article>
                   );
@@ -2557,7 +2847,7 @@ export function SwingPortfolioPanel({ initialTrade }: { initialTrade?: InitialTr
                     <div>
                       <p className="text-base font-black text-ink">{trade.symbol}</p>
                       <p className="text-sm font-semibold text-ink/52">
-                        Entry {formatCurrency(Number(trade.entry_price))} to exit {formatCurrency(trade.exit_price)}
+                        Entry {formatCurrency(getTradeEntryPrice(trade))} to exit {formatCurrency(numberOrNull(trade.exit_price))}
                       </p>
                     </div>
                     <p className="text-sm font-black text-pine">

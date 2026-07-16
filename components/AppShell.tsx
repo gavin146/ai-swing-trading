@@ -58,7 +58,7 @@ function topNavClass(isActive: boolean) {
 }
 
 function bottomNavClass(isActive: boolean) {
-  return `flex min-w-0 flex-col items-center justify-center gap-1 rounded-2xl px-2 py-2 text-center text-[11px] font-black leading-tight transition ${
+  return `flex min-w-0 flex-col items-center justify-center gap-1 rounded-2xl px-1.5 py-1.5 text-center text-[10px] font-black leading-tight transition sm:px-2 sm:py-2 sm:text-[11px] ${
     isActive
       ? "bg-ink text-white shadow-[0_10px_24px_rgba(7,20,24,0.18)]"
       : "text-ink/58 hover:bg-surface hover:text-ink"
@@ -78,9 +78,9 @@ function MobileBottomNav({
   links: ReadonlyArray<AppNavLink>;
 }) {
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-50 border-t border-line/80 bg-white/92 px-3 pb-[calc(0.65rem+env(safe-area-inset-bottom))] pt-2 shadow-[0_-18px_44px_rgba(7,20,24,0.11)] backdrop-blur-2xl md:hidden">
+    <nav className="fixed inset-x-0 bottom-0 z-[120] border-t border-line/80 bg-white/95 px-2 pb-[calc(0.55rem+env(safe-area-inset-bottom))] pt-1.5 shadow-[0_-18px_44px_rgba(7,20,24,0.14)] backdrop-blur-2xl md:hidden">
       <div
-        className="mx-auto grid max-w-md gap-1.5"
+        className="mx-auto grid max-w-md gap-1"
         style={{ gridTemplateColumns: `repeat(${links.length}, minmax(0, 1fr))` }}
       >
         {links.map((item) => {
@@ -89,7 +89,7 @@ function MobileBottomNav({
           return (
             <Link key={item.href} href={item.href} className={bottomNavClass(isActive)}>
               <span
-                className={`grid h-7 w-7 place-items-center rounded-xl text-[11px] ring-1 ${
+                className={`grid h-6 w-6 place-items-center rounded-lg text-[10px] ring-1 sm:h-7 sm:w-7 sm:rounded-xl sm:text-[11px] ${
                   isActive
                     ? "bg-white/12 text-white ring-white/20"
                     : "bg-surface text-ink/54 ring-line/75"
@@ -145,7 +145,7 @@ export function AppShell({ active, children, eyebrow, subtitle, title }: AppShel
   if (!isOperationsPage) {
     return (
       <main className="min-h-screen overflow-x-hidden bg-[linear-gradient(180deg,#f7fafb_0%,#eef4f6_46%,#f7fafb_100%)] pb-[calc(5.75rem+env(safe-area-inset-bottom))] md:pb-0">
-        <header className="relative z-30 border-b border-line/70 bg-surface/88 backdrop-blur-2xl">
+        <header className="sticky top-0 z-[95] border-b border-line/70 bg-surface/94 backdrop-blur-2xl md:relative md:z-30">
           <div className={`mx-auto flex ${contentMaxWidth(active)} flex-col gap-3 px-3 py-3 sm:px-6 sm:py-4 lg:px-8`}>
             <div className="flex items-center justify-between gap-4">
               <div className="min-w-0">
@@ -170,20 +170,20 @@ export function AppShell({ active, children, eyebrow, subtitle, title }: AppShel
           </div>
         </header>
 
-        <section className={`mx-auto ${contentMaxWidth(active)} px-3 py-4 sm:px-6 sm:py-5 lg:px-8`}>
-          <div className="mb-4 flex flex-col gap-2 lg:flex-row lg:items-end lg:justify-between">
+        <section className={`mx-auto ${contentMaxWidth(active)} px-3 py-3 sm:px-6 sm:py-5 lg:px-8`}>
+          <div className="mb-3 flex flex-col gap-1.5 sm:mb-4 sm:gap-2 lg:flex-row lg:items-end lg:justify-between">
             <div>
               {eyebrow ? (
                 <p className="text-xs font-black uppercase tracking-normal text-pine">
                   {eyebrow}
                 </p>
               ) : null}
-              <h1 className="mt-1 max-w-4xl text-[2rem] font-black leading-tight tracking-normal text-ink sm:mt-2 sm:text-4xl">
+              <h1 className="mt-1 max-w-4xl text-[1.55rem] font-black leading-tight tracking-normal text-ink sm:mt-2 sm:text-4xl">
                 {title}
               </h1>
             </div>
             {subtitle ? (
-              <p className="max-w-2xl text-sm font-semibold leading-7 text-ink/58 lg:text-right">
+              <p className="max-w-2xl text-xs font-semibold leading-5 text-ink/58 sm:text-sm sm:leading-7 lg:text-right">
                 {subtitle}
               </p>
             ) : null}
@@ -244,7 +244,7 @@ export function AppShell({ active, children, eyebrow, subtitle, title }: AppShel
       </aside>
 
       <div className="lg:pl-72">
-        <header className="relative z-30 border-b border-line/70 bg-surface/82 backdrop-blur-2xl">
+        <header className="sticky top-0 z-[95] border-b border-line/70 bg-surface/94 backdrop-blur-2xl lg:relative lg:z-30">
           <div className={`mx-auto flex ${contentMaxWidth(active)} flex-col gap-3 px-3 py-3 sm:px-6 sm:py-4 lg:px-8`}>
             <div className="flex items-center justify-between gap-4 lg:hidden">
               <BrandMark compact />
@@ -264,15 +264,15 @@ export function AppShell({ active, children, eyebrow, subtitle, title }: AppShel
           </div>
         </header>
 
-        <section className={`mx-auto ${contentMaxWidth(active)} px-3 py-4 sm:px-6 sm:py-6 lg:px-8`}>
-          <div className="mb-6 lg:hidden">
+        <section className={`mx-auto ${contentMaxWidth(active)} px-3 py-3 sm:px-6 sm:py-6 lg:px-8`}>
+          <div className="mb-3 sm:mb-6 lg:hidden">
             {eyebrow ? (
               <p className="text-xs font-black uppercase tracking-normal text-pine">{eyebrow}</p>
             ) : null}
-            <h1 className="mt-1 text-[2rem] font-black leading-tight tracking-normal text-ink sm:mt-2 sm:text-3xl">{title}</h1>
+            <h1 className="mt-1 text-[1.55rem] font-black leading-tight tracking-normal text-ink sm:mt-2 sm:text-3xl">{title}</h1>
           </div>
           {subtitle ? (
-            <p className="mb-6 max-w-3xl text-sm font-medium leading-7 text-ink/58 lg:-mt-2">
+            <p className="mb-4 max-w-3xl text-xs font-medium leading-5 text-ink/58 sm:mb-6 sm:text-sm sm:leading-7 lg:-mt-2">
               {subtitle}
             </p>
           ) : null}

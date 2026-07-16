@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import type { AssetType, TradeStatus } from "@/lib/database.types";
 import { resolveCustomerSession } from "@/lib/auth/customer-session";
 import { buildPortfolioExitPlan } from "@/lib/portfolio/exit-plan";
-import { getFmpCompanyProfile, getFmpStockNews } from "@/lib/providers/fmp";
+import { getFmpCompanyProfile, getFmpHistoricalCandles, getFmpStockNews } from "@/lib/providers/fmp";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -64,6 +64,26 @@ function getPlannedHoldingDays(notes: unknown) {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
 }
 
+function dateDaysAgo(days: number) {
+  const date = new Date();
+  date.setDate(date.getDate() - days);
+  return date.toISOString().slice(0, 10);
+}
+
+async function getLatestPortfolioPrice(symbol: string, profilePrice: unknown) {
+  const currentPrice = parsePositiveNumber(profilePrice);
+
+  if (currentPrice !== null) return currentPrice;
+
+  const candles = await getFmpHistoricalCandles(symbol, dateDaysAgo(14), new Date().toISOString().slice(0, 10))
+    .catch(() => []);
+  const latestClose = [...candles]
+    .filter((candle) => parsePositiveNumber(candle.close) !== null)
+    .sort((a, b) => String(b.date).localeCompare(String(a.date)))[0]?.close;
+
+  return parsePositiveNumber(latestClose);
+}
+
 function decisionLabel(trade: {
   currentPrice: number | null;
   entry_price: number;
@@ -97,7 +117,7 @@ async function enrichTrade(row: Record<string, unknown>) {
     getFmpCompanyProfile(symbol).catch(() => null),
     getFmpStockNews(symbol, 3).catch(() => []),
   ]);
-  const currentPrice = parsePositiveNumber(profile?.price);
+  const currentPrice = await getLatestPortfolioPrice(symbol, profile?.price);
   const entryPrice = Number(row.entry_price);
   const targetPrice = Number(row.target_price);
   const stopLoss = Number(row.stop_loss);

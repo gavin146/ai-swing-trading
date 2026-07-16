@@ -65,18 +65,19 @@ button {
     filter 220ms var(--ease-standard);
 }
 
-button:hover,
+button:not([data-static-control="true"]):hover,
 a:hover {
   transform: translateY(-1px);
 }
 
-button:active,
+button:not([data-static-control="true"]):active,
 a:active {
   transform: translateY(0) scale(0.992);
 }
 
 button:disabled,
-a[aria-disabled="true"] {
+a[aria-disabled="true"],
+[data-static-control="true"] {
   transform: none !important;
 }
 
@@ -86,15 +87,13 @@ textarea {
   transition:
     border-color 220ms var(--ease-standard),
     background-color 220ms var(--ease-standard),
-    box-shadow 220ms var(--ease-standard),
-    transform 220ms var(--ease-standard);
+    box-shadow 220ms var(--ease-standard);
 }
 
 input:focus,
 select:focus,
 textarea:focus {
   box-shadow: 0 0 0 4px rgba(183, 243, 75, 0.22);
-  transform: translateY(-1px);
 }
 
 .premium-panel {
@@ -225,6 +224,17 @@ textarea:focus {
 }
 
 @media (max-width: 640px) {
+  .page-transition {
+    min-width: 0;
+  }
+
+  .page-transition main,
+  .page-transition section,
+  .page-transition article,
+  .page-transition div {
+    max-width: 100%;
+  }
+
   input,
   select,
   textarea {
@@ -233,6 +243,16 @@ textarea:focus {
 
   table {
     font-size: 0.8125rem;
+  }
+
+  th,
+  td {
+    white-space: nowrap;
+  }
+
+  .premium-panel,
+  .motion-card {
+    box-shadow: 0 14px 42px rgba(7, 20, 24, 0.065);
   }
 }
 
@@ -258,14 +278,10 @@ textarea:focus {
 @keyframes page-enter {
   from {
     opacity: 0;
-    filter: blur(4px);
-    transform: translateY(10px) scale(0.998);
   }
 
   to {
     opacity: 1;
-    filter: blur(0);
-    transform: translateY(0);
   }
 }
 

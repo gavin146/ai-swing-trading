@@ -83,7 +83,7 @@ export function SwingFiAssistant({ enabled }: { enabled: boolean }) {
       id: "welcome",
       role: "assistant",
       text:
-        "Ask me for a plain-English read on a ticker, today's top rankings, or your tracked portfolio. I can compare current price against entry, target, stop, days left, headlines, and whether adding exposure would be near the plan or chasing.",
+        "Ask me for a plain-English read on a ticker, today's rankings, or your portfolio. I can compare price against entry, target, stop, days left, headlines, and whether adding exposure would be near the plan or chasing.",
     },
   ]);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
@@ -159,7 +159,7 @@ export function SwingFiAssistant({ enabled }: { enabled: boolean }) {
         aria-expanded={isOpen}
         aria-label="Open Ask SwingFi research assistant"
         onClick={() => setIsOpen((current) => !current)}
-        className={`fixed bottom-24 right-3 z-[90] items-center gap-2 rounded-2xl border px-3 py-2.5 text-sm font-black shadow-[0_20px_58px_rgba(7,20,24,0.22)] transition sm:px-4 sm:py-3 md:bottom-5 md:right-5 ${
+        className={`fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] right-3 z-[145] items-center gap-2 rounded-2xl border px-3 py-2.5 text-sm font-black shadow-[0_20px_58px_rgba(7,20,24,0.22)] transition sm:px-4 sm:py-3 md:bottom-5 md:right-5 ${
           isOpen ? "hidden" : "flex"
         } ${
           isOpen
@@ -177,29 +177,29 @@ export function SwingFiAssistant({ enabled }: { enabled: boolean }) {
       </button>
 
       {isOpen ? (
-        <div className="pointer-events-none fixed inset-x-2 bottom-24 z-[85] sm:inset-x-auto sm:right-4 md:bottom-20 md:right-5">
+        <div className="pointer-events-auto fixed inset-0 z-[150] bg-ink/24 sm:pointer-events-none sm:inset-x-auto sm:bottom-20 sm:right-4 sm:top-auto sm:bg-transparent md:bottom-20 md:right-5">
           <section
             aria-labelledby="swingfi-assistant-title"
             role="dialog"
-            className="pointer-events-auto ml-auto flex h-[min(72vh,680px)] w-full max-w-xl flex-col overflow-hidden rounded-[24px] border border-line bg-white shadow-[0_30px_100px_rgba(7,20,24,0.25)] sm:w-[min(92vw,620px)] sm:rounded-[28px] md:h-[min(720px,calc(100vh-6rem))]"
+            className="pointer-events-auto flex h-[100dvh] w-full flex-col overflow-hidden border border-line bg-white shadow-[0_30px_100px_rgba(7,20,24,0.25)] sm:ml-auto sm:h-[min(78vh,680px)] sm:w-[min(92vw,620px)] sm:rounded-[28px] md:h-[min(720px,calc(100vh-6rem))]"
           >
-            <div className="bg-[linear-gradient(145deg,#071418,#0b3d3f)] p-4 text-white sm:p-5">
+            <div className="bg-[linear-gradient(145deg,#071418,#0b3d3f)] p-3 pb-3 text-white sm:p-5">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="grid h-9 w-9 place-items-center rounded-2xl bg-lime text-sm font-black text-ink">
+                    <span className="grid h-8 w-8 place-items-center rounded-xl bg-lime text-xs font-black text-ink sm:h-9 sm:w-9 sm:rounded-2xl sm:text-sm">
                       AI
                     </span>
                     <div>
                       <p className="text-xs font-black uppercase tracking-normal text-lime">
                         Research assistant
                       </p>
-                      <h2 id="swingfi-assistant-title" className="text-2xl font-black tracking-normal">
+                      <h2 id="swingfi-assistant-title" className="text-xl font-black tracking-normal sm:text-2xl">
                         Ask SwingFi
                       </h2>
                     </div>
                   </div>
-                  <p className="mt-2 text-sm font-semibold leading-6 text-white/68">
+                  <p className="mt-2 line-clamp-2 text-xs font-semibold leading-5 text-white/70 sm:line-clamp-none sm:text-sm sm:leading-6">
                     Ask for exact symbols, scores, entry ranges, targets, stops, current
                     position context, and headline reads. Research only, not financial advice.
                   </p>
@@ -207,12 +207,12 @@ export function SwingFiAssistant({ enabled }: { enabled: boolean }) {
                 <button
                   type="button"
                   onClick={() => setIsOpen(false)}
-                  className="min-h-10 rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-xs font-black text-white/72 hover:bg-white/15"
+                  className="min-h-10 shrink-0 rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-xs font-black text-white/86 hover:bg-white/15"
                 >
                   Close
                 </button>
               </div>
-              <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+              <div className="mt-3 hidden grid-cols-2 gap-2 sm:grid sm:grid-cols-4">
                 {contextPills.map((pill) => (
                   <span
                     key={pill}
@@ -238,7 +238,7 @@ export function SwingFiAssistant({ enabled }: { enabled: boolean }) {
                       <span className="text-xs font-black uppercase tracking-normal text-pine">
                         {prompt.label}
                       </span>
-                      <span className="mt-2 block text-xs font-semibold leading-5 text-ink/58">
+                      <span className="mt-1 block text-xs font-semibold leading-5 text-ink/58 sm:mt-2">
                         {prompt.body}
                       </span>
                     </button>
@@ -252,8 +252,8 @@ export function SwingFiAssistant({ enabled }: { enabled: boolean }) {
                     key={message.id}
                     className={`rounded-2xl border p-3 text-sm leading-6 shadow-[0_10px_28px_rgba(7,20,24,0.045)] ${
                       message.role === "user"
-                        ? "ml-8 border-pine/25 bg-mint text-ink sm:ml-20"
-                        : "mr-4 border-line bg-white text-ink/72 sm:mr-12"
+                        ? "ml-5 border-pine/25 bg-mint text-ink sm:ml-20"
+                        : "mr-2 border-line bg-white text-ink/72 sm:mr-12"
                     }`}
                   >
                     <div className="flex items-center justify-between gap-3">
@@ -291,9 +291,9 @@ export function SwingFiAssistant({ enabled }: { enabled: boolean }) {
               </div>
             </div>
 
-            <div className="border-t border-line bg-white p-3 sm:p-4">
+            <div className="border-t border-line bg-white p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] sm:p-4">
               {messages.length > 1 ? (
-                <div className="mb-3 flex gap-2 overflow-x-auto pb-1">
+                <div className="mb-2 flex gap-2 overflow-x-auto pb-1 sm:mb-3">
                   {suggestions.map((question) => (
                     <button
                       key={question}
@@ -330,7 +330,7 @@ export function SwingFiAssistant({ enabled }: { enabled: boolean }) {
                   }}
                   placeholder="Ask about a ticker, score, stop, target, or portfolio position..."
                   rows={2}
-                  className="min-h-14 resize-none rounded-2xl border border-line bg-surface px-4 py-3 text-sm font-semibold text-ink outline-none focus:border-pine focus:bg-white"
+                  className="min-h-12 resize-none rounded-2xl border border-line bg-surface px-4 py-3 text-sm font-semibold text-ink outline-none focus:border-pine focus:bg-white sm:min-h-14"
                 />
                 <button
                   type="submit"
@@ -340,7 +340,7 @@ export function SwingFiAssistant({ enabled }: { enabled: boolean }) {
                   {loading ? "Thinking" : "Ask"}
                 </button>
               </form>
-              <p className="mt-2 text-xs font-semibold leading-5 text-ink/45">
+              <p className="mt-2 hidden text-xs font-semibold leading-5 text-ink/45 sm:block">
                 Better questions include a ticker or goal, like “explain AMZN” or
                 “would adding be chasing?” or “which position is closest to target?”
                 SwingFi does not place trades.

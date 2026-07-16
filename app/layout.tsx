@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import Link from "next/link";
 import { AnalyticsScripts } from "@/components/AnalyticsScripts";
 import { AppMotionShell } from "@/components/AppMotionShell";
@@ -58,6 +58,12 @@ export const metadata: Metadata = {
     : undefined,
 };
 
+export const viewport: Viewport = {
+  initialScale: 1,
+  viewportFit: "cover",
+  width: "device-width",
+};
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -69,23 +75,23 @@ export default function RootLayout({
         <AppMotionShell />
         <div className="page-transition">{children}</div>
         <AnalyticsScripts />
-        <footer className="border-t border-line bg-surface px-4 pb-[calc(6rem+env(safe-area-inset-bottom))] pt-6 text-sm text-ink/60 md:pb-6">
-          <div className="mx-auto flex max-w-7xl flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <p className="max-w-3xl leading-6">
+        <footer className="border-t border-line bg-surface px-4 pb-[calc(5.5rem+env(safe-area-inset-bottom))] pt-4 text-xs text-ink/60 sm:pt-6 sm:text-sm md:pb-6">
+          <div className="mx-auto flex max-w-7xl flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <p className="max-w-3xl leading-5 sm:leading-6">
               {brand.appName} is research software, not financial advice, and does not
               place trades or manage brokerage accounts.
             </p>
-            <nav className="flex flex-wrap gap-2 font-bold text-ink/70" aria-label="Legal links">
-              <Link href="/legal" className="rounded-xl px-3 py-2 hover:bg-white hover:text-pine">
+            <nav className="flex flex-wrap gap-1.5 font-bold text-ink/70 sm:gap-2" aria-label="Legal links">
+              <Link href="/legal" className="rounded-xl px-2.5 py-1.5 hover:bg-white hover:text-pine sm:px-3 sm:py-2">
                 Legal
               </Link>
-              <Link href="/legal/disclaimer" className="rounded-xl px-3 py-2 hover:bg-white hover:text-pine">
+              <Link href="/legal/disclaimer" className="rounded-xl px-2.5 py-1.5 hover:bg-white hover:text-pine sm:px-3 sm:py-2">
                 Disclaimer
               </Link>
-              <Link href="/legal/privacy" className="rounded-xl px-3 py-2 hover:bg-white hover:text-pine">
+              <Link href="/legal/privacy" className="rounded-xl px-2.5 py-1.5 hover:bg-white hover:text-pine sm:px-3 sm:py-2">
                 Privacy
               </Link>
-              <Link href="/legal/terms" className="rounded-xl px-3 py-2 hover:bg-white hover:text-pine">
+              <Link href="/legal/terms" className="rounded-xl px-2.5 py-1.5 hover:bg-white hover:text-pine sm:px-3 sm:py-2">
                 Terms
               </Link>
             </nav>

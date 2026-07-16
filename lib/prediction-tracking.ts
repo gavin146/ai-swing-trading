@@ -169,12 +169,62 @@ function candleReturn(candles: FmpHistoricalCandle[]) {
   return round(percentChange(Number(last), Number(first)), 2);
 }
 
+const benchmarkReturnCache = new Map<string, Promise<number | null>>();
+
 async function benchmarkReturn(symbol: "QQQ" | "SPY", from: string, to: string) {
-  try {
-    return candleReturn(await getFmpHistoricalCandles(symbol, from, to));
-  } catch {
-    return null;
+  const cacheKey = `${symbol}:${from}:${to}`;
+  const cached = benchmarkReturnCache.get(cacheKey);
+
+  if (cached) return cached;
+
+  const promise = (async () => {
+    try {
+      return candleReturn(await getFmpHistoricalCandles(symbol, from, to));
+    } catch {
+      return null;
+    }
+  })();
+
+  benchmarkReturnCache.set(cacheKey, promise);
+  return promise;
+}
+
+async function benchmarkPair(from: string, to: string) {
+  const [spyReturn, qqqReturn] = await Promise.all([
+    benchmarkReturn("SPY", from, to),
+    benchmarkReturn("QQQ", from, to),
+  ]);
+  const benchmarkValues = [spyReturn, qqqReturn].filter((value) => value !== null);
+
+  return {
+    benchmark: benchmarkValues.length ? round(average(benchmarkValues), 2) : null,
+    qqqReturn,
+    spyReturn,
+  };
+}
+
+async function evaluateBatch<T, R>(
+  items: T[],
+  concurrency: number,
+  evaluator: (item: T) => Promise<R>,
+) {
+  const results: R[] = [];
+
+  for (let index = 0; index < items.length; index += concurrency) {
+    const batch = items.slice(index, index + concurrency);
+    results.push(...(await Promise.all(batch.map(evaluator))));
   }
+
+  return results;
+}
+
+function predictionPriority(prediction: PredictionOutcomeRow) {
+  const today = formatDate(new Date());
+  const due = daysBetween(prediction.prediction_date, today) >= prediction.holding_period_days;
+
+  if (prediction.status === "entered") return 0;
+  if (due) return 1;
+  return 2;
 }
 
 async function evaluatePrediction(prediction: PredictionOutcomeRow): Promise<EvaluationResult> {
@@ -187,7 +237,7 @@ async function evaluatePrediction(prediction: PredictionOutcomeRow): Promise<Eva
   if (candles.length === 0) {
     return {
       evaluated_at: new Date().toISOString(),
-      status: daysBetween(prediction.prediction_date, today) > prediction.holding_period_days
+      status: daysBetween(prediction.prediction_date, today) >= prediction.holding_period_days
         ? "no_data"
         : prediction.status,
     };
@@ -196,15 +246,13 @@ async function evaluatePrediction(prediction: PredictionOutcomeRow): Promise<Eva
   const entry = findEntry(prediction, candles);
 
   if (!entry) {
-    const matured = daysBetween(prediction.prediction_date, today) > prediction.holding_period_days;
-    const spyReturn = await benchmarkReturn("SPY", prediction.prediction_date, to);
-    const qqqReturn = await benchmarkReturn("QQQ", prediction.prediction_date, to);
-    const benchmark = average([spyReturn, qqqReturn].filter((value) => value !== null));
+    const matured = daysBetween(prediction.prediction_date, today) >= prediction.holding_period_days;
+    const { benchmark, qqqReturn, spyReturn } = await benchmarkPair(prediction.prediction_date, to);
 
     return {
-      benchmark_return_pct: benchmark || null,
+      benchmark_return_pct: benchmark,
       evaluated_at: new Date().toISOString(),
-      excess_return_pct: benchmark ? round(0 - benchmark, 2) : null,
+      excess_return_pct: benchmark !== null ? round(0 - benchmark, 2) : null,
       qqq_return_pct: qqqReturn,
       spy_return_pct: spyReturn,
       status: matured ? "no_entry" : "pending",
@@ -258,10 +306,7 @@ async function evaluatePrediction(prediction: PredictionOutcomeRow): Promise<Eva
   }
 
   const benchmarkTo = exitDate ?? to;
-  const spyReturn = await benchmarkReturn("SPY", prediction.prediction_date, benchmarkTo);
-  const qqqReturn = await benchmarkReturn("QQQ", prediction.prediction_date, benchmarkTo);
-  const benchmarkValues = [spyReturn, qqqReturn].filter((value) => value !== null);
-  const benchmark = benchmarkValues.length ? round(average(benchmarkValues), 2) : null;
+  const { benchmark, qqqReturn, spyReturn } = await benchmarkPair(prediction.prediction_date, benchmarkTo);
   const returnPct = round(percentChange(exitPrice, entryPrice), 2);
 
   return {
@@ -619,7 +664,7 @@ export async function persistForwardCalibrationFromPredictions(limit = 500) {
   };
 }
 
-export async function getPredictionAccuracySummary(limit = 300) {
+export async function getPredictionAccuracySummary(limit = 1000) {
   const supabase = createSupabaseAdminClient();
 
   if (!supabase) {
@@ -653,13 +698,14 @@ export async function evaluatePendingPredictions(limit = 80) {
     return getPredictionAccuracySummary();
   }
 
+  const queryLimit = Math.min(1000, Math.max(limit * 3, limit));
   const { data, error } = await supabase
     .from("prediction_outcomes")
     .select("*")
     .in("status", ["pending", "entered"])
     .order("prediction_date", { ascending: true })
     .order("rank", { ascending: true })
-    .limit(limit);
+    .limit(queryLimit);
 
   if (error) {
     if (isMissingPredictionTableError(error)) {
@@ -672,18 +718,27 @@ export async function evaluatePendingPredictions(limit = 80) {
   }
 
   let updatedCount = 0;
+  const predictions = ((data ?? []) as PredictionOutcomeRow[])
+    .sort((a, b) => {
+      const priority = predictionPriority(a) - predictionPriority(b);
+      if (priority !== 0) return priority;
+      const dateOrder = a.prediction_date.localeCompare(b.prediction_date);
+      if (dateOrder !== 0) return dateOrder;
+      return a.rank - b.rank;
+    })
+    .slice(0, limit);
 
-  for (const prediction of (data ?? []) as PredictionOutcomeRow[]) {
+  const results = await evaluateBatch(predictions, 8, async (prediction) => {
     const evaluation = await evaluatePrediction(prediction);
     const { error: updateError } = await supabase
       .from("prediction_outcomes")
       .update(evaluation)
       .eq("id", prediction.id);
 
-    if (!updateError) {
-      updatedCount += 1;
-    }
-  }
+    return !updateError;
+  });
+
+  updatedCount = results.filter(Boolean).length;
 
   const summary = await getPredictionAccuracySummary();
   return {

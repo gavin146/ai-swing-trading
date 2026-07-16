@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(getAdminUnauthorizedResponse(), { status: 403 });
   }
 
-  const limit = parseLimit(request.nextUrl.searchParams.get("limit"), 300, 25, 1000);
+  const limit = parseLimit(request.nextUrl.searchParams.get("limit"), 1000, 25, 2500);
 
   try {
     return NextResponse.json(await getPredictionAccuracySummary(limit));

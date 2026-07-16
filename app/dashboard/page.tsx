@@ -9,7 +9,7 @@ export default async function DashboardPage() {
       active="dashboard"
       eyebrow="Today's pre-market brief"
       title="Today's ranked trade ideas"
-      subtitle="Start with the calm first list, open one to three setups, then check entry, target, stop, confidence, and risk before doing deeper research."
+      subtitle="Start with the verdict, check the buy-under price, then open the full plan only when the setup fits your risk."
     >
       <DashboardOpportunities
         dataSource="empty"

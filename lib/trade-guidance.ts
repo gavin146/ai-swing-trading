@@ -8,6 +8,152 @@ export type BeginnerTradeGuide = {
   tone: "positive" | "neutral" | "caution";
 };
 
+export type CoachVerdict = {
+  actionLabel: "Buy now" | "Good buy if under" | "Do not buy above" | "Skip today" | "High risk";
+  actionText: string;
+  badgeTone: "positive" | "neutral" | "caution";
+  confidenceText: string;
+  direction: "Likely up" | "Mixed" | "Likely down";
+  directionText: string;
+  forecastRange: string;
+  guardrail: string;
+  oneLine: string;
+  percentageText: string;
+  reason: string;
+  riskText: string;
+};
+
+function formatCurrency(value: number) {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: value >= 1000 ? 0 : 2,
+  }).format(value);
+}
+
+function rewardRisk(opportunity: Opportunity) {
+  return opportunity.expectedLossValue > 0
+    ? opportunity.expectedGainValue / opportunity.expectedLossValue
+    : opportunity.expectedGainValue;
+}
+
+function confidenceWord(confidence: number) {
+  if (confidence >= 82) return "Strong";
+  if (confidence >= 70) return "Good";
+  if (confidence >= 60) return "Mixed";
+  return "Weak";
+}
+
+export function getCoachVerdict(opportunity: Opportunity): CoachVerdict {
+  const ratio = rewardRisk(opportunity);
+  const buyUnder = formatCurrency(opportunity.entryHigh);
+  const riskLine = formatCurrency(opportunity.stopLossValue);
+  const target = formatCurrency(opportunity.targetPriceValue);
+  const forecastLow =
+    opportunity.riskScore >= 70 || opportunity.confidenceScore < 62
+      ? opportunity.stopLossValue
+      : opportunity.entryLow;
+  const forecastRange = `${formatCurrency(forecastLow)} - ${target}`;
+  const percentageText = `Possible gain ${opportunity.potentialGain}; risk if wrong ${opportunity.potentialLoss}.`;
+  const confidenceText = `${confidenceWord(opportunity.confidenceScore)} confidence`;
+
+  if (
+    opportunity.opportunityScore >= 84 &&
+    opportunity.confidenceScore >= 75 &&
+    opportunity.riskScore <= 55 &&
+    ratio >= 1.8
+  ) {
+    return {
+      actionLabel: "Buy now",
+      actionText: `Buy now only if the price is ${buyUnder} or lower.`,
+      badgeTone: "positive",
+      confidenceText,
+      direction: "Likely up",
+      directionText: `SwingFi expects ${opportunity.symbol} to rise over the next ${opportunity.timeHorizon}.`,
+      forecastRange,
+      guardrail: `Do not buy above ${buyUnder}. Above that, the profit potential shrinks and the risk/reward gets worse.`,
+      oneLine: `${opportunity.symbol}: Buy now if the price is ${buyUnder} or lower.`,
+      percentageText,
+      reason: "It ranks near the top today because upside, confidence, and risk are lining up better than most names scanned.",
+      riskText: `If it falls below ${riskLine}, the original plan is no longer working.`,
+    };
+  }
+
+  if (
+    opportunity.opportunityScore >= 74 &&
+    opportunity.confidenceScore >= 65 &&
+    opportunity.riskScore <= 66 &&
+    ratio >= 1.35
+  ) {
+    return {
+      actionLabel: "Good buy if under",
+      actionText: `Good buy if you can get it at ${buyUnder} or lower.`,
+      badgeTone: "positive",
+      confidenceText,
+      direction: "Likely up",
+      directionText: `SwingFi expects upward movement if ${opportunity.symbol} stays near the planned price area.`,
+      forecastRange,
+      guardrail: `Do not buy above ${buyUnder}. If it is already higher, wait for a better price or review another ticker.`,
+      oneLine: `${opportunity.symbol}: Good buy if under ${buyUnder}.`,
+      percentageText,
+      reason: "It has enough upside to be worth attention, but the buying price matters.",
+      riskText: `The risk line is ${riskLine}. Below that, the plan is failing.`,
+    };
+  }
+
+  if (opportunity.riskScore >= 70 || opportunity.expectedLossValue >= opportunity.expectedGainValue) {
+    return {
+      actionLabel: "High risk",
+      actionText: "High risk. Beginners should slow down or skip unless they fully understand the downside.",
+      badgeTone: "caution",
+      confidenceText,
+      direction: opportunity.confidenceScore >= 72 ? "Mixed" : "Likely down",
+      directionText:
+        opportunity.confidenceScore >= 72
+          ? `SwingFi sees possible upside, but ${opportunity.symbol} can move against you quickly.`
+          : `SwingFi does not see a clean enough upward setup for ${opportunity.symbol} today.`,
+      forecastRange,
+      guardrail: `Do not buy above ${buyUnder}. The risk is already elevated, so chasing makes the setup worse.`,
+      oneLine: `${opportunity.symbol}: High risk today.`,
+      percentageText,
+      reason: "The possible reward is not clean enough compared with the downside risk.",
+      riskText: `If price moves toward ${riskLine}, protecting capital matters more than hoping it recovers.`,
+    };
+  }
+
+  if (opportunity.confidenceScore < 62 || opportunity.opportunityScore < 66) {
+    return {
+      actionLabel: "Skip today",
+      actionText: "Skip today. SwingFi does not see enough clean evidence to make this a strong idea.",
+      badgeTone: "caution",
+      confidenceText,
+      direction: "Likely down",
+      directionText: `SwingFi does not expect a strong enough move up from ${opportunity.symbol} right now.`,
+      forecastRange,
+      guardrail: `Do not buy above ${buyUnder}. There are likely cleaner choices in today's list.`,
+      oneLine: `${opportunity.symbol}: Skip today.`,
+      percentageText,
+      reason: "The setup needs stronger evidence before it deserves attention over higher-ranked choices.",
+      riskText: `The plan breaks if price falls below ${riskLine}.`,
+    };
+  }
+
+  return {
+    actionLabel: "Do not buy above",
+    actionText: `Do not buy above ${buyUnder}. Under that price, it can stay on your review list.`,
+    badgeTone: "neutral",
+    confidenceText,
+    direction: "Mixed",
+    directionText: `SwingFi sees a possible move up, but ${opportunity.symbol} needs the price to stay attractive.`,
+    forecastRange,
+    guardrail: `If it is above ${buyUnder}, the setup is no longer attractive enough compared with the risk.`,
+    oneLine: `${opportunity.symbol}: Do not buy above ${buyUnder}.`,
+    percentageText,
+    reason: "This is not one of the cleanest ideas today, but it still has a defined price plan.",
+    riskText: `Below ${riskLine}, the plan is failing.`,
+  };
+}
+
 export function getBeginnerTradeGuide(opportunity: Opportunity): BeginnerTradeGuide {
   const highQuality =
     opportunity.opportunityScore >= 80 &&

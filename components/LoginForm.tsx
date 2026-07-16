@@ -7,6 +7,7 @@ import { PasswordField } from "@/components/PasswordField";
 import { ToastNotice, type ToastTone } from "@/components/ToastNotice";
 import { customerDestinationLabel, normalizeCustomerNextPath, signupHref } from "@/lib/customer-flow";
 import {
+  getCurrentCustomer,
   isAdminCustomer,
   loginCustomer,
   rememberAuthenticatedCustomer,
@@ -25,7 +26,18 @@ type AuthNotice = {
 };
 
 function friendlyLoginError(error: unknown) {
-  const message = error instanceof Error ? error.message : String(error);
+  const message =
+    error instanceof Error
+      ? error.message
+      : typeof error === "object" && error
+        ? "message" in error && typeof error.message === "string"
+          ? error.message
+          : "error_description" in error && typeof error.error_description === "string"
+            ? error.error_description
+            : "error" in error && typeof error.error === "string"
+              ? error.error
+              : ""
+        : String(error ?? "");
   const lower = message.toLowerCase();
 
   if (lower.includes("no swingfi account")) return message;
@@ -39,8 +51,11 @@ function friendlyLoginError(error: unknown) {
   if (lower.includes("too many")) {
     return "Too many login attempts. Wait a few minutes, then try again.";
   }
+  if (lower.includes("failed to fetch") || lower.includes("network")) {
+    return "SwingFi could not reach the login service. Check your connection, then try again.";
+  }
 
-  return message || "Login failed.";
+  return message || "SwingFi could not complete login. Try again, or send a password reset link.";
 }
 
 export function LoginForm() {
@@ -57,6 +72,27 @@ export function LoginForm() {
 
   function showNotice(tone: ToastTone, message: string, title?: string) {
     setNotice({ message, title, tone });
+  }
+
+  async function loadProfileFromAccessToken(accessToken: string, password = "") {
+    const profileResponse = await fetch("/api/customers/session", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({ accessToken }),
+    });
+    const profilePayload = (await profileResponse.json().catch(() => ({}))) as SessionProfileResponse;
+
+    if (!profileResponse.ok || profilePayload.error || !profilePayload.customer) {
+      throw new Error(profilePayload.error ?? "Could not load your saved SwingFi profile.");
+    }
+
+    return rememberAuthenticatedCustomer({
+      ...profilePayload.customer,
+      password,
+    });
   }
 
   useEffect(() => {
@@ -147,6 +183,78 @@ export function LoginForm() {
     };
   }, [pathname]);
 
+  useEffect(() => {
+    if (recoveryMode) return;
+    if (typeof window === "undefined") return;
+
+    const isLocalCodexTarget =
+      window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+    if (!isLocalCodexTarget) return;
+    const currentCustomer = getCurrentCustomer();
+    if (currentCustomer) {
+      router.replace(requestedNextPath || (isAdminCustomer(currentCustomer) ? "/admin" : "/dashboard"));
+      return;
+    }
+
+    const attemptKey = "swingfi-codex-auto-login-attempted";
+    if (window.sessionStorage.getItem(attemptKey) === "1") return;
+    window.sessionStorage.setItem(attemptKey, "1");
+
+    let cancelled = false;
+
+    async function startCodexSession() {
+      const supabase = createSupabaseBrowserClient();
+      if (!supabase) return;
+
+      const existing = await supabase.auth.getSession();
+      if (existing.data.session?.access_token) {
+        const customer = await loadProfileFromAccessToken(existing.data.session.access_token);
+        if (!cancelled) {
+          router.replace(requestedNextPath || (isAdminCustomer(customer) ? "/admin" : "/dashboard"));
+        }
+        return;
+      }
+
+      const response = await fetch("/api/dev/codex-session", { method: "POST" });
+      if (!response.ok) {
+        window.sessionStorage.removeItem(attemptKey);
+        return;
+      }
+      const payload = (await response.json().catch(() => null)) as {
+        email?: string;
+        tokenHash?: string;
+        type?: "magiclink";
+      } | null;
+
+      if (!payload?.tokenHash) return;
+
+      const { data, error } = await supabase.auth.verifyOtp({
+        token_hash: payload.tokenHash,
+        type: "magiclink",
+      });
+
+      if (error || !data.session?.access_token) {
+        throw error ?? new Error("Could not verify the local Codex login session.");
+      }
+
+      const customer = await loadProfileFromAccessToken(data.session.access_token);
+      if (!cancelled) {
+        router.replace(requestedNextPath || (isAdminCustomer(customer) ? "/admin" : "/dashboard"));
+      }
+    }
+
+    startCodexSession().catch((error) => {
+      window.sessionStorage.removeItem(attemptKey);
+      if (!cancelled) {
+        showNotice("info", friendlyLoginError(error), "Manual login needed");
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [recoveryMode, requestedNextPath, router]);
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setLoading(true);
@@ -186,24 +294,7 @@ export function LoginForm() {
             "That email or password is not correct. Check the email spelling or reset your password.",
           );
         } else {
-          const profileResponse = await fetch("/api/customers/session", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${data.session?.access_token ?? ""}`,
-            },
-            body: JSON.stringify({ accessToken: data.session?.access_token }),
-          });
-          const profilePayload = (await profileResponse.json().catch(() => ({}))) as SessionProfileResponse;
-
-          if (!profileResponse.ok || profilePayload.error || !profilePayload.customer) {
-            throw new Error(profilePayload.error ?? "Could not load your saved SwingFi profile.");
-          }
-
-          customer = rememberAuthenticatedCustomer({
-            ...profilePayload.customer,
-            password,
-          });
+          customer = await loadProfileFromAccessToken(data.session?.access_token ?? "", password);
         }
       } else {
         customer = loginCustomer(email, password);
