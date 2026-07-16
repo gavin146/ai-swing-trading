@@ -97,7 +97,7 @@ export function AdminOperationsPanel() {
       const response = await fetch("/api/admin/run-agent", {
         method: "POST",
         headers: await getAdminHeaders({ "Content-Type": "application/json" }),
-        body: JSON.stringify({ detailedLimit: 350, limit: 30, universeLimit: 1000 }),
+        body: JSON.stringify({ detailedLimit: 500, limit: 30, universeLimit: 1500 }),
       });
 
       if (!response.ok) {

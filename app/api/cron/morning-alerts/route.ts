@@ -15,6 +15,7 @@ import { sendTwilioSms } from "@/lib/twilio";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
+export const maxDuration = 300;
 
 function isAuthorized(request: NextRequest) {
   const secret = process.env.CRON_SECRET;

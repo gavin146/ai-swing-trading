@@ -5,6 +5,7 @@ import { persistAgentRun, recordAppEvent, summarizeCalibration } from "@/lib/per
 import { invalidateOpportunityListCache } from "@/lib/repositories/opportunities";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 300;
 
 function isAuthorized(request: NextRequest) {
   const secret = process.env.CRON_SECRET;

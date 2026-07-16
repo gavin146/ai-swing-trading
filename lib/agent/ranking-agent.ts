@@ -223,6 +223,47 @@ function rewardRiskRatio(candidate: EquityCandidate) {
   return reward / Math.max(risk, 1);
 }
 
+function scoreSwingSetup(candidate: EquityCandidate) {
+  const supportDistance = supportDistancePct(candidate);
+  const rewardDistance = rewardDistancePct(candidate);
+  const rewardRisk = rewardRiskRatio(candidate);
+  const marketRelative = candidate.technical.relativeStrengthVsMarket ?? 50;
+  const sectorRelative = candidate.technical.relativeStrengthVsSector ?? 50;
+  const eventRisk = candidate.news.eventRiskScore ?? 0;
+  const filingRisk = candidate.news.filingRiskScore ?? 0;
+  const daysToEarnings = candidate.news.daysToEarnings;
+  const binaryEventPenalty = daysToEarnings !== null && daysToEarnings !== undefined && daysToEarnings <= 5 ? 12 : 0;
+  const entryDiscipline =
+    supportDistance <= 3.5
+      ? 16
+      : supportDistance <= 6
+        ? 13
+        : supportDistance <= 8.5
+          ? 8
+          : supportDistance <= 11
+            ? 3
+            : -4;
+  const upsideScore = toScore(rewardDistance, 3.5, 12) * 0.18;
+  const rewardRiskScore = toScore(rewardRisk, 1, 3.2) * 0.22;
+  const relativeScore = (marketRelative * 0.11) + (sectorRelative * 0.09);
+  const volumeScore = toScore(candidate.technical.volumeTrend, -20, 45) * 0.12;
+  const trendScore = (candidate.technical.trendQuality ?? 50) * 0.13;
+  const volatilityPenalty = toScore(candidate.technical.atrPercent, 6, 13) * 0.1;
+  const riskPenalty = (eventRisk * 0.08) + (filingRisk * 0.07) + binaryEventPenalty;
+
+  return clamp(
+    18 +
+      entryDiscipline +
+      upsideScore +
+      rewardRiskScore +
+      relativeScore +
+      volumeScore +
+      trendScore -
+      volatilityPenalty -
+      riskPenalty,
+  );
+}
+
 function dataCompletenessScore(candidate: EquityCandidate) {
   const { financials, news, technical } = candidate;
   const hasMeaningfulFinancials =
@@ -273,6 +314,7 @@ function predictionQualityAdjustment(
   const outperformingBenchmarks = hasRelativeBenchmarks && marketRelative >= 62 && sectorRelative >= 58;
   const extendedFromSupport = supportDistance >= 8.5;
   const limitedUpside = rewardDistance < 4.5 || rewardRisk < 1.35;
+  const weakSwingSetup = scoreSwingSetup(candidate) < 48;
   const elevatedBinaryRisk = eventRisk >= 45 || filingRisk >= 45;
   const highVolatility = candidate.technical.atrPercent >= 6.5 || partial.risk >= 66;
   const weakConfirmation =
@@ -281,6 +323,7 @@ function predictionQualityAdjustment(
     (candidate.news.catalystScore < 52 && candidate.news.sentimentScore < 55);
   const scoreAdjustment =
     (limitedUpside ? -8 : rewardRisk >= 2.2 && rewardDistance >= 6 ? 4 : 0) +
+    (weakSwingSetup ? -6 : 0) +
     (underperformingBenchmarks ? -7 : outperformingBenchmarks ? 4 : hasRelativeBenchmarks ? 0 : -3) +
     (extendedFromSupport ? -4 : supportDistance <= 5.5 ? 2 : 0) +
     (elevatedBinaryRisk ? -8 : 0) +
@@ -290,10 +333,12 @@ function predictionQualityAdjustment(
     (dataCompleteness >= 78 ? 5 : dataCompleteness >= 62 ? 1 : -8) +
     (underperformingBenchmarks ? -5 : hasRelativeBenchmarks ? 2 : -2) +
     (limitedUpside ? -4 : 1) +
+    (weakSwingSetup ? -5 : 0) +
     (elevatedBinaryRisk ? -7 : 0);
   const riskAdjustment =
     (extendedFromSupport ? 5 : 0) +
     (limitedUpside ? 4 : 0) +
+    (weakSwingSetup ? 5 : 0) +
     (underperformingBenchmarks ? 4 : 0) +
     (elevatedBinaryRisk ? 8 : 0) +
     (highVolatility ? 6 : 0) -
@@ -301,6 +346,7 @@ function predictionQualityAdjustment(
   const cap = Math.min(
     100,
     limitedUpside ? 72 : 100,
+    weakSwingSetup ? 74 : 100,
     underperformingBenchmarks ? 76 : 100,
     elevatedBinaryRisk ? 70 : 100,
     dataCompleteness < 50 ? 68 : 100,
@@ -322,6 +368,10 @@ function predictionQualityAdjustment(
 
   if (elevatedBinaryRisk) {
     notes.push("Event or SEC filing risk is elevated, so the score is capped until the binary risk clears.");
+  }
+
+  if (weakSwingSetup) {
+    notes.push("Swing setup quality is below the preferred threshold, so the model lowers conviction even if the company looks interesting.");
   }
 
   if (extendedFromSupport) {
@@ -503,15 +553,17 @@ function scoreCandidate(candidate: EquityCandidate): ScoreBreakdown {
     -7,
     5,
   );
+  const swingSetupScore = scoreSwingSetup(candidate);
   const rawComposite = Math.round(
     clamp(
-      partial.technical * 0.34 +
-        partial.financial * 0.21 +
-        partial.news * 0.16 +
-        partial.macro * 0.12 +
-        partial.liquidity * 0.06 +
-        rewardRiskScore * 0.06 +
-        (100 - partial.risk) * 0.05 +
+      partial.technical * 0.27 +
+        swingSetupScore * 0.18 +
+        partial.financial * 0.16 +
+        partial.news * 0.15 +
+        partial.macro * 0.1 +
+        partial.liquidity * 0.05 +
+        rewardRiskScore * 0.05 +
+        (100 - partial.risk) * 0.04 +
         benchmarkAdjustment +
         catalystAdjustment,
     ),

@@ -7,6 +7,7 @@ import { invalidateOpportunityListCache } from "@/lib/repositories/opportunities
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
+export const maxDuration = 300;
 
 function parseLimit(value: unknown) {
   const parsed = Number(value ?? 30);
@@ -46,9 +47,9 @@ export async function POST(request: NextRequest) {
   try {
     const persistedCalibration = await hydrateRuntimeCalibrationFromSupabase();
     const result = await runFmpDailyRankingAgent({
-      detailedLimit: parseRange(body.detailedLimit, 350, 30, 500),
+      detailedLimit: parseRange(body.detailedLimit, 500, 30, 500),
       limit: parseLimit(body.limit),
-      universeLimit: parseRange(body.universeLimit, 1000, 40, 1500),
+      universeLimit: parseRange(body.universeLimit, 1500, 40, 1500),
     });
     const persistence = await persistAgentRun(result);
     const calibration = summarizeCalibration(result.rankings);

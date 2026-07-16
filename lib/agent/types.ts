@@ -123,9 +123,12 @@ export type AgentRunResult = {
       screenerCount: number;
       detailedCandidateTarget: number;
       detailedCandidateCount: number;
+      viableCandidateCount?: number;
       qualifiedCandidateCount: number;
       rankedCandidateCount: number;
+      configuredMinimumScreenerCount?: number;
       minimumScreenerCount: number;
+      configuredMinimumDetailedCandidateCount?: number;
       minimumDetailedCandidateCount: number;
       warning: string | null;
     };

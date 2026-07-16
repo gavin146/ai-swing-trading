@@ -86,6 +86,12 @@ type CandidateBuildResult = {
 
 type CandidateBuildMode = "full" | "price-only";
 
+const recommendedUniverseLimit = 1500;
+const recommendedDetailedLimit = 500;
+const recommendedEnrichmentLimit = 120;
+const recommendedMinimumScreenerRows = 700;
+const recommendedMinimumDetailedCandidates = 250;
+
 type CombinedMacroContext = FredMacroContext & {
   bls: BlsMacroContext;
   treasury: TreasuryMacroContext;
@@ -1023,6 +1029,36 @@ function hasSwingQuality(candidate: EquityCandidate) {
   );
 }
 
+function hasMinimumSwingViability(candidate: EquityCandidate) {
+  const price = candidate.technical.price;
+  const upsideRoom =
+    price > 0 ? ((candidate.technical.resistance - price) / price) * 100 : 0;
+  const downsideToSupport =
+    price > 0 ? ((price - candidate.technical.support) / price) * 100 : 0;
+  const rewardRisk = upsideRoom / Math.max(downsideToSupport, 1);
+  const eventRisk = candidate.news.eventRiskScore ?? 0;
+  const filingRisk = candidate.news.filingRiskScore ?? 0;
+  const relativeStrengthFloor =
+    candidate.market.marketRegimeScore <= 55 ? 38 : 32;
+
+  return (
+    candidate.averageVolume >= 250_000 &&
+    candidate.marketCapBillions >= 0.35 &&
+    price >= 3 &&
+    upsideRoom >= 3 &&
+    rewardRisk >= 0.95 &&
+    candidate.technical.atrPercent <= 14 &&
+    eventRisk < 85 &&
+    filingRisk < 85 &&
+    (candidate.technical.relativeStrengthVsMarket ?? 50) >= relativeStrengthFloor &&
+    (candidate.technical.relativeStrengthVsSector ?? 50) >= 30 &&
+    (candidate.technical.trendQuality ?? 50) >= 28 &&
+    candidate.technical.volumeTrend >= -45 &&
+    candidate.technical.support > 0 &&
+    candidate.technical.resistance > candidate.technical.support
+  );
+}
+
 function dataQualityLabel(liveCount: number, total: number) {
   if (total === 0) return "mock";
   if (liveCount === total) return "live";
@@ -1030,13 +1066,44 @@ function dataQualityLabel(liveCount: number, total: number) {
   return "mock";
 }
 
-async function getBroadFmpScreenerRows(limit: number) {
-  try {
-    const rows = await getFmpCompanyScreener(limit);
-    return rankScreenerRows(rows);
-  } catch {
-    return [] as FmpCompanyScreenerRow[];
+function mergeScreenerRows(rows: FmpCompanyScreenerRow[]) {
+  const rowsBySymbol = new Map<string, FmpCompanyScreenerRow>();
+
+  rows.forEach((row) => {
+    const symbol = row.symbol?.toUpperCase();
+
+    if (symbol && !rowsBySymbol.has(symbol)) {
+      rowsBySymbol.set(symbol, row);
+    }
+  });
+
+  return [...rowsBySymbol.values()];
+}
+
+async function getBroadFmpScreenerRows(limit: number, minimumRows: number) {
+  const attempts = [
+    { marketCapMoreThan: 500_000_000, priceMoreThan: 3, volumeMoreThan: 300_000 },
+    { marketCapMoreThan: 300_000_000, priceMoreThan: 2, volumeMoreThan: 200_000 },
+    { marketCapMoreThan: 150_000_000, priceMoreThan: 1, volumeMoreThan: 100_000 },
+  ];
+  let rows: FmpCompanyScreenerRow[] = [];
+
+  for (const attempt of attempts) {
+    try {
+      rows = mergeScreenerRows([
+        ...rows,
+        ...(await getFmpCompanyScreener(limit, attempt)),
+      ]);
+
+      if (rows.length >= minimumRows) {
+        break;
+      }
+    } catch {
+      // Try the next, broader screener pass before giving up.
+    }
   }
+
+  return rankScreenerRows(rows);
 }
 
 export async function getFmpEquityUniverse(
@@ -1143,12 +1210,36 @@ export async function runFmpDailyRankingAgent({
   asOf = new Date(),
   limit = 30,
   symbols,
-  universeLimit = envNumber("FMP_UNIVERSE_LIMIT", 1000, 40, 1500),
-  detailedLimit = envNumber("FMP_DETAILED_LIMIT", 350, 30, 500),
+  universeLimit = envNumber("FMP_UNIVERSE_LIMIT", recommendedUniverseLimit, 40, 1500),
+  detailedLimit = envNumber("FMP_DETAILED_LIMIT", recommendedDetailedLimit, 30, 500),
 }: RunFmpOptions = {}): Promise<AgentRunResult> {
-  const minimumScreenerCount = envNumber("FMP_MIN_SCREENER_ROWS", 250, 40, 1500);
-  const minimumDetailedCandidateCount = envNumber("FMP_MIN_DETAILED_CANDIDATES", 120, 30, 500);
-  const enrichmentLimit = envNumber("FMP_ENRICHMENT_LIMIT", 90, limit, 150);
+  const configuredMinimumScreenerCount = envNumber(
+    "FMP_MIN_SCREENER_ROWS",
+    recommendedMinimumScreenerRows,
+    40,
+    1500,
+  );
+  const screenerRequestLimit = Math.min(
+    1500,
+    Math.max(universeLimit, configuredMinimumScreenerCount, detailedLimit * 2, limit * 20),
+  );
+  const minimumScreenerCount = Math.min(
+    configuredMinimumScreenerCount,
+    Math.floor(configuredMinimumScreenerCount * 0.95),
+    Math.floor(screenerRequestLimit * 0.8),
+  );
+  const configuredMinimumDetailedCandidateCount = envNumber(
+    "FMP_MIN_DETAILED_CANDIDATES",
+    recommendedMinimumDetailedCandidates,
+    30,
+    500,
+  );
+  const minimumDetailedCandidateCount = Math.min(
+    configuredMinimumDetailedCandidateCount,
+    Math.floor(configuredMinimumDetailedCandidateCount * 0.95),
+    Math.max(limit * 4, Math.floor(detailedLimit * 0.8)),
+  );
+  const enrichmentLimit = envNumber("FMP_ENRICHMENT_LIMIT", recommendedEnrichmentLimit, limit, 150);
   const coverageGateEnabled = !envFlag("DISABLE_MARKET_COVERAGE_GATE", false);
   const macro = await getFredMacroContext();
   const bls = await getBlsMacroContext();
@@ -1156,7 +1247,9 @@ export async function runFmpDailyRankingAgent({
   const combinedMacro = combineMacroContexts(macro, bls, treasury);
   const [benchmarks, screenerRows] = await Promise.all([
     getBenchmarkContext(asOf),
-    symbols ? Promise.resolve([] as FmpCompanyScreenerRow[]) : getBroadFmpScreenerRows(universeLimit),
+    symbols
+      ? Promise.resolve([] as FmpCompanyScreenerRow[])
+      : getBroadFmpScreenerRows(screenerRequestLimit, minimumScreenerCount),
   ]);
   const universeSymbols =
     symbols?.map((symbol) => symbol.toUpperCase()) ??
@@ -1175,10 +1268,17 @@ export async function runFmpDailyRankingAgent({
     symbols ? "full" : "price-only",
   );
   const qualityUniverse = initialUniverseResult.candidates.filter(hasSwingQuality);
+  const viableUniverse = initialUniverseResult.candidates.filter(hasMinimumSwingViability);
   const initialUniverse =
-    qualityUniverse.length >= limit ? qualityUniverse : initialUniverseResult.candidates;
+    qualityUniverse.length >= limit
+      ? qualityUniverse
+      : viableUniverse.length >= limit
+        ? viableUniverse
+        : initialUniverseResult.candidates;
   const qualityFilteredCount =
-    qualityUniverse.length >= limit ? initialUniverseResult.candidates.length - initialUniverse.length : 0;
+    initialUniverse.length < initialUniverseResult.candidates.length
+      ? initialUniverseResult.candidates.length - initialUniverse.length
+      : 0;
   const qualitySupplementCount =
     qualityUniverse.length < limit ? initialUniverse.length - qualityUniverse.length : 0;
   const skippedCount = universeSymbols.length - initialUniverse.length;
@@ -1216,13 +1316,16 @@ export async function runFmpDailyRankingAgent({
             secData: "partial",
             marketCoverage: {
               status: coverageStatus,
-              requestedUniverseLimit: universeLimit,
+              requestedUniverseLimit: screenerRequestLimit,
               screenerCount: screenerRows.length,
               detailedCandidateTarget: detailedLimit,
               detailedCandidateCount: initialUniverseResult.candidates.length,
+              viableCandidateCount: viableUniverse.length,
               qualifiedCandidateCount: qualityUniverse.length,
               rankedCandidateCount: initialUniverse.length,
+              configuredMinimumScreenerCount,
               minimumScreenerCount,
+              configuredMinimumDetailedCandidateCount,
               minimumDetailedCandidateCount,
               warning: coverageWarning,
             },
@@ -1283,13 +1386,16 @@ export async function runFmpDailyRankingAgent({
       secData: dataQualityLabel(Math.min(liveSecCount, universe.length), universe.length),
       marketCoverage: {
         status: coverageStatus,
-        requestedUniverseLimit: universeLimit,
+        requestedUniverseLimit: screenerRequestLimit,
         screenerCount: screenerRows.length,
         detailedCandidateTarget: detailedLimit,
         detailedCandidateCount: initialUniverseResult.candidates.length,
+        viableCandidateCount: viableUniverse.length,
         qualifiedCandidateCount: qualityUniverse.length,
         rankedCandidateCount: universe.length,
+        configuredMinimumScreenerCount,
         minimumScreenerCount,
+        configuredMinimumDetailedCandidateCount,
         minimumDetailedCandidateCount,
         warning: coverageWarning,
       },
@@ -1308,7 +1414,7 @@ export async function runFmpDailyRankingAgent({
         `${liveEventCount} of ${enrichedUniverseResult.candidates.length} enriched candidates used live FMP earnings/corporate event data.`,
         `${liveSecCount} of ${enrichedUniverseResult.candidates.length} enriched candidates used live SEC filing checks from FMP or direct SEC EDGAR fallback.`,
         qualityFilteredCount > 0
-          ? `${qualityFilteredCount} live candidates were removed by the swing-quality gate for weak liquidity, upside room, relative strength, volume trend, or technical structure.`
+          ? `${qualityFilteredCount} live candidates were removed before enrichment for weak liquidity, upside room, reward/risk, relative strength, volume trend, event risk, or technical structure.`
           : qualitySupplementCount > 0
             ? `${qualityUniverse.length} live candidates passed every swing-quality gate; ${qualitySupplementCount} additional live-data candidates were kept to preserve a useful top-${limit} research list.`
             : "All live candidates passed the swing-quality gate.",

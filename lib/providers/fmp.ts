@@ -104,6 +104,11 @@ type FmpResponseShape<T> = T[] | { historical?: T[] } | { data?: T[] } | { error
 type FmpFetchOptions = {
   revalidateSeconds?: number;
 };
+type FmpCompanyScreenerOptions = {
+  marketCapMoreThan?: number;
+  priceMoreThan?: number;
+  volumeMoreThan?: number;
+};
 
 const fmpBaseUrl = "https://financialmodelingprep.com";
 
@@ -223,16 +228,19 @@ export async function getFmpCompanyProfile(symbol: string) {
   return rows[0] ?? null;
 }
 
-export async function getFmpCompanyScreener(limit = 160) {
+export async function getFmpCompanyScreener(
+  limit = 160,
+  options: FmpCompanyScreenerOptions = {},
+) {
   return getFmpArray<FmpCompanyScreenerRow>("/stable/company-screener", {
     country: "US",
     isEtf: "false",
     isActivelyTrading: "true",
-    priceMoreThan: 3,
-    marketCapMoreThan: 500_000_000,
-    volumeMoreThan: 300_000,
+    priceMoreThan: options.priceMoreThan ?? 3,
+    marketCapMoreThan: options.marketCapMoreThan ?? 500_000_000,
+    volumeMoreThan: options.volumeMoreThan ?? 300_000,
     limit,
-  });
+  }, { revalidateSeconds: 60 * 15 });
 }
 
 export async function getFmpIncomeStatements(symbol: string, limit = 4) {
