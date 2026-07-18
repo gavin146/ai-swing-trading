@@ -9,5 +9,10 @@
     "target": "ES2020",
     "types": ["node"]
   },
-  "include": ["../lib/copilot/**/*.ts", "./copilot-core.test.ts", "./copilot-manual-provider.test.ts"]
+  "include": [
+    "../lib/copilot/**/*.ts",
+    "./copilot-core.test.ts",
+    "./copilot-manual-provider.test.ts",
+    "./copilot-portfolio-analyzer.test.ts"
+  ]
 }
