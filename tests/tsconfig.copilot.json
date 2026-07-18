@@ -15,6 +15,7 @@
     "./copilot-manual-provider.test.ts",
     "./copilot-portfolio-analyzer.test.ts",
     "./copilot-reporting.test.ts",
-    "./copilot-ui-view-model.test.ts"
+    "./copilot-ui-view-model.test.ts",
+    "./copilot-email.test.ts"
   ]
 }

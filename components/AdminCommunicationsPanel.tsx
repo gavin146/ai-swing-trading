@@ -8,6 +8,19 @@ import type { OpportunityDataSource } from "@/lib/repositories/opportunities";
 
 type Channel = "email" | "sms";
 
+type CopilotPreviewPayload = {
+  email?: {
+    html: string;
+    subject: string;
+    text: string;
+  };
+  error?: string;
+  meta?: {
+    sent: boolean;
+    warning: string;
+  };
+};
+
 function currency(value: number) {
   return `$${value.toLocaleString(undefined, {
     maximumFractionDigits: value >= 1000 ? 0 : 2,
@@ -64,6 +77,8 @@ export function AdminCommunicationsPanel() {
     emailReady: false,
     emailReason: "Loading email status...",
   });
+  const [copilotPreview, setCopilotPreview] = useState<CopilotPreviewPayload | null>(null);
+  const [loadingCopilotPreview, setLoadingCopilotPreview] = useState(false);
   const [sending, setSending] = useState(false);
 
   useEffect(() => {
@@ -232,6 +247,29 @@ export function AdminCommunicationsPanel() {
       setStatus(error instanceof Error ? error.message : "Morning email test failed");
     } finally {
       setSending(false);
+    }
+  }
+
+  async function loadCopilotPreview() {
+    setLoadingCopilotPreview(true);
+    setStatus("Loading Copilot digest preview...");
+
+    try {
+      const response = await fetch("/api/admin/copilot/email-preview", {
+        headers: await getAdminHeaders(),
+      });
+      const payload = (await response.json().catch(() => ({}))) as CopilotPreviewPayload;
+
+      if (!response.ok || payload.error || !payload.email) {
+        throw new Error(payload.error ?? "Copilot preview could not load.");
+      }
+
+      setCopilotPreview(payload);
+      setStatus(payload.meta?.warning ?? "Copilot digest preview loaded. No email was sent.");
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Copilot preview could not load.");
+    } finally {
+      setLoadingCopilotPreview(false);
     }
   }
 
@@ -466,6 +504,57 @@ export function AdminCommunicationsPanel() {
             </div>
           )}
         </div>
+      </div>
+
+      <div className="mt-6 rounded-3xl border border-line bg-panel p-4 sm:p-5">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <p className="text-xs font-black uppercase tracking-normal text-pine">
+              Copilot preview
+            </p>
+            <h3 className="mt-2 text-2xl font-black text-ink">
+              Daily Copilot digest email
+            </h3>
+            <p className="mt-2 max-w-3xl text-sm font-semibold leading-6 text-ink/62">
+              This uses deterministic fixture data and renders the future Copilot
+              email format only. It does not send through Resend and is not connected
+              to morning cron delivery.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => void loadCopilotPreview()}
+            disabled={loadingCopilotPreview}
+            className="rounded-2xl bg-ink px-4 py-3 text-sm font-black text-white shadow-[0_14px_34px_rgba(7,20,24,0.16)] hover:bg-pine disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {loadingCopilotPreview ? "Loading..." : "Load Copilot preview"}
+          </button>
+        </div>
+
+        {copilotPreview?.email ? (
+          <div className="mt-5 grid min-w-0 gap-4">
+            <div className="rounded-xl border border-line bg-white p-4 shadow-soft">
+              <p className="text-xs font-black uppercase tracking-normal text-ink/55">
+                Preview subject
+              </p>
+              <p className="mt-2 text-lg font-bold text-ink">{copilotPreview.email.subject}</p>
+            </div>
+            <div className="min-w-0 overflow-hidden rounded-xl border border-line bg-white shadow-soft">
+              <div
+                className="max-h-[640px] overflow-auto p-5"
+                dangerouslySetInnerHTML={{ __html: copilotPreview.email.html }}
+              />
+            </div>
+            <div className="rounded-xl border border-line bg-white p-4">
+              <p className="text-xs font-black uppercase tracking-normal text-ink/55">
+                Plain text fallback
+              </p>
+              <pre className="mt-3 whitespace-pre-wrap text-sm leading-6 text-ink/70">
+                {copilotPreview.email.text}
+              </pre>
+            </div>
+          </div>
+        ) : null}
       </div>
     </section>
   );
