@@ -443,12 +443,25 @@ function syncCustomerProfile(customer: CustomerProfile | null) {
 
   inFlightCustomerSyncSignature = signature;
 
-  fetch("/api/customers/sync", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(customer),
-  })
-    .then(async (response) => {
+  void (async () => {
+    const supabase = createSupabaseBrowserClient();
+    const { data } = supabase ? await supabase.auth.getSession() : { data: { session: null } };
+    const accessToken = data.session?.access_token;
+
+    if (!accessToken) {
+      inFlightCustomerSyncSignature = "";
+      return;
+    }
+
+    const response = await fetch("/api/customers/sync", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify(customer),
+    });
+
       if (!response.ok) return;
 
       const payload = (await response.json().catch(() => null)) as {
@@ -474,8 +487,9 @@ function syncCustomerProfile(customer: CustomerProfile | null) {
         stripeCustomerId: payload?.customer?.stripeCustomerId,
       });
       lastCustomerSyncSignature = signature;
-    })
+    })()
     .catch((error) => {
+      inFlightCustomerSyncSignature = "";
       console.warn("SwingFi customer sync failed", error);
     })
     .finally(() => {
