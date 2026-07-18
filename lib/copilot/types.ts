@@ -168,25 +168,100 @@ export type DataFreshness = {
   message?: string;
 };
 
-export type PortfolioFinding = {
-  id: string;
-  severity: "positive" | "watch" | "risk" | "missing_data";
-  title: string;
-  plainEnglish: string;
-  symbol?: string;
-  evidence: Array<{
-    dataAsOf: string;
-    fetchedAt: string;
-    label: string;
-    source: string;
-    value: string;
-  }>;
+export type PortfolioFindingType =
+  | "DATA_STALE"
+  | "QUOTE_UNAVAILABLE"
+  | "NO_ACTIVE_SWINGFI_PLAN"
+  | "NEAR_STOP"
+  | "BELOW_OR_AT_STOP"
+  | "NEAR_TARGET"
+  | "AT_OR_ABOVE_TARGET"
+  | "PROFIT_REVIEW_ZONE"
+  | "HOLDING_WINDOW_EXPIRING"
+  | "HOLDING_WINDOW_EXPIRED"
+  | "POSITION_CONCENTRATION"
+  | "SECTOR_CONCENTRATION"
+  | "EARNINGS_OR_EVENT_RISK"
+  | "FILING_OR_HEADLINE_RISK"
+  | "TREND_WEAKENING"
+  | "MOMENTUM_IMPROVING"
+  | "REMAINING_REWARD_RISK_WEAK"
+  | "INSIDE_ORIGINAL_PLAN";
+
+export type PortfolioFindingSeverity = "info" | "attention" | "high";
+
+export type PortfolioFindingEvidence = {
+  asOf: string | null;
+  metric: string;
+  source: string;
+  value: string | number | boolean | null;
 };
+
+export type PortfolioAnalyzerFinding = {
+  accountId?: string;
+  dataCompleteness: string;
+  evidence: PortfolioFindingEvidence[];
+  id: string;
+  message: string;
+  positionId?: string;
+  ruleVersion: string;
+  severity: PortfolioFindingSeverity;
+  symbol?: string;
+  title: string;
+  type: PortfolioFindingType;
+};
+
+export type PortfolioAnalyzerTechnicalEvidence = {
+  relativeStrengthTrend?: "improving" | "flat" | "weakening" | "unknown";
+  sma20Relationship?: "above" | "below" | "near" | "unknown";
+  trendQuality?: "improving" | "stable" | "weakening" | "unknown";
+  volumeTrend?: "rising" | "normal" | "falling" | "unknown";
+};
+
+export type PortfolioAnalyzerRiskEvidence = {
+  asOf?: string | null;
+  description?: string;
+  eventDate?: string | null;
+  hasRisk: boolean;
+  source: "earnings_calendar" | "event_calendar" | "news" | "filing" | "other";
+};
+
+export type PortfolioAnalyzerPositionEvidence = {
+  eventRisk?: PortfolioAnalyzerRiskEvidence[];
+  positionId?: string;
+  sector?: string | null;
+  sourceTradeHistoryId?: string;
+  symbol: string;
+  technical?: PortfolioAnalyzerTechnicalEvidence;
+};
+
+export type PortfolioAnalyzerThresholds = {
+  eventRiskLookaheadDays: number;
+  holdingWindowExpiringDays: number;
+  nearStopPct: number;
+  nearTargetPct: number;
+  positionConcentrationPct: number;
+  profitReviewGainPct: number;
+  quoteStaleAfterMinutes: number;
+  remainingRewardRiskWeakBelow: number;
+  sectorConcentrationPct: number;
+};
+
+export type PortfolioAnalyzerInput = {
+  clock?: TimeProvider;
+  knownPortfolioValue?: number | null;
+  marketRegime?: "risk_on" | "balanced" | "defensive" | "unknown";
+  positionEvidence?: PortfolioAnalyzerPositionEvidence[];
+  snapshot: PortfolioSnapshot;
+  thresholds?: Partial<PortfolioAnalyzerThresholds>;
+};
+
+export type PortfolioFinding = PortfolioAnalyzerFinding;
 
 export type CopilotReportInput = {
   userId: string;
   snapshot: PortfolioSnapshot;
-  findings: PortfolioFinding[];
+  findings: PortfolioAnalyzerFinding[];
   freshness: DataFreshness[];
   generatedAt: string;
 };

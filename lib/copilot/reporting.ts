@@ -1,9 +1,10 @@
 import { createHash } from "node:crypto";
-import type { DataFreshness, PortfolioSnapshot } from "./types";
 import type {
   PortfolioAnalyzerFinding,
   PortfolioFindingSeverity,
-} from "./portfolio-analyzer";
+  DataFreshness,
+  PortfolioSnapshot,
+} from "./types";
 
 export type CopilotMarketRegime = "risk_on" | "balanced" | "defensive" | "unknown";
 

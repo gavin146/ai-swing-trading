@@ -141,8 +141,8 @@ values (
   '40000000-0000-4000-8000-000000000001',
   '70000000-0000-4000-8000-000000000001',
   'AAPL',
-  'position_review',
-  'positive',
+  'INSIDE_ORIGINAL_PLAN',
+  'info',
   '[{"label":"test","value":"safe","source":"fixture"}]',
   'Fixture finding for user A.',
   '60000000-0000-4000-8000-000000000001'

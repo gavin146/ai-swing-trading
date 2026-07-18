@@ -1,4 +1,5 @@
 import type { OpportunityRow } from "../database.types";
+import { DataFreshnessService } from "./data-freshness";
 import type {
   DailyCopilotReportInput,
   CopilotResearchOpportunity,
@@ -8,9 +9,8 @@ import {
   buildDailyCopilotReport,
   RuleBasedCopilotNarrator,
 } from "./reporting";
-import type { PortfolioAnalyzerFinding } from "./portfolio-analyzer";
 import { analyzePortfolio } from "./portfolio-analyzer";
-import type { PortfolioPosition, PortfolioSnapshot } from "./types";
+import type { PortfolioAnalyzerFinding, PortfolioPosition, PortfolioSnapshot } from "./types";
 
 export type CopilotSeverity = "info" | "attention" | "high";
 
@@ -104,47 +104,6 @@ function positionCard(position: PortfolioPosition, now: Date): CopilotPositionCa
   };
 }
 
-function sourceHealthFromSnapshot(snapshot: PortfolioSnapshot): CopilotSourceHealth[] {
-  const quoteStatuses = new Map<string, CopilotSourceHealth>();
-
-  snapshot.positions.forEach((position) => {
-    const source = position.quote?.source ?? "manual_tracker";
-    const existing = quoteStatuses.get(source);
-    const status = position.quote?.status ?? "missing";
-    const nextStatus =
-      status === "error" ||
-      existing?.status === "error"
-        ? "error"
-        : status === "missing" || existing?.status === "missing"
-          ? "missing"
-          : status === "stale" || existing?.status === "stale"
-            ? "stale"
-            : "fresh";
-
-    quoteStatuses.set(source, {
-      dataAsOf: position.quote?.dataAsOf ?? position.dataAsOf,
-      fetchedAt: position.quote?.fetchedAt ?? position.fetchedAt,
-      label: source === "fmp_profile" ? "FMP prices" : source.replace(/_/g, " "),
-      message: position.quote?.message,
-      source,
-      status: nextStatus,
-    });
-  });
-
-  if (!quoteStatuses.size) {
-    quoteStatuses.set("manual_tracker", {
-      dataAsOf: snapshot.dataAsOf,
-      fetchedAt: snapshot.fetchedAt,
-      label: "SwingFi tracker",
-      message: "No tracked positions were found for this report.",
-      source: "manual_tracker",
-      status: "missing",
-    });
-  }
-
-  return Array.from(quoteStatuses.values()).sort((a, b) => a.source.localeCompare(b.source));
-}
-
 function accountValue(snapshot: PortfolioSnapshot) {
   const values = snapshot.positions.map((position) => positiveNumber(position.marketValue));
 
@@ -182,7 +141,9 @@ export async function buildCopilotUiViewModel(args: {
       knownPortfolioValue: accountValue(args.snapshot),
       snapshot: args.snapshot,
     });
-  const sourceHealth = sourceHealthFromSnapshot(args.snapshot);
+  const sourceHealth: CopilotSourceHealth[] = new DataFreshnessService().fromPortfolioSnapshot(
+    args.snapshot,
+  );
   const researchOpportunities = opportunitiesToResearch(args.opportunities ?? []);
   const report = buildDailyCopilotReport({
     accountSummary: {

@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { analyzePortfolio, type PortfolioAnalyzerFinding } from "../lib/copilot/portfolio-analyzer";
-import type { PortfolioPosition, PortfolioSnapshot } from "../lib/copilot/types";
+import { analyzePortfolio } from "../lib/copilot/portfolio-analyzer";
+import type {
+  PortfolioAnalyzerFinding,
+  PortfolioPosition,
+  PortfolioSnapshot,
+} from "../lib/copilot/types";
 import { createFixedTimeProvider } from "../lib/copilot/time";
 
 const clock = createFixedTimeProvider("2026-07-17T13:30:00.000Z");

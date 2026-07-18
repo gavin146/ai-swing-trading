@@ -212,13 +212,34 @@ create table if not exists copilot_findings (
   position_id uuid,
   symbol text check (symbol is null or (symbol = upper(symbol) and symbol ~ '^[A-Z0-9.-]{1,12}$')),
   finding_type text not null
-    check (finding_type in ('position_review', 'risk_alert', 'opportunity_match', 'data_freshness', 'portfolio_balance', 'missing_data')),
+    check (
+      finding_type in (
+        'DATA_STALE',
+        'QUOTE_UNAVAILABLE',
+        'NO_ACTIVE_SWINGFI_PLAN',
+        'NEAR_STOP',
+        'BELOW_OR_AT_STOP',
+        'NEAR_TARGET',
+        'AT_OR_ABOVE_TARGET',
+        'PROFIT_REVIEW_ZONE',
+        'HOLDING_WINDOW_EXPIRING',
+        'HOLDING_WINDOW_EXPIRED',
+        'POSITION_CONCENTRATION',
+        'SECTOR_CONCENTRATION',
+        'EARNINGS_OR_EVENT_RISK',
+        'FILING_OR_HEADLINE_RISK',
+        'TREND_WEAKENING',
+        'MOMENTUM_IMPROVING',
+        'REMAINING_REWARD_RISK_WEAK',
+        'INSIDE_ORIGINAL_PLAN'
+      )
+    ),
   severity text not null
-    check (severity in ('positive', 'watch', 'risk', 'missing_data')),
+    check (severity in ('info', 'attention', 'high')),
   evidence jsonb not null default '[]'::jsonb check (jsonb_typeof(evidence) = 'array'),
   message text not null check (length(message) between 1 and 1400),
   input_snapshot_id uuid,
-  input_version text not null default 'copilot.v1',
+  input_version text not null default 'portfolio-analyzer.v1',
   created_at timestamptz not null default now(),
   foreign key (account_id, user_id)
     references brokerage_accounts(id, user_id)

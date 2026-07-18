@@ -110,12 +110,12 @@ Stores deterministic review findings generated from normalized data.
 Important fields:
 
 - `account_id`, `position_id`, `symbol`: optional target of the finding.
-- `finding_type`: `position_review`, `risk_alert`, `opportunity_match`, `data_freshness`, `portfolio_balance`, or `missing_data`.
-- `severity`: `positive`, `watch`, `risk`, or `missing_data`.
+- `finding_type`: one of the canonical deterministic analyzer types from `/Users/gavin/Documents/ai swing trading/lib/copilot/types.ts`, such as `DATA_STALE`, `QUOTE_UNAVAILABLE`, `NEAR_STOP`, `NEAR_TARGET`, `HOLDING_WINDOW_EXPIRED`, `TREND_WEAKENING`, or `INSIDE_ORIGINAL_PLAN`.
+- `severity`: `info`, `attention`, or `high`.
 - `evidence`: structured JSON array of sanitized evidence.
 - `message`: customer-safe review message.
 - `input_snapshot_id`: optional source snapshot.
-- `input_version`: analyzer version.
+- `input_version`: analyzer version, defaulting to `portfolio-analyzer.v1`.
 
 Findings should explain what SwingFi sees. They must not contain guaranteed-return claims or direct order instructions.
 

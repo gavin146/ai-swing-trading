@@ -4,8 +4,7 @@ import {
   buildCopilotUiViewModel,
   createCopilotDemoSnapshot,
 } from "../lib/copilot/ui-view-model";
-import type { PortfolioSnapshot } from "../lib/copilot/types";
-import type { PortfolioAnalyzerFinding } from "../lib/copilot/portfolio-analyzer";
+import type { PortfolioAnalyzerFinding, PortfolioSnapshot } from "../lib/copilot/types";
 
 const now = new Date("2026-07-17T13:30:00.000Z");
 const asOf = "2026-07-17T13:25:00.000Z";

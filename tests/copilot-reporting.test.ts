@@ -10,7 +10,7 @@ import {
   RuleBasedCopilotNarrator,
   validateCopilotNarrative,
 } from "../lib/copilot/reporting";
-import type { PortfolioAnalyzerFinding } from "../lib/copilot/portfolio-analyzer";
+import type { PortfolioAnalyzerFinding } from "../lib/copilot/types";
 
 const asOf = "2026-07-17T13:30:00.000Z";
 
