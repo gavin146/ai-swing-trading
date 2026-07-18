@@ -13,9 +13,10 @@ import {
 } from "@/lib/customer-store";
 
 type AppShellProps = {
-  active?: "admin" | "dashboard" | "history" | "portfolio" | "settings";
+  active?: "admin" | "copilot" | "dashboard" | "history" | "portfolio" | "settings";
   children: React.ReactNode;
   eyebrow?: string;
+  showCopilot?: boolean;
   subtitle?: string;
   title: string;
 };
@@ -23,6 +24,7 @@ type AppShellProps = {
 const customerLinks = [
   { href: "/dashboard", key: "dashboard", label: "Dashboard", symbol: "D" },
   { href: "/portfolio", key: "portfolio", label: "Portfolio", symbol: "P" },
+  { href: "/copilot", key: "copilot", label: "Copilot", symbol: "C" },
   { href: "/history", key: "history", label: "History", symbol: "H" },
   { href: "/settings", key: "settings", label: "Settings", symbol: "S" },
 ] as const;
@@ -106,12 +108,20 @@ function MobileBottomNav({
   );
 }
 
-export function AppShell({ active, children, eyebrow, subtitle, title }: AppShellProps) {
+export function AppShell({
+  active,
+  children,
+  eyebrow,
+  showCopilot = process.env.NEXT_PUBLIC_COPILOT_ENABLED === "true",
+  subtitle,
+  title,
+}: AppShellProps) {
   const [customer, setCustomer] = useState<CustomerProfile | null>(null);
   const [sessionLoaded, setSessionLoaded] = useState(false);
   const isAdmin = isAdminCustomer(customer);
   const isOperationsPage = active === "admin";
-  const visibleLinks = [...customerLinks, ...(isAdmin ? adminLinks : [])];
+  const customerNavLinks = customerLinks.filter((item) => showCopilot || item.key !== "copilot");
+  const visibleLinks = [...customerNavLinks, ...(isAdmin ? adminLinks : [])];
   const shellLinks = isOperationsPage
     ? isAdmin
       ? visibleLinks
@@ -201,7 +211,7 @@ export function AppShell({ active, children, eyebrow, subtitle, title }: AppShel
       <aside className="fixed inset-y-0 left-0 z-40 hidden w-72 border-r border-line/75 bg-white/82 px-4 py-5 shadow-[18px_0_54px_rgba(7,20,24,0.06)] backdrop-blur-2xl lg:block">
         <BrandMark />
         <nav className="mt-8 grid gap-2">
-          {(isAdmin ? customerLinks : adminLinks).map((item) => (
+          {(isAdmin ? customerNavLinks : adminLinks).map((item) => (
             <Link key={item.href} href={item.href} className={navClass(isActiveLink(item.key))}>
               <span className={navIconClass(isActiveLink(item.key))}>
                 {item.symbol}
