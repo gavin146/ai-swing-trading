@@ -13,6 +13,7 @@
     "../lib/copilot/**/*.ts",
     "./copilot-core.test.ts",
     "./copilot-manual-provider.test.ts",
-    "./copilot-portfolio-analyzer.test.ts"
+    "./copilot-portfolio-analyzer.test.ts",
+    "./copilot-reporting.test.ts"
   ]
 }
