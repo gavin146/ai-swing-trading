@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
-    "test:copilot": "rm -rf .tmp/copilot-tests && tsc -p tests/tsconfig.copilot.json && node .tmp/copilot-tests/tests/copilot-core.test.js && rm -rf .tmp/copilot-tests",
+    "test:copilot": "rm -rf .tmp/copilot-tests && tsc -p tests/tsconfig.copilot.json && node .tmp/copilot-tests/tests/copilot-core.test.js && node .tmp/copilot-tests/tests/copilot-manual-provider.test.js && rm -rf .tmp/copilot-tests",
     "stripe:setup": "node scripts/setup-stripe-products.mjs",
     "stripe:verify": "node scripts/verify-stripe-readiness.mjs",
     "production:env": "node scripts/verify-production-env.mjs",

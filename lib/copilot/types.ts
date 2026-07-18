@@ -63,8 +63,32 @@ export type BrokerageAccount = {
 
 export type PortfolioSnapshotSource =
   | "manual_trade_history"
+  | "swingfi_tracker"
   | "mock_local"
   | "future_external_provider";
+
+export type PortfolioPositionPlan = {
+  entryPrice: number | null;
+  holdingPeriodDays: number | null;
+  notes?: string | null;
+  opportunityId?: string | null;
+  planCreatedAt: string | null;
+  planSource:
+    | "manual_trade_history"
+    | "swingfi_tracker"
+    | "swingfi_daily_analysis"
+    | "market_structure_estimate";
+  stopLoss: number | null;
+  targetPrice: number | null;
+};
+
+export type PortfolioPositionQuote = {
+  dataAsOf: string | null;
+  fetchedAt: string | null;
+  message?: string;
+  source: string;
+  status: "fresh" | "stale" | "missing" | "error";
+};
 
 export type PortfolioPosition = {
   id: string;
@@ -75,10 +99,14 @@ export type PortfolioPosition = {
   quantity: number | null;
   averageEntryPrice: number | null;
   currentPrice: number | null;
+  costBasis?: number | null;
   marketValue: number | null;
+  originalPlan?: PortfolioPositionPlan;
+  quote?: PortfolioPositionQuote;
   currency: string;
   openedAt?: string;
   sourceTradeHistoryId?: string;
+  unrealizedGainLoss?: number | null;
   fetchedAt: string;
   dataAsOf: string;
 };

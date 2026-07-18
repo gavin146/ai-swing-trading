@@ -159,7 +159,7 @@ async function getFmpArray<T>(
 ): Promise<T[]> {
   const response = await fetch(buildUrl(path, params), {
     next: { revalidate: options.revalidateSeconds ?? 60 * 60 * 12 },
-  });
+  } as RequestInit & { next?: { revalidate?: number } });
 
   if (!response.ok) {
     const message = await response.text().catch(() => "");
