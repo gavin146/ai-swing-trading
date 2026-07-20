@@ -1,0 +1,16 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "noEmit": false,
+    "outDir": "../.tmp/portfolio-tests",
+    "rootDir": "..",
+    "target": "ES2020",
+    "types": ["node"]
+  },
+  "include": [
+    "../lib/portfolio/exit-intelligence.ts",
+    "./portfolio-exit-intelligence.test.ts"
+  ]
+}

@@ -150,6 +150,10 @@ export function buildPortfolioPlainInsight(
     headline:
       trade.planStatus === "At or above target"
         ? `${trade.symbol}: profit area reached`
+        : trade.planStatus === "Peak fade"
+          ? `${trade.symbol}: peak is fading`
+          : trade.planStatus === "Profit protection"
+            ? `${trade.symbol}: protect the move`
         : trade.planStatus === "Below stop" || trade.planStatus === "Near stop"
           ? `${trade.symbol}: risk check needed`
           : trade.planStatus === "Review time window"

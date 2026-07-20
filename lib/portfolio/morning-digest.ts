@@ -1,4 +1,5 @@
 import type { TradeHistoryRow, TradeStatus } from "@/lib/database.types";
+import { buildExitReview, type ExitReview } from "@/lib/portfolio/exit-intelligence";
 import { getFmpCompanyProfile, getFmpHistoricalCandles, getFmpStockNews } from "@/lib/providers/fmp";
 import { createSupabaseAdminClient, hasSupabaseAdminConfig } from "@/lib/supabase/server";
 
@@ -12,6 +13,7 @@ export type MorningPortfolioNewsItem = {
 export type MorningPortfolioPosition = {
   currentPrice: number | null;
   daysHeld: number;
+  exitReview?: ExitReview | null;
   nextReview: string;
   openedAt: string | null;
   planStatus: string;
@@ -86,10 +88,24 @@ async function getLatestPortfolioPrice(symbol: string, profilePrice: unknown) {
   return parsePositiveNumber(latestClose);
 }
 
+function statusFromExitReview(review: ExitReview) {
+  if (review.status === "below_stop") return "Below stop";
+  if (review.status === "near_stop") return "Near stop";
+  if (review.status === "target_reached") return "At or above target";
+  if (review.status === "peak_fading") return "Peak fade";
+  if (review.status === "profit_protection") return "Profit protection";
+  if (review.status === "time_window_expired") return "Time window ending";
+  if (review.status === "time_window_soon") return "Review soon";
+  if (review.status === "quote_unavailable") return "Tracking plan";
+  if (review.status === "needs_manual_review") return "Needs plan review";
+  return "Inside plan";
+}
+
 function buildPositionPlan(trade: {
   currentPrice: number | null;
   daysHeld: number;
   entryPrice: number;
+  exitReview?: ExitReview | null;
   plannedHoldingDays: number | null;
   status: TradeStatus;
   stopLoss: number;
@@ -101,6 +117,15 @@ function buildPositionPlan(trade: {
       nextReview: "Confirm the setup still fits before entering the trade.",
       watchItems: ["Price entering the planned buy range", "Any new catalyst or event risk"],
       priority: 3,
+    };
+  }
+
+  if (trade.exitReview) {
+    return {
+      planStatus: statusFromExitReview(trade.exitReview),
+      nextReview: trade.exitReview.nextReview,
+      watchItems: trade.exitReview.watch,
+      priority: Math.max(1, Math.round((105 - trade.exitReview.priority) / 20)),
     };
   }
 
@@ -182,9 +207,10 @@ function buildPositionPlan(trade: {
 
 async function enrichPosition(row: TradeHistoryRow) {
   const symbol = normalizeSymbol(row.symbol);
-  const [profile, news] = await Promise.all([
+  const [profile, news, candles] = await Promise.all([
     getFmpCompanyProfile(symbol).catch(() => null),
     getFmpStockNews(symbol, 2).catch(() => []),
+    getFmpHistoricalCandles(symbol, dateDaysAgo(120), new Date().toISOString().slice(0, 10)).catch(() => []),
   ]);
   const currentPrice = await getLatestPortfolioPrice(symbol, profile?.price);
   const entryPrice = Number(row.entry_price);
@@ -194,10 +220,22 @@ async function enrichPosition(row: TradeHistoryRow) {
   const plannedHoldingDays = getPlannedHoldingDays(row.notes);
   const unrealizedReturnPct =
     currentPrice && entryPrice > 0 ? ((currentPrice - entryPrice) / entryPrice) * 100 : null;
+  const exitReview = buildExitReview({
+    candles,
+    currentPrice,
+    daysHeld,
+    entryPrice,
+    openedAt: row.opened_at,
+    plannedHoldingDays,
+    stopLoss,
+    symbol,
+    targetPrice,
+  });
   const plan = buildPositionPlan({
     currentPrice,
     daysHeld,
     entryPrice,
+    exitReview,
     plannedHoldingDays,
     status: normalizeStatus(row.status),
     stopLoss,
@@ -207,6 +245,7 @@ async function enrichPosition(row: TradeHistoryRow) {
   return {
     currentPrice,
     daysHeld,
+    exitReview,
     latestNews: news
       .filter((item) => item.title)
       .slice(0, 2)

@@ -13,6 +13,7 @@ import {
   buildPortfolioPlainInsight,
   type PlainLanguageInsight,
 } from "@/lib/plain-language-insights";
+import type { ExitReview } from "@/lib/portfolio/exit-intelligence";
 import { getTradeLiveIntelligence } from "@/lib/portfolio/intelligence";
 import type { AssetType, TradeStatus } from "@/lib/database.types";
 
@@ -36,6 +37,7 @@ type PortfolioTrade = {
   created_at: string;
   currentPrice: number | null;
   daysHeld: number;
+  exitReview?: ExitReview | null;
   latestNews: Array<{
     publishedDate: string | null;
     site: string | null;
@@ -320,12 +322,21 @@ function formFromInitialTrade(initialTrade?: InitialTrade): FormState {
 }
 
 function statusTone(status: string) {
-  if (status === "At or above target" || status === "Near target" || status === "Inside plan") {
+  if (status === "Inside plan") {
     return "border-pine/25 bg-mint text-pine";
   }
 
-  if (status === "Below stop" || status === "Near stop") {
+  if (status === "Below stop" || status === "Near stop" || status === "Needs plan review") {
     return "border-coral/25 bg-coral/10 text-coral";
+  }
+
+  if (
+    status === "At or above target" ||
+    status === "Near target" ||
+    status === "Peak fade" ||
+    status === "Profit protection"
+  ) {
+    return "border-amber/30 bg-amber/15 text-ink";
   }
 
   return "border-amber/25 bg-amber/15 text-ink";
@@ -336,6 +347,10 @@ function planStatusLabel(status: string) {
   if (status === "Below stop") return "Below saved stop";
   if (status === "Near target") return "Close to target";
   if (status === "At or above target") return "Target reached";
+  if (status === "Peak fade") return "Peak is fading";
+  if (status === "Profit protection") return "Protect gains";
+  if (status === "Needs plan review") return "Fix saved plan";
+  if (status === "Review soon") return "Review soon";
   if (status === "Review time window") return "Time to review";
   if (status === "Inside plan") return "Inside plan";
   return status;
@@ -418,6 +433,17 @@ function percentDistance(from: number | null, to: number) {
 }
 
 function getTradeReview(trade: PortfolioTrade) {
+  if (trade.exitReview) {
+    return {
+      evidence: trade.exitReview.evidence,
+      label: trade.exitReview.actionLabel,
+      nextStep: trade.exitReview.nextReview,
+      priority: trade.exitReview.priority,
+      rewardRisk: rewardRiskForTrade(trade),
+      tone: trade.exitReview.tone,
+    };
+  }
+
   const countdown = reviewCountdown(trade);
   const rewardRisk = rewardRiskForTrade(trade);
   const targetDistance = percentDistance(getTradeCurrentPrice(trade), getTradeTargetPrice(trade) ?? NaN);
@@ -483,6 +509,77 @@ function getTradeReview(trade: PortfolioTrade) {
 }
 
 function getExitDecisionGuide(trade: PortfolioTrade) {
+  if (trade.exitReview) {
+    const review = trade.exitReview;
+    const trigger = review.profitTrigger;
+    const status =
+      review.status === "below_stop"
+        ? "Protect capital first"
+        : review.status === "target_reached"
+          ? "Profit decision now"
+          : review.status === "peak_fading"
+            ? "Peak fade warning"
+            : review.status === "profit_protection"
+              ? "Protect gains"
+              : review.status === "near_stop"
+                ? "Risk review"
+                : review.status === "time_window_expired"
+                  ? "Decision required"
+                  : review.status === "time_window_soon"
+                    ? "Plan ahead"
+                    : review.status === "needs_manual_review"
+                      ? "Fix plan first"
+                      : review.status === "quote_unavailable"
+                        ? "Refresh quote"
+                        : "Hold while valid";
+
+    return {
+      actions: [
+        review.nextReview,
+        "Compare the latest price with the saved target and stop before changing the plan.",
+        "If you keep holding after a warning, write down the new review reason first.",
+      ],
+      avoidAction:
+        review.status === "peak_fading" || review.status === "profit_protection"
+          ? "Avoid waiting only for the original sell date after the trade already delivered most of the planned move."
+          : review.status === "below_stop" || review.status === "near_stop"
+            ? "Avoid widening the saved stop because the trade feels uncomfortable."
+            : "Avoid changing the target, stop, or hold window without a clear reason.",
+      beginnerMeaning: review.beginnerMeaning,
+      decisionChoices:
+        review.status === "target_reached" || review.status === "peak_fading" || review.status === "profit_protection"
+          ? [
+              "Review locking in profit if the planned move has mostly happened.",
+              "Review trimming part of the trade if you want to keep some upside exposure.",
+              "Review trailing protection if you keep holding after the move.",
+            ]
+          : review.status === "below_stop" || review.status === "near_stop"
+            ? [
+                "Check if your broker quote is at or below the saved stop.",
+                "Review reducing risk if the original risk line is not holding.",
+                "Do not add more unless there is a separate new setup.",
+              ]
+            : [
+                "Keep monitoring while the saved plan remains valid.",
+                "Review once per day instead of reacting to every small move.",
+                "Write a new reason before extending the holding window.",
+              ],
+      headline: review.headline,
+      helper: review.beginnerMeaning,
+      holdCondition:
+        review.status === "peak_fading" || review.status === "profit_protection"
+          ? "Holding longer should require fresh strength and a clear protection plan for the gain already created."
+          : review.status === "below_stop" || review.status === "near_stop"
+            ? "Giving it more time only makes sense if price holds above the saved risk line and the original reason still works."
+            : "Keep tracking while price stays above stop, the setup remains intact, and no new event risk changes the plan.",
+      primaryAction: trigger ? trigger.message : review.nextReview,
+      secondaryAction: review.actionLabel,
+      status,
+      tone: review.tone,
+      watch: review.watch,
+    };
+  }
+
   const current = getTradeCurrentPrice(trade);
   const target = getTradeTargetPrice(trade);
   const stop = getTradeStopLoss(trade);
@@ -728,6 +825,35 @@ function reviewTone(tone: ReturnType<typeof getTradeReview>["tone"]) {
 }
 
 function planConfidence(trade: PortfolioTrade, liveTone: string) {
+  if (trade.exitReview) {
+    const base =
+      trade.exitReview.status === "below_stop"
+        ? 18
+        : trade.exitReview.status === "near_stop"
+          ? 36
+          : trade.exitReview.status === "needs_manual_review"
+            ? 25
+            : trade.exitReview.status === "peak_fading"
+              ? 48
+              : trade.exitReview.status === "profit_protection"
+                ? 62
+                : trade.exitReview.status === "target_reached"
+                  ? 78
+                  : trade.exitReview.status === "time_window_expired"
+                    ? 52
+                    : trade.exitReview.status === "time_window_soon"
+                      ? 64
+                      : trade.exitReview.status === "quote_unavailable"
+                        ? 45
+                        : 78;
+
+    return {
+      label: base >= 75 ? "Strong" : base >= 55 ? "Watch" : "Weak",
+      score: base,
+      tone: base >= 75 ? "text-pine" : base >= 55 ? "text-amber" : "text-coral",
+    };
+  }
+
   const countdown = reviewCountdown(trade);
   const openReturn = getOpenReturnPct(trade) ?? 0;
   let score =
@@ -756,6 +882,13 @@ function planConfidence(trade: PortfolioTrade, liveTone: string) {
     score,
     tone: score >= 75 ? "text-pine" : score >= 55 ? "text-amber" : "text-coral",
   };
+}
+
+function profitTriggerTone(trigger: ExitReview["profitTrigger"]) {
+  if (!trigger) return "";
+  if (trigger.level === "target_reached") return "border-pine/20 bg-mint text-pine";
+  if (trigger.level === "mostly_complete") return "border-amber/30 bg-amber/15 text-ink";
+  return "border-pine/15 bg-mint/70 text-pine";
 }
 
 function plannedPacePrice(trade: PortfolioTrade) {
@@ -792,6 +925,13 @@ function paceLabel(trade: PortfolioTrade) {
 }
 
 function remainingUpsideLabel(trade: PortfolioTrade) {
+  if (trade.exitReview?.metrics.remainingUpsidePct !== undefined) {
+    const remaining = trade.exitReview.metrics.remainingUpsidePct;
+    if (remaining === null) return "Unavailable";
+    if (remaining < 0) return "Target reached";
+    return `+${remaining.toFixed(1)}%`;
+  }
+
   const targetDistance = getRemainingUpsidePct(trade);
 
   if (targetDistance === null) return "Unavailable";
@@ -799,12 +939,38 @@ function remainingUpsideLabel(trade: PortfolioTrade) {
   return `+${targetDistance.toFixed(1)}%`;
 }
 
-function downsideToStopLabel(trade: PortfolioTrade) {
+function bestGainSeenLabel(trade: PortfolioTrade) {
+  const bestGain = trade.exitReview?.metrics.maxGainPct;
+  if (bestGain === undefined || bestGain === null) return "Unavailable";
+  return `${bestGain >= 0 ? "+" : ""}${bestGain.toFixed(1)}%`;
+}
+
+function profitTriggerLabel(trade: PortfolioTrade) {
+  const trigger = trade.exitReview?.profitTrigger;
+  if (!trigger) return "Not yet";
+  return `${trigger.thresholdPct}% at ${formatCurrency(trigger.triggerPrice)}`;
+}
+
+function peakFadeLabel(trade: PortfolioTrade) {
+  const fade = trade.exitReview?.metrics.fadeFromPeakPct;
+  if (fade === undefined || fade === null) return "Unavailable";
+  if (fade <= 0.1) return "No fade";
+  return `${fade.toFixed(1)}%`;
+}
+
+function riskToStopLabel(trade: PortfolioTrade) {
+  if (trade.exitReview?.metrics.riskToStopPct !== undefined) {
+    const risk = trade.exitReview.metrics.riskToStopPct;
+    if (risk === null) return "Unavailable";
+    if (risk <= 0) return "Stop breached";
+    return `${risk.toFixed(1)}%`;
+  }
+
   const stopDistance = getDownsideToStopPct(trade);
 
   if (stopDistance === null) return "Unavailable";
   if (stopDistance >= 0) return "Stop breached";
-  return `-${Math.abs(stopDistance).toFixed(1)}%`;
+  return `${Math.abs(stopDistance).toFixed(1)}%`;
 }
 
 function isEntryPriceEstimate(value: unknown): value is EntryPriceEstimate {
@@ -963,6 +1129,7 @@ export function SwingPortfolioPanel({ initialTrade }: { initialTrade?: InitialTr
         currentPrice,
         daysHeld: trade.daysHeld,
         entryPrice,
+        exitReview: trade.exitReview,
         latestNews: trade.latestNews,
         plannedHoldingDays: trade.plannedHoldingDays,
         planStatus: trade.planStatus,
@@ -1036,7 +1203,16 @@ export function SwingPortfolioPanel({ initialTrade }: { initialTrade?: InitialTr
       return total + (getOpenPnlDollars(trade) ?? 0);
     }, 0);
     const needsReview = openTrades.filter((trade) =>
-      ["Below stop", "Near stop", "At or above target", "Review time window"].includes(trade.planStatus),
+      [
+        "Below stop",
+        "Near stop",
+        "At or above target",
+        "Peak fade",
+        "Profit protection",
+        "Review time window",
+        "Review soon",
+        "Needs plan review",
+      ].includes(trade.planStatus),
     ).length;
     const riskAtStop = openTrades.reduce((total, trade) => total + tradeRiskDollars(trade), 0);
     const targetUpside = openTrades.reduce((total, trade) => total + tradeUpsideDollars(trade), 0);
@@ -2283,6 +2459,7 @@ export function SwingPortfolioPanel({ initialTrade }: { initialTrade?: InitialTr
                     currentPrice,
                     daysHeld: trade.daysHeld,
                     entryPrice,
+                    exitReview: trade.exitReview,
                     latestNews: trade.latestNews,
                     plannedHoldingDays: trade.plannedHoldingDays,
                     planStatus: trade.planStatus,
@@ -2334,6 +2511,7 @@ export function SwingPortfolioPanel({ initialTrade }: { initialTrade?: InitialTr
                         : "border-amber/30 bg-amber/15 text-ink";
                   const confidence = planConfidence(trade, liveIntelligence.tone);
                   const pace = paceLabel(trade);
+                  const profitTrigger = trade.exitReview?.profitTrigger ?? null;
 
                   return (
                     <article
@@ -2386,6 +2564,19 @@ export function SwingPortfolioPanel({ initialTrade }: { initialTrade?: InitialTr
                                 <p className="mt-2 hidden max-w-3xl text-sm font-bold leading-6 text-ink/64 sm:block">
                                   {decisionGuide.primaryAction}
                                 </p>
+                                {profitTrigger ? (
+                                  <div className={`mt-3 rounded-2xl border px-3 py-2.5 ${profitTriggerTone(profitTrigger)}`}>
+                                    <p className="text-xs font-black uppercase tracking-normal opacity-70">
+                                      Profit trigger fired
+                                    </p>
+                                    <p className="mt-1 text-sm font-black leading-5">
+                                      {profitTrigger.alertLabel}: {profitTrigger.progressPct.toFixed(0)}% of the planned move
+                                    </p>
+                                    <p className="mt-1 text-xs font-bold leading-5 opacity-75">
+                                      Trigger level near {formatCurrency(profitTrigger.triggerPrice)}. {profitTrigger.message}
+                                    </p>
+                                  </div>
+                                ) : null}
                               </div>
                               <div className="rounded-2xl border border-line bg-white p-3">
                                 <p className="text-xs font-black uppercase tracking-normal text-ink/42">
@@ -2410,20 +2601,24 @@ export function SwingPortfolioPanel({ initialTrade }: { initialTrade?: InitialTr
                               </div>
                             </div>
 
-                            <div className="mt-3 grid grid-cols-2 gap-2 lg:grid-cols-5">
+                            <div className="mt-3 grid grid-cols-2 gap-2 lg:grid-cols-6">
                               <MiniStat label="Current price" value={formatCurrency(currentPrice)} />
-                              <MiniStat label="Planned pace" value={pace.value} tone={pace.tone} />
+                              <MiniStat label="Best gain seen" value={bestGainSeenLabel(trade)} tone="text-pine" />
+                              <MiniStat label="Profit trigger" value={profitTriggerLabel(trade)} tone="text-pine" />
+                              <MiniStat label="Fade from peak" value={peakFadeLabel(trade)} tone="text-amber" />
                               <MiniStat label="Remaining upside" value={remainingUpsideLabel(trade)} tone="text-pine" />
-                              <MiniStat label="Downside to stop" value={downsideToStopLabel(trade)} tone="text-coral" />
                               <MiniStat
                                 label="Open P/L"
                                 value={formatPercent(openReturnPct)}
                                 tone={percentTone(openReturnPct)}
                               />
+                              <MiniStat label="Risk to stop" value={riskToStopLabel(trade)} tone="text-coral" />
                             </div>
 
                             <p className="mt-3 rounded-2xl border border-line bg-white px-3 py-2.5 text-xs font-bold leading-5 text-ink/58">
-                              {pace.label}. SwingFi expected this plan to be around {formatCurrency(plannedPacePrice(trade))} by now based on the saved entry, target, and review window.
+                              {trade.exitReview?.metrics.fadeFromPeakPct && trade.exitReview.metrics.fadeFromPeakPct >= 2
+                                ? `${trade.symbol} has pulled back from the best price SwingFi has seen during this plan, so the review is about protecting the move, not just waiting for the original date.`
+                                : `${pace.label}. SwingFi expected this plan to be around ${formatCurrency(plannedPacePrice(trade))} by now based on the saved entry, target, and review window.`}
                             </p>
                           </div>
 
@@ -2471,8 +2666,9 @@ export function SwingPortfolioPanel({ initialTrade }: { initialTrade?: InitialTr
                             </p>
                             <p className="mt-3 hidden rounded-2xl border border-line bg-white/85 px-4 py-3 text-xs font-bold leading-5 text-ink/58 sm:block">
                               Data behind the flag: SwingFi compares your latest refreshed price
-                              against the target, stop, open return, plan countdown, and latest
-                              headline tone. The flag changes when those inputs change.
+                              against the target, stop, best price seen during the plan, open
+                              return, plan countdown, and latest headline tone. The flag changes
+                              when those inputs change.
                             </p>
                             <div className="mt-3 rounded-2xl border border-line bg-white/90 p-3 text-ink sm:p-4">
                               <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">

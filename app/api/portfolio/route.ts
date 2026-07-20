@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { AssetType, TradeStatus } from "@/lib/database.types";
 import { resolveCustomerSession } from "@/lib/auth/customer-session";
+import { buildExitReview, type ExitReview } from "@/lib/portfolio/exit-intelligence";
 import { buildPortfolioExitPlan } from "@/lib/portfolio/exit-plan";
 import { getFmpCompanyProfile, getFmpHistoricalCandles, getFmpStockNews } from "@/lib/providers/fmp";
 
@@ -84,9 +85,23 @@ async function getLatestPortfolioPrice(symbol: string, profilePrice: unknown) {
   return parsePositiveNumber(latestClose);
 }
 
+function statusFromExitReview(review: ExitReview) {
+  if (review.status === "below_stop") return "Below stop";
+  if (review.status === "near_stop") return "Near stop";
+  if (review.status === "target_reached") return "At or above target";
+  if (review.status === "peak_fading") return "Peak fade";
+  if (review.status === "profit_protection") return "Profit protection";
+  if (review.status === "time_window_expired") return "Review time window";
+  if (review.status === "time_window_soon") return "Review soon";
+  if (review.status === "quote_unavailable") return "Tracking plan";
+  if (review.status === "needs_manual_review") return "Needs plan review";
+  return "Inside plan";
+}
+
 function decisionLabel(trade: {
   currentPrice: number | null;
   entry_price: number;
+  exitReview?: ExitReview | null;
   opened_at: string | null;
   plannedHoldingDays: number | null;
   status: TradeStatus;
@@ -95,6 +110,7 @@ function decisionLabel(trade: {
 }) {
   if (trade.status === "closed") return "Closed";
   if (trade.status === "cancelled") return "Cancelled";
+  if (trade.exitReview) return statusFromExitReview(trade.exitReview);
   if (!trade.currentPrice) return "Tracking plan";
   if (trade.currentPrice <= trade.stop_loss) return "Below stop";
   if (trade.currentPrice >= trade.target_price) return "At or above target";
@@ -113,9 +129,14 @@ function decisionLabel(trade: {
 
 async function enrichTrade(row: Record<string, unknown>) {
   const symbol = normalizeSymbol(row.symbol);
-  const [profile, news] = await Promise.all([
+  const status = normalizeStatus(row.status);
+  const shouldBuildExitReview = status === "open" || status === "planned";
+  const [profile, news, candles] = await Promise.all([
     getFmpCompanyProfile(symbol).catch(() => null),
     getFmpStockNews(symbol, 3).catch(() => []),
+    shouldBuildExitReview
+      ? getFmpHistoricalCandles(symbol, dateDaysAgo(120), new Date().toISOString().slice(0, 10)).catch(() => [])
+      : Promise.resolve([]),
   ]);
   const currentPrice = await getLatestPortfolioPrice(symbol, profile?.price);
   const entryPrice = Number(row.entry_price);
@@ -124,6 +145,19 @@ async function enrichTrade(row: Record<string, unknown>) {
   const plannedHoldingDays = getPlannedHoldingDays(row.notes);
   const unrealizedReturnPct =
     currentPrice && entryPrice > 0 ? ((currentPrice - entryPrice) / entryPrice) * 100 : null;
+  const exitReview = shouldBuildExitReview
+    ? buildExitReview({
+        candles,
+        currentPrice,
+        daysHeld: daysBetween(row.opened_at as string | null),
+        entryPrice,
+        openedAt: (row.opened_at as string | null) ?? null,
+        plannedHoldingDays,
+        stopLoss,
+        symbol,
+        targetPrice,
+      })
+    : null;
 
   return {
     ...row,
@@ -141,13 +175,15 @@ async function enrichTrade(row: Record<string, unknown>) {
     planStatus: decisionLabel({
       currentPrice,
       entry_price: entryPrice,
+      exitReview,
       opened_at: (row.opened_at as string | null) ?? null,
       plannedHoldingDays,
-      status: normalizeStatus(row.status),
+      status,
       stop_loss: stopLoss,
       target_price: targetPrice,
     }),
     plannedHoldingDays,
+    exitReview,
     unrealizedReturnPct,
   };
 }

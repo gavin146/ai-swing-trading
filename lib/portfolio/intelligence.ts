@@ -8,6 +8,21 @@ export type PortfolioNewsItem = {
 export type TradeIntelligenceInput = {
   currentPrice: number | null;
   daysHeld?: number | null;
+  exitReview?: {
+    actionLabel: string;
+    beginnerMeaning: string;
+    headline: string;
+    metrics: {
+      fadeFromPeakPct: number | null;
+      maxGainPct: number | null;
+      progressToTargetPct: number | null;
+      remainingUpsidePct: number | null;
+      riskToStopPct: number | null;
+    };
+    nextReview: string;
+    status: string;
+    tone: "positive" | "neutral" | "caution";
+  } | null;
   entryPrice: number;
   latestNews?: PortfolioNewsItem[];
   plannedHoldingDays?: number | null;
@@ -165,6 +180,50 @@ export function getTradeLiveIntelligence(trade: TradeIntelligenceInput) {
     typeof trade.plannedHoldingDays === "number" && typeof trade.daysHeld === "number"
       ? trade.plannedHoldingDays - trade.daysHeld
       : null;
+
+  if (trade.exitReview) {
+    const review = trade.exitReview;
+    const priceFacts = current
+      ? [
+          `Latest: ${formatCurrency(current)}`,
+          `Open return: ${formatPercent(openReturn)}`,
+          review.metrics.maxGainPct === null
+            ? "Best gain seen: unavailable"
+            : `Best gain seen: ${formatPercent(review.metrics.maxGainPct)}`,
+          review.metrics.fadeFromPeakPct === null
+            ? "Fade from peak: unavailable"
+            : `Fade from peak: ${review.metrics.fadeFromPeakPct.toFixed(1)}%`,
+        ]
+      : [
+          `Entry: ${formatCurrency(entry)}`,
+          `Target: ${formatCurrency(target)}`,
+          `Stop: ${formatCurrency(stop)}`,
+        ];
+
+    if (review.status === "peak_fading" || review.status === "profit_protection") {
+      return {
+        decisionZone: review.actionLabel,
+        directionRead: review.headline,
+        liveRead: review.beginnerMeaning,
+        news,
+        nextReview: review.nextReview,
+        priceFacts,
+        tone: "neutral" as const,
+      };
+    }
+
+    if (review.status === "below_stop" || review.status === "near_stop" || review.status === "needs_manual_review") {
+      return {
+        decisionZone: review.actionLabel,
+        directionRead: review.headline,
+        liveRead: review.beginnerMeaning,
+        news,
+        nextReview: review.nextReview,
+        priceFacts,
+        tone: "caution" as const,
+      };
+    }
+  }
 
   if (!current) {
     return {
