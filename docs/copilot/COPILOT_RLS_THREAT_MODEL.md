@@ -1,6 +1,6 @@
 # SwingFi Copilot RLS Threat Model
 
-Last updated: 2026-07-17
+Last updated: 2026-07-19
 
 This threat model covers the additive Copilot persistence schema in `db/copilot-schema-migration.sql`.
 
@@ -70,6 +70,8 @@ Child tables include `user_id` and use composite foreign keys where the parent i
 
 This blocks a forged child row where `user_id` belongs to one user but the parent id belongs to another.
 
+PostgreSQL requires matching unique targets for these composite foreign keys. The migration creates `copilot_trade_history_id_user_id_uidx` for `trade_history(id, user_id)` and `portfolio_positions_id_user_id_uidx` for `portfolio_positions(id, user_id)` before the referencing foreign keys are created.
+
 ## Deletion Behavior
 
 Composite owner-safe relationships use `on delete cascade` instead of plain `on delete set null`. Plain `set null` would try to null both the child reference and `user_id`, but `user_id` is required.
@@ -131,15 +133,18 @@ Policy decision:
 
 ## Verification Plan
 
-`db/copilot-rls-verification.sql` is a local verification fixture. It is wrapped in `begin` / `rollback` and covers:
+`db/copilot-rls-verification.sql` is a local verification fixture. It is wrapped in a transaction, prints every recorded check on success, and raises an exception if any check fails.
 
-- User A versus user B isolation.
-- Forged child foreign-key rejection.
-- Provider metadata isolation.
-- Copilot report and finding isolation.
+- User A can read only user A rows.
+- User B can read only user B rows.
+- User A cannot read user B connections, accounts, sync runs, snapshots, positions, findings, or reports.
+- Anonymous users cannot read customer-owned Copilot rows.
+- Authenticated customers cannot insert, update, or delete Copilot rows when no write policy exists.
+- Forged child foreign-key rejection for parent connection and position references.
+- Approved admin read access.
 - Secret-like column detection.
 
-The repository does not currently include a dedicated SQL/RLS automated test runner. Before production migration, run the verification fixture in a local Supabase environment where authenticated JWT claims can be simulated, then capture the results in a handoff.
+The repository also includes static SQL validation at `scripts/validate-copilot-sql.mjs`. It checks transaction boundaries, required composite-FK unique targets, rollback coverage, and fail-closed RLS verification structure. Before production migration, still run the verification fixture in a local Supabase environment where authenticated JWT claims can be simulated, then capture the results in a handoff.
 
 ## Untested Assumptions
 

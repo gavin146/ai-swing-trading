@@ -1,6 +1,6 @@
 # SwingFi Copilot Data Model
 
-Last updated: 2026-07-17
+Last updated: 2026-07-19
 
 This document describes the additive database foundation for future SwingFi Copilot portfolio reports. Copilot remains read-only research software. The schema does not connect brokerage accounts, store brokerage credentials, place trades, or duplicate existing SwingFi trading-plan tables.
 
@@ -12,6 +12,8 @@ This document describes the additive database foundation for future SwingFi Copi
 
 The migration has not been applied to production. It is designed to be reviewed and tested against a local Supabase/PostgreSQL environment first.
 
+The forward migration and rollback are both wrapped in explicit `begin` / `commit` transactions. If a DDL statement fails, PostgreSQL should not leave a partially applied Copilot schema.
+
 ## Existing Tables Reused
 
 Copilot intentionally references existing SwingFi data instead of creating parallel concepts:
@@ -20,7 +22,9 @@ Copilot intentionally references existing SwingFi data instead of creating paral
 - `trade_history`: remains the source of user-created manual swing plans and open positions.
 - `opportunities`: remains the source of SwingFi-ranked opportunity plans.
 
-The migration adds a unique index on `trade_history(id, user_id)` so `portfolio_positions.source_trade_history_id` can use a composite foreign key. That prevents a position from claiming a trade owned by another user.
+The migration adds `copilot_trade_history_id_user_id_uidx` on `trade_history(id, user_id)` so `portfolio_positions.source_trade_history_id` can use a composite foreign key. That prevents a position from claiming a trade owned by another user.
+
+The migration also adds `portfolio_positions_id_user_id_uidx` before `copilot_findings(position_id, user_id)` references `portfolio_positions(id, user_id)`. This is required by PostgreSQL because composite foreign keys need a matching primary key, unique constraint, or non-partial unique index on the referenced columns.
 
 ## New Tables
 
@@ -182,6 +186,8 @@ erDiagram
 ## Assumptions And Unknowns
 
 - Local Supabase was not confirmed available, so the migration was not executed.
+- Static SQL validation exists at `scripts/validate-copilot-sql.mjs` and runs through `npm run test:copilot`.
+- `db/copilot-rls-verification.sql` now raises an exception if any recorded isolation check fails.
 - External brokerage provider behavior is intentionally unknown until SwingFi chooses a provider.
 - Future encrypted credential storage is out of scope and should be designed separately if an external provider is selected.
 - The future repository layer should keep all Copilot writes server-only and should add integration tests around explicit `user_id` scoping.

@@ -1,6 +1,6 @@
 # Codex Handoff: Copilot Schema And RLS
 
-Date: 2026-07-17
+Date: 2026-07-17, repaired 2026-07-19
 
 ## Task
 
@@ -31,7 +31,9 @@ Create additive Supabase/PostgreSQL schema and RLS foundations for future read-o
 - `trade_history`
 - `opportunities`
 
-The schema adds `trade_history_id_user_id_uidx` so future Copilot positions can safely link to `trade_history(id, user_id)` without allowing forged cross-user references.
+The schema adds `copilot_trade_history_id_user_id_uidx` so future Copilot positions can safely link to `trade_history(id, user_id)` without allowing forged cross-user references.
+
+The 2026-07-19 repair adds `portfolio_positions_id_user_id_uidx` before `copilot_findings(position_id, user_id)` references `portfolio_positions(id, user_id)`.
 
 ## Policy Decisions
 
@@ -52,11 +54,22 @@ The schema adds `trade_history_id_user_id_uidx` so future Copilot positions can 
 
 - `db/copilot-rls-verification.sql`
   - Seeds rollback-only local fixture users and Copilot rows.
-  - Verifies user A/user B isolation under a simulated authenticated user.
-  - Verifies forged child foreign-key rejection.
-  - Verifies provider metadata isolation.
-  - Verifies report/finding isolation.
+  - Verifies user A and user B can read only their own rows.
+  - Verifies user A cannot read user B rows across connections, accounts, sync runs, snapshots, positions, findings, and reports.
+  - Verifies anonymous users cannot read customer-owned Copilot rows.
+  - Verifies authenticated customers cannot insert, update, or delete Copilot rows without write policies.
+  - Verifies forged child foreign-key rejection for connection and position references.
+  - Verifies approved admin read access.
   - Includes an information-schema check for secret-like column names.
+  - Raises an exception when any recorded check fails.
+
+## 2026-07-19 Repair Verification
+
+- `scripts/validate-copilot-sql.mjs`
+  - Added static checks for migration transaction boundaries.
+  - Added static checks that `trade_history(id, user_id)` and `portfolio_positions(id, user_id)` unique indexes exist before their referencing foreign keys.
+  - Added static checks for rollback coverage and fail-closed RLS verification.
+- `npm run test:copilot` now runs the SQL static validator before the Copilot TypeScript tests.
 
 ## Commands Run
 

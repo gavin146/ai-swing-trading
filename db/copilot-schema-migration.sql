@@ -1,3 +1,5 @@
+begin;
+
 create table if not exists brokerage_connections (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references users(id) on delete cascade,
@@ -156,7 +158,7 @@ create index if not exists portfolio_snapshots_user_data_as_of_idx
 create index if not exists portfolio_snapshots_connection_idx
   on portfolio_snapshots(connection_id, captured_at desc);
 
-create unique index if not exists trade_history_id_user_id_uidx
+create unique index if not exists copilot_trade_history_id_user_id_uidx
   on trade_history(id, user_id);
 
 create table if not exists portfolio_positions (
@@ -204,6 +206,9 @@ create index if not exists portfolio_positions_account_idx
   on portfolio_positions(account_id);
 create index if not exists portfolio_positions_trade_history_idx
   on portfolio_positions(source_trade_history_id);
+
+create unique index if not exists portfolio_positions_id_user_id_uidx
+  on portfolio_positions(id, user_id);
 
 create table if not exists copilot_findings (
   id uuid primary key default gen_random_uuid(),
@@ -337,3 +342,5 @@ for select using (user_id = current_app_user_id() or current_app_user_is_admin()
 drop policy if exists copilot_reports_own_or_admin_read on copilot_reports;
 create policy copilot_reports_own_or_admin_read on copilot_reports
 for select using (user_id = current_app_user_id() or current_app_user_is_admin());
+
+commit;
