@@ -1,4 +1,5 @@
 import { brandedButton, buildBrandedEmail, escapeHtml } from "../email-branding";
+import { formatCopilotMoney } from "./formatting";
 import type { CopilotUiViewModel } from "./ui-view-model";
 
 export type CopilotDailyDigestEmailArgs = {
@@ -29,11 +30,7 @@ function cleanText(value: unknown, fallback = "Not available") {
 }
 
 function formatMoney(value: number | null | undefined) {
-  if (!Number.isFinite(Number(value))) return "Unknown";
-  return `$${Number(value).toLocaleString("en-US", {
-    maximumFractionDigits: Number(value) >= 1000 ? 0 : 2,
-    minimumFractionDigits: Number(value) >= 1000 ? 0 : 2,
-  })}`;
+  return formatCopilotMoney(value);
 }
 
 function formatDate(value: string | null | undefined) {

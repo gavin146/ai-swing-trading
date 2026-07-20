@@ -188,6 +188,27 @@ async function testStaleQuote() {
   assert.match(position.quote?.message ?? "", /too old/i);
 }
 
+async function testFreshQuoteWithoutMarketTimestampIsNotUsed() {
+  const result = await sync(
+    [trade()],
+    new FixedQuoteService({
+      AMZN: {
+        dataAsOf: null,
+        fetchedAt: "2026-07-17T13:30:00.000Z",
+        price: 111,
+        source: "fixture_quote",
+        status: "fresh",
+      },
+    }),
+  );
+  const position = result.snapshot.positions[0];
+
+  assert.equal(position.currentPrice, null);
+  assert.equal(position.marketValue, null);
+  assert.equal(position.quote?.status, "stale");
+  assert.match(position.quote?.message ?? "", /market timestamp/i);
+}
+
 async function testClosedTradeExclusion() {
   const result = await sync([
     trade({ id: "open-trade", status: "open" }),
@@ -300,6 +321,7 @@ async function main() {
   await testMissingQuantityOrCostBasis();
   await testMissingCurrentQuote();
   await testStaleQuote();
+  await testFreshQuoteWithoutMarketTimestampIsNotUsed();
   await testClosedTradeExclusion();
   await testMultipleSymbols();
   await testDuplicateSymbolBehavior();

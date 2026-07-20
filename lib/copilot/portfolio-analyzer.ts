@@ -147,12 +147,13 @@ function completenessFor(position: PortfolioPosition) {
   return missing.length ? `Partial data: missing ${missing.join(", ")}.` : "Complete for this rule.";
 }
 
-function makeFinding(args: Omit<PortfolioAnalyzerFinding, "id" | "ruleVersion">) {
-  const ref = args.positionId ?? args.accountId ?? args.symbol ?? "portfolio";
+function makeFinding(args: Omit<PortfolioAnalyzerFinding, "id" | "ruleVersion"> & { stableRef?: string }) {
+  const { stableRef, ...finding } = args;
+  const ref = stableRef ?? finding.positionId ?? finding.accountId ?? finding.symbol ?? "portfolio";
 
   return {
-    ...args,
-    id: `${ruleVersion}:${args.type}:${ref}`,
+    ...finding,
+    id: `${ruleVersion}:${finding.type}:${ref}`,
     ruleVersion,
   };
 }
@@ -163,12 +164,11 @@ function positionEvidenceKey(position: PortfolioPosition) {
 
 function evidenceMatches(position: PortfolioPosition, item: PortfolioAnalyzerPositionEvidence) {
   const symbolMatches = normalizeSymbol(item.symbol) === normalizeSymbol(position.symbol);
-  const positionMatches = item.positionId ? item.positionId === position.id : false;
-  const tradeMatches = item.sourceTradeHistoryId
-    ? item.sourceTradeHistoryId === position.sourceTradeHistoryId
-    : false;
 
-  return positionMatches || tradeMatches || symbolMatches;
+  if (item.positionId) return item.positionId === position.id;
+  if (item.sourceTradeHistoryId) return item.sourceTradeHistoryId === position.sourceTradeHistoryId;
+
+  return symbolMatches;
 }
 
 function isFreshPositionQuote(
@@ -182,19 +182,33 @@ function isFreshPositionQuote(
   return ageMinutes !== null && ageMinutes <= thresholds.quoteStaleAfterMinutes;
 }
 
-function hasValidPlan(position: PortfolioPosition) {
-  return (
-    numberOrNull(position.originalPlan?.entryPrice) !== null &&
-    numberOrNull(position.originalPlan?.targetPrice) !== null &&
-    numberOrNull(position.originalPlan?.stopLoss) !== null
-  );
+function getLongPlanValidation(position: PortfolioPosition) {
+  const entry = numberOrNull(position.originalPlan?.entryPrice ?? position.averageEntryPrice);
+  const target = numberOrNull(position.originalPlan?.targetPrice);
+  const stop = numberOrNull(position.originalPlan?.stopLoss);
+  const missing: string[] = [];
+  const invalid: string[] = [];
+
+  if (entry === null) missing.push("entry");
+  if (target === null) missing.push("target");
+  if (stop === null) missing.push("stop");
+  if (entry !== null && stop !== null && stop >= entry) invalid.push("stop must be below entry");
+  if (entry !== null && target !== null && entry >= target) invalid.push("entry must be below target");
+
+  return {
+    entry,
+    invalid,
+    isValid: missing.length === 0 && invalid.length === 0,
+    missing,
+    stop,
+    target,
+  };
 }
 
 function pricePlanState(position: PortfolioPosition, thresholds: PortfolioAnalyzerThresholds) {
   const current = numberOrNull(position.currentPrice);
-  const target = numberOrNull(position.originalPlan?.targetPrice);
-  const stop = numberOrNull(position.originalPlan?.stopLoss);
-  const entry = numberOrNull(position.originalPlan?.entryPrice ?? position.averageEntryPrice);
+  const plan = getLongPlanValidation(position);
+  const { entry, target, stop } = plan;
 
   if (current === null || target === null || stop === null) return null;
 
@@ -230,9 +244,10 @@ function analyzePosition(args: {
   const findings: PortfolioAnalyzerFinding[] = [];
   const symbol = normalizeSymbol(position.symbol);
   const completeness = completenessFor(position);
-  const quoteAge = minutesBetween(position.quote?.dataAsOf ?? position.dataAsOf, now);
+  const quoteAge = minutesBetween(position.quote ? position.quote.dataAsOf : position.dataAsOf, now);
   const quoteFresh = isFreshPositionQuote(position, thresholds, now);
-  const quoteAsOf = position.quote?.dataAsOf ?? position.dataAsOf;
+  const quoteAsOf = position.quote ? position.quote.dataAsOf : position.dataAsOf;
+  const planValidation = getLongPlanValidation(position);
 
   if (
     position.quote?.status === "stale" ||
@@ -273,7 +288,11 @@ function analyzePosition(args: {
     }));
   }
 
-  if (!hasValidPlan(position)) {
+  if (!planValidation.isValid) {
+    const missing = planValidation.missing.length ? `missing ${planValidation.missing.join(", ")}` : "";
+    const invalid = planValidation.invalid.length ? planValidation.invalid.join(", ") : "";
+    const reason = [missing, invalid].filter(Boolean).join("; ");
+
     findings.push(makeFinding({
       dataCompleteness: completeness,
       evidence: [
@@ -281,7 +300,7 @@ function analyzePosition(args: {
         evidence("target_price", position.originalPlan?.targetPrice ?? null, "original_plan", position.originalPlan?.planCreatedAt),
         evidence("stop_loss", position.originalPlan?.stopLoss ?? null, "original_plan", position.originalPlan?.planCreatedAt),
       ],
-      message: `${symbol} is missing a complete SwingFi plan, so Copilot can review data quality but cannot compare price against a saved target and stop.`,
+      message: `${symbol} does not have a valid long-only SwingFi plan${reason ? ` (${reason})` : ""}, so Copilot can review data quality but cannot compare price against a saved target and stop.`,
       positionId: position.id,
       severity: "attention",
       symbol,
@@ -290,7 +309,7 @@ function analyzePosition(args: {
     }));
   }
 
-  if (quoteFresh && hasValidPlan(position)) {
+  if (quoteFresh && planValidation.isValid) {
     const state = pricePlanState(position, thresholds);
 
     if (state) {
@@ -595,6 +614,7 @@ function portfolioConcentrationFindings(args: {
       ],
       message: `${sector} is ${formatPercent(weightPct)} of the known portfolio value supplied to Copilot. Review whether the portfolio depends too heavily on one sector.`,
       severity: weightPct >= args.thresholds.sectorConcentrationPct * 1.35 ? "high" : "attention",
+      stableRef: `sector:${sector.trim().toLowerCase()}`,
       title: "Sector concentration",
       type: "SECTOR_CONCENTRATION",
     }));

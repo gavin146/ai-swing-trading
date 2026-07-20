@@ -133,6 +133,34 @@ export async function mapWithConcurrency<T, R>(
   return results;
 }
 
+export function buildFmpManualQuoteResult(
+  profile: { price?: number | null } | null | undefined,
+  fetchedAt: string,
+): ManualQuoteResult {
+  const price = positiveNumber(profile?.price);
+
+  if (!price) {
+    return {
+      dataAsOf: null,
+      fetchedAt,
+      message: "FMP profile did not include a reliable current price.",
+      price: null,
+      source: "fmp_profile",
+      status: "missing",
+    };
+  }
+
+  return {
+    dataAsOf: null,
+    fetchedAt,
+    message:
+      "FMP profile returned a price but did not provide a market quote timestamp, so SwingFi did not treat it as a fresh intraday quote.",
+    price,
+    source: "fmp_profile",
+    status: "stale",
+  };
+}
+
 export function getTrackedPlanHoldingDays(notes: unknown) {
   const text = String(notes ?? "").trim();
   const match =
@@ -158,7 +186,11 @@ function getOriginalPlanSource(trade: ManualTrackedTrade): PortfolioPositionPlan
 }
 
 function isQuoteUsable(quote: ManualQuoteResult | undefined) {
-  return quote?.status === "fresh" && positiveNumber(quote.price) !== null;
+  return (
+    quote?.status === "fresh" &&
+    positiveNumber(quote.price) !== null &&
+    isoOrNull(quote.dataAsOf) !== null
+  );
 }
 
 function quoteMetadata(quote: ManualQuoteResult | undefined): PortfolioPositionQuote {
@@ -309,21 +341,8 @@ export class FmpManualPortfolioQuoteService implements ManualPortfolioQuoteServi
       async (symbol) => {
         try {
           const profile = await getFmpCompanyProfile(symbol);
-          const price = positiveNumber(profile?.price);
 
-          return [
-            symbol,
-            {
-              dataAsOf: fetchedAt,
-              fetchedAt,
-              message: price
-                ? "Latest FMP profile price was available during the manual portfolio sync."
-                : "FMP profile did not include a reliable current price.",
-              price,
-              source: "fmp_profile",
-              status: price ? "fresh" : "missing",
-            } satisfies ManualQuoteResult,
-          ] as const;
+          return [symbol, buildFmpManualQuoteResult(profile, fetchedAt)] as const;
         } catch (error) {
           return [
             symbol,
@@ -453,6 +472,8 @@ export class ManualPortfolioReadProvider implements BrokerageReadProvider {
     const normalizedQuotes = new Map(
       Array.from(quotes.entries()).map(([symbol, quote]) => {
         const dataAsOfMs = quote.dataAsOf ? new Date(quote.dataAsOf).getTime() : Number.NaN;
+        const isFreshWithoutMarketTimestamp =
+          quote.status === "fresh" && !Number.isFinite(dataAsOfMs);
         const isStale =
           quote.status === "fresh" &&
           Number.isFinite(dataAsOfMs) &&
@@ -460,7 +481,13 @@ export class ManualPortfolioReadProvider implements BrokerageReadProvider {
 
         return [
           symbol,
-          isStale
+          isFreshWithoutMarketTimestamp
+            ? {
+                ...quote,
+                message: "Quote was marked fresh but did not include a market timestamp, so it was not used for valuation.",
+                status: "stale" as const,
+              }
+            : isStale
             ? {
                 ...quote,
                 message: "Quote was available but too old to use for valuation.",

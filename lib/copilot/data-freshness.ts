@@ -14,6 +14,34 @@ function sourceLabel(source: string) {
   return source.replace(/_/g, " ");
 }
 
+function timeRank(value: string | null | undefined) {
+  if (!value) return Number.NEGATIVE_INFINITY;
+  const parsed = new Date(value).getTime();
+  return Number.isFinite(parsed) ? parsed : Number.NEGATIVE_INFINITY;
+}
+
+function pickWorstFreshness(
+  existing: PortfolioSourceFreshness | undefined,
+  next: PortfolioSourceFreshness,
+) {
+  if (!existing) return next;
+
+  const statusDiff = statusRank[next.status] - statusRank[existing.status];
+  if (statusDiff < 0) return next;
+  if (statusDiff > 0) return existing;
+
+  const nextTime = timeRank(next.dataAsOf);
+  const existingTime = timeRank(existing.dataAsOf);
+  if (nextTime < existingTime) return next;
+  if (nextTime > existingTime) return existing;
+
+  return `${next.message ?? ""}|${next.fetchedAt ?? ""}`.localeCompare(
+    `${existing.message ?? ""}|${existing.fetchedAt ?? ""}`,
+  ) < 0
+    ? next
+    : existing;
+}
+
 export type PortfolioSourceFreshness = DataFreshness & {
   label: string;
 };
@@ -26,19 +54,16 @@ export class DataFreshnessService {
       const source = position.quote?.source ?? "manual_tracker";
       const status = position.quote?.status ?? "missing";
       const existing = sources.get(source);
-      const nextStatus =
-        !existing || statusRank[status] < statusRank[existing.status]
-          ? status
-          : existing.status;
-
-      sources.set(source, {
-        dataAsOf: position.quote?.dataAsOf ?? position.dataAsOf,
+      const next = {
+        dataAsOf: position.quote ? position.quote.dataAsOf : position.dataAsOf,
         fetchedAt: position.quote?.fetchedAt ?? position.fetchedAt,
         label: sourceLabel(source),
         message: position.quote?.message,
         source,
-        status: nextStatus,
-      });
+        status,
+      };
+
+      sources.set(source, pickWorstFreshness(existing, next));
     });
 
     if (!sources.size) {
@@ -55,4 +80,3 @@ export class DataFreshnessService {
     return Array.from(sources.values()).sort((a, b) => a.source.localeCompare(b.source));
   }
 }
-

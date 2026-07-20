@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { ToastNotice } from "@/components/ToastNotice";
+import { formatCopilotMoney } from "@/lib/copilot/formatting";
 import type { CopilotUiViewModel, CopilotSeverity } from "@/lib/copilot/ui-view-model";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 
@@ -18,12 +19,7 @@ type LoadState =
   | { status: "error"; message: string };
 
 function formatMoney(value: number | null | undefined) {
-  if (!Number.isFinite(Number(value))) return "Unknown";
-  return new Intl.NumberFormat("en-US", {
-    currency: "USD",
-    maximumFractionDigits: Number(value) >= 1000 ? 0 : 2,
-    style: "currency",
-  }).format(Number(value));
+  return formatCopilotMoney(value);
 }
 
 function formatDate(value: string | null | undefined) {

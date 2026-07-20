@@ -70,6 +70,11 @@ function toIso(value: unknown) {
 }
 
 function positionStatus(position: PortfolioPosition) {
+  if (!position.quote || position.quote.status === "missing" || position.quote.status === "error") {
+    return "Needs fresh price";
+  }
+  if (position.quote.status === "stale") return "Price needs refresh";
+
   const current = positiveNumber(position.currentPrice);
   const target = positiveNumber(position.originalPlan?.targetPrice);
   const stop = positiveNumber(position.originalPlan?.stopLoss);
@@ -77,7 +82,6 @@ function positionStatus(position: PortfolioPosition) {
   if (!current) return "Needs fresh price";
   if (stop && current <= stop) return "Risk line reached";
   if (target && current >= target) return "Target area reached";
-  if (position.quote?.status === "stale") return "Price needs refresh";
   if (target && (target - current) / current <= 0.03) return "Close to target";
   if (stop && (current - stop) / current <= 0.03) return "Close to risk line";
   return "Inside saved plan";
@@ -89,7 +93,7 @@ function positionCard(position: PortfolioPosition, now: Date): CopilotPositionCa
 
   return {
     currentPrice: positiveNumber(position.currentPrice),
-    dataAsOf: toIso(position.quote?.dataAsOf ?? position.dataAsOf),
+    dataAsOf: toIso(position.quote ? position.quote.dataAsOf : position.dataAsOf),
     daysHeld,
     entryPrice: positiveNumber(position.originalPlan?.entryPrice ?? position.averageEntryPrice),
     freshness: position.quote?.status ?? "missing",

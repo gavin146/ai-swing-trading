@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { formatCopilotMoney } from "./formatting";
 import type {
   PortfolioAnalyzerFinding,
   PortfolioFindingSeverity,
@@ -162,12 +163,10 @@ function normalizeSymbol(value: string) {
 }
 
 function formatMaybeMoney(value: number | null | undefined, currency = "USD") {
-  if (!Number.isFinite(Number(value))) return "unknown";
-  return new Intl.NumberFormat("en-US", {
+  return formatCopilotMoney(value, {
     currency,
-    maximumFractionDigits: Number(value) >= 1000 ? 0 : 2,
-    style: "currency",
-  }).format(Number(value));
+    unavailableLabel: "unknown",
+  });
 }
 
 function cleanText(value: unknown, fallback = "Not available") {
