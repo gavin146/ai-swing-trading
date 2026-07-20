@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
-    "test:copilot": "rm -rf .tmp/copilot-tests && tsc -p tests/tsconfig.copilot.json && node .tmp/copilot-tests/tests/copilot-core.test.js && node .tmp/copilot-tests/tests/copilot-manual-provider.test.js && node .tmp/copilot-tests/tests/copilot-portfolio-analyzer.test.js && node .tmp/copilot-tests/tests/copilot-reporting.test.js && node .tmp/copilot-tests/tests/copilot-ui-view-model.test.js && node .tmp/copilot-tests/tests/copilot-email.test.js && node .tmp/copilot-tests/tests/copilot-paper-execution.test.js && node .tmp/copilot-tests/tests/copilot-manual-slice.test.js && rm -rf .tmp/copilot-tests",
+    "test:copilot": "rm -rf .tmp/copilot-tests && tsc -p tests/tsconfig.copilot.json && node .tmp/copilot-tests/tests/copilot-core.test.js && node .tmp/copilot-tests/tests/copilot-manual-provider.test.js && node .tmp/copilot-tests/tests/copilot-portfolio-analyzer.test.js && node .tmp/copilot-tests/tests/copilot-reporting.test.js && node .tmp/copilot-tests/tests/copilot-ui-view-model.test.js && node .tmp/copilot-tests/tests/copilot-preview-access.test.js && node .tmp/copilot-tests/tests/copilot-email.test.js && node .tmp/copilot-tests/tests/copilot-paper-execution.test.js && node .tmp/copilot-tests/tests/copilot-manual-slice.test.js && rm -rf .tmp/copilot-tests",
     "test:security": "rm -rf .tmp/security-tests && tsc -p tests/tsconfig.security.json && node .tmp/security-tests/tests/customer-sync-security.test.js && rm -rf .tmp/security-tests",
     "stripe:setup": "node scripts/setup-stripe-products.mjs",
     "stripe:verify": "node scripts/verify-stripe-readiness.mjs",

@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import {
+  mapWithConcurrency,
   ManualPortfolioReadProvider,
   type ManualPortfolioQuoteService,
   type ManualPortfolioTradeRepository,
@@ -278,6 +279,21 @@ async function testPartialProviderFailureReturnsDegradedSnapshot() {
   assert.ok(result.warnings.some((warning) => warning.includes("Quote service failed")));
 }
 
+async function testMapWithConcurrencyBoundsParallelWork() {
+  let active = 0;
+  let maxActive = 0;
+  const results = await mapWithConcurrency([1, 2, 3, 4, 5], 2, async (value) => {
+    active += 1;
+    maxActive = Math.max(maxActive, active);
+    await new Promise((resolve) => setTimeout(resolve, 2));
+    active -= 1;
+    return value * 10;
+  });
+
+  assert.equal(maxActive <= 2, true);
+  assert.deepEqual(results, [10, 20, 30, 40, 50]);
+}
+
 async function main() {
   await testNoTrackedTrades();
   await testOneCompleteTrackedTrade();
@@ -290,6 +306,7 @@ async function main() {
   await testOriginalPlanPreservation();
   await testCrossUserAccessPreventionAtServiceBoundary();
   await testPartialProviderFailureReturnsDegradedSnapshot();
+  await testMapWithConcurrencyBoundsParallelWork();
   console.log("Copilot manual portfolio provider tests passed.");
 }
 

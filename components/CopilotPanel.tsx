@@ -14,6 +14,7 @@ type LoadState =
   | { status: "loading" }
   | { status: "ready"; payload: CopilotUiViewModel }
   | { status: "signin"; message: string }
+  | { status: "unavailable"; message: string }
   | { status: "error"; message: string };
 
 function formatMoney(value: number | null | undefined) {
@@ -133,6 +134,26 @@ function SignInState({ message }: { message: string }) {
         className="mt-6 inline-flex rounded-2xl bg-ink px-5 py-3 text-sm font-black text-white shadow-[0_14px_34px_rgba(7,20,24,0.16)] transition hover:bg-pine focus:outline-none focus:ring-4 focus:ring-pine/20"
       >
         Sign in to continue
+      </Link>
+    </section>
+  );
+}
+
+function UnavailableState({ message }: { message: string }) {
+  return (
+    <section className="premium-panel rounded-3xl p-6 sm:p-8" aria-labelledby="copilot-unavailable-title">
+      <p className="text-xs font-black uppercase tracking-normal text-pine">Preview unavailable</p>
+      <h2 id="copilot-unavailable-title" className="mt-3 text-2xl font-black text-ink sm:text-3xl">
+        Copilot is in a private owner preview
+      </h2>
+      <p className="mt-3 max-w-2xl text-sm font-semibold leading-7 text-ink/62">
+        {message}
+      </p>
+      <Link
+        href="/dashboard"
+        className="mt-6 inline-flex rounded-2xl bg-ink px-5 py-3 text-sm font-black text-white shadow-[0_14px_34px_rgba(7,20,24,0.16)] transition hover:bg-pine focus:outline-none focus:ring-4 focus:ring-pine/20"
+      >
+        Return to dashboard
       </Link>
     </section>
   );
@@ -487,8 +508,15 @@ export function CopilotPanel({ fixtureMode = false }: CopilotPanelProps) {
       const payload = (await response.json().catch(() => ({}))) as CopilotUiViewModel & { error?: string };
 
       if (!mounted) return;
-      if (response.status === 401 || response.status === 403) {
+      if (response.status === 401) {
         setState({ message: payload.error ?? "Sign in again to open Copilot.", status: "signin" });
+        return;
+      }
+      if (response.status === 403 || response.status === 404) {
+        setState({
+          message: payload.error ?? "Copilot preview is not available for this account yet.",
+          status: "unavailable",
+        });
         return;
       }
       if (!response.ok || payload.error) {
@@ -514,6 +542,7 @@ export function CopilotPanel({ fixtureMode = false }: CopilotPanelProps) {
 
   if (state.status === "loading") return <CopilotSkeleton />;
   if (state.status === "signin") return <SignInState message={state.message} />;
+  if (state.status === "unavailable") return <UnavailableState message={state.message} />;
   if (state.status === "error") {
     return (
       <ToastNotice tone="error" title="Copilot unavailable">

@@ -111,6 +111,28 @@ function latestIso(values: Array<string | null | undefined>, fallback: string) {
   return latest ?? fallback;
 }
 
+export async function mapWithConcurrency<T, R>(
+  items: T[],
+  concurrency: number,
+  mapper: (item: T, index: number) => Promise<R>,
+) {
+  const safeConcurrency = Math.max(1, Math.min(items.length || 1, Math.floor(concurrency)));
+  const results = new Array<R>(items.length);
+  let nextIndex = 0;
+
+  async function worker() {
+    while (nextIndex < items.length) {
+      const currentIndex = nextIndex;
+      nextIndex += 1;
+      results[currentIndex] = await mapper(items[currentIndex], currentIndex);
+    }
+  }
+
+  await Promise.all(Array.from({ length: safeConcurrency }, () => worker()));
+
+  return results;
+}
+
 export function getTrackedPlanHoldingDays(notes: unknown) {
   const text = String(notes ?? "").trim();
   const match =
@@ -273,10 +295,18 @@ export class SupabaseManualPortfolioTradeRepository implements ManualPortfolioTr
 }
 
 export class FmpManualPortfolioQuoteService implements ManualPortfolioQuoteService {
+  private readonly concurrency: number;
+
+  constructor(options: { concurrency?: number } = {}) {
+    this.concurrency = Math.max(1, Math.min(10, Math.floor(options.concurrency ?? 5)));
+  }
+
   async getQuotes(symbols: string[], fetchedAt: string) {
     const uniqueSymbols = Array.from(new Set(symbols.map(normalizeSymbol).filter(Boolean)));
-    const entries: Array<readonly [string, ManualQuoteResult]> = await Promise.all(
-      uniqueSymbols.map(async (symbol) => {
+    const entries: Array<readonly [string, ManualQuoteResult]> = await mapWithConcurrency(
+      uniqueSymbols,
+      this.concurrency,
+      async (symbol) => {
         try {
           const profile = await getFmpCompanyProfile(symbol);
           const price = positiveNumber(profile?.price);
@@ -307,7 +337,7 @@ export class FmpManualPortfolioQuoteService implements ManualPortfolioQuoteServi
             } satisfies ManualQuoteResult,
           ] as const;
         }
-      }),
+      },
     );
 
     return new Map(entries);

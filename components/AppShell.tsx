@@ -120,7 +120,9 @@ export function AppShell({
   const [sessionLoaded, setSessionLoaded] = useState(false);
   const isAdmin = isAdminCustomer(customer);
   const isOperationsPage = active === "admin";
-  const customerNavLinks = customerLinks.filter((item) => showCopilot || item.key !== "copilot");
+  const normalizedCustomerEmail = customer?.email.trim().toLowerCase() ?? "";
+  const canShowCopilotPreview = showCopilot && normalizedCustomerEmail === "gavin@onefear.co";
+  const customerNavLinks = customerLinks.filter((item) => canShowCopilotPreview || item.key !== "copilot");
   const visibleLinks = [...customerNavLinks, ...(isAdmin ? adminLinks : [])];
   const shellLinks = isOperationsPage
     ? isAdmin
