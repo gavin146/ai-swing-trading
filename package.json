@@ -15,7 +15,8 @@
     "production:env": "node scripts/verify-production-env.mjs",
     "production:surface": "node scripts/verify-production-surface.mjs",
     "typecheck": "tsc --noEmit",
-    "verify": "npm run lint && npm run typecheck && npm run build"
+    "verify": "npm run verify:copilot",
+    "verify:copilot": "npm run lint && npm run typecheck && npm run test:copilot && npm run test:security && npm run build"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.108.2",
