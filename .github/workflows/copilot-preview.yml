@@ -10,10 +10,14 @@ on:
       - codex/copilot-stabilization
       - "codex/**"
 
+permissions:
+  contents: read
+
 jobs:
   verify-copilot:
     name: Verify Copilot owner preview
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     env:
       BROKERAGE_CONNECTIONS_ENABLED: "false"
       COPILOT_AI_NARRATION_ENABLED: "false"
@@ -27,11 +31,14 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "24"
           cache: npm
 
       - name: Install dependencies
-        run: npm ci
+        run: |
+          node --version
+          npm --version
+          npm ci --no-audit --no-fund
 
       - name: Run deploy-equivalent verification
         run: npm run verify:deploy
