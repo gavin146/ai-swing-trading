@@ -1,4 +1,5 @@
 {
+  "buildCommand": "npm run verify:deploy",
   "crons": [
     {
       "path": "/api/cron/daily-rankings",

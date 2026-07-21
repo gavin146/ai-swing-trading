@@ -6,7 +6,9 @@ on:
       - main
   push:
     branches:
+      - main
       - codex/copilot-stabilization
+      - "codex/**"
 
 jobs:
   verify-copilot:
@@ -31,5 +33,5 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Run serial Copilot verification
-        run: npm run verify:copilot
+      - name: Run deploy-equivalent verification
+        run: npm run verify:deploy
