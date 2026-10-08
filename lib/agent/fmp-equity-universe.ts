@@ -24,13 +24,14 @@ import { getMockEquityUniverse } from "./mock-equity-universe";
 import { rankEquityCandidates } from "./ranking-agent";
 import type { AgentRunResult, CompanyFinancialSnapshot, EquityCandidate, Sector } from "./types";
 
-const starterSymbols = [
+const freePlanLiquidUniverseSymbols = [
   "NVDA",
   "MSFT",
   "AAPL",
   "AMZN",
   "META",
   "GOOGL",
+  "GOOG",
   "AVGO",
   "AMD",
   "TSLA",
@@ -49,22 +50,171 @@ const starterSymbols = [
   "ORCL",
   "PANW",
   "CRWD",
+  "QCOM",
+  "MU",
+  "AMAT",
+  "LRCX",
+  "KLAC",
+  "ADI",
+  "MRVL",
+  "INTC",
+  "CSCO",
+  "ANET",
+  "TXN",
+  "IBM",
+  "DELL",
+  "PLTR",
+  "SNOW",
+  "SHOP",
+  "UBER",
+  "ABNB",
+  "DASH",
+  "COIN",
+  "HOOD",
+  "SQ",
+  "PYPL",
+  "MELI",
+  "SPOT",
+  "ROKU",
+  "DDOG",
+  "NET",
+  "ZS",
+  "MDB",
+  "OKTA",
+  "TEAM",
   "CAT",
   "GE",
   "BA",
+  "DE",
+  "HON",
+  "ETN",
+  "PH",
+  "EMR",
+  "LMT",
+  "RTX",
+  "NOC",
+  "FDX",
+  "UPS",
+  "DAL",
+  "UAL",
   "XOM",
   "CVX",
   "COP",
+  "SLB",
+  "EOG",
+  "OXY",
+  "MPC",
+  "PSX",
+  "VLO",
   "FCX",
   "LIN",
-  "NEE",
-  "PLD",
-  "SBUX",
-  "MCD",
+  "NEM",
+  "APD",
+  "SHW",
+  "DD",
+  "NUE",
+  "STLD",
+  "JPM",
+  "BAC",
+  "WFC",
+  "GS",
+  "MS",
+  "C",
+  "AXP",
+  "SCHW",
+  "BLK",
+  "BX",
+  "KKR",
+  "COF",
+  "SOFI",
+  "V",
+  "MA",
+  "UNH",
+  "LLY",
+  "JNJ",
+  "MRK",
+  "ABBV",
+  "PFE",
   "TMO",
+  "ABT",
+  "DHR",
   "ISRG",
-  "PGR",
-  "UBER",
+  "VRTX",
+  "REGN",
+  "GILD",
+  "AMGN",
+  "MDT",
+  "SYK",
+  "ELV",
+  "HCA",
+  "CI",
+  "WMT",
+  "COST",
+  "PG",
+  "KO",
+  "PEP",
+  "PM",
+  "MO",
+  "TGT",
+  "KR",
+  "KDP",
+  "CL",
+  "MDLZ",
+  "MCD",
+  "SBUX",
+  "CMG",
+  "NKE",
+  "LULU",
+  "LOW",
+  "HD",
+  "TJX",
+  "ROST",
+  "BKNG",
+  "MAR",
+  "RCL",
+  "CCL",
+  "GM",
+  "F",
+  "RIVN",
+  "LCID",
+  "DIS",
+  "CMCSA",
+  "NFLX",
+  "T",
+  "VZ",
+  "TMUS",
+  "CHTR",
+  "EA",
+  "TTWO",
+  "NEE",
+  "SO",
+  "DUK",
+  "CEG",
+  "AEP",
+  "XEL",
+  "PLD",
+  "AMT",
+  "EQIX",
+  "WELL",
+  "SPG",
+  "O",
+  "DLR",
+  "PSA",
+  "SPY",
+  "QQQ",
+  "IWM",
+  "DIA",
+  "XLK",
+  "XLF",
+  "XLE",
+  "XLV",
+  "XLY",
+  "XLI",
+  "XLC",
+  "SMH",
+  "ARKK",
+  "TLT",
+  "GLD",
 ];
 
 type RunFmpOptions = {
@@ -174,6 +324,20 @@ function envFlag(name: string, fallback = false) {
   if (value === undefined) return fallback;
 
   return ["1", "true", "yes", "on"].includes(value.toLowerCase());
+}
+
+function uniqueSymbols(symbols: string[]) {
+  return Array.from(
+    new Set(
+      symbols
+        .map((symbol) => symbol.trim().toUpperCase())
+        .filter(Boolean),
+    ),
+  );
+}
+
+function isFmpAccessRestricted(message: string) {
+  return /restricted endpoint|current subscription|402/i.test(message);
 }
 
 function sleep(ms: number) {
@@ -1087,6 +1251,7 @@ async function getBroadFmpScreenerRows(limit: number, minimumRows: number) {
     { marketCapMoreThan: 150_000_000, priceMoreThan: 1, volumeMoreThan: 100_000 },
   ];
   let rows: FmpCompanyScreenerRow[] = [];
+  const errors: string[] = [];
 
   for (const attempt of attempts) {
     try {
@@ -1098,9 +1263,22 @@ async function getBroadFmpScreenerRows(limit: number, minimumRows: number) {
       if (rows.length >= minimumRows) {
         break;
       }
-    } catch {
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      errors.push(message);
+
+      if (isFmpAccessRestricted(message)) {
+        throw new Error(`FMP company screener is restricted for the current plan: ${message}`);
+      }
+
       // Try the next, broader screener pass before giving up.
     }
+  }
+
+  if (rows.length === 0 && errors.length > 0) {
+    throw new Error(
+      `FMP company screener unavailable after ${attempts.length} attempts: ${errors.at(-1)}`,
+    );
   }
 
   return rankScreenerRows(rows);
@@ -1213,6 +1391,8 @@ export async function runFmpDailyRankingAgent({
   universeLimit = envNumber("FMP_UNIVERSE_LIMIT", recommendedUniverseLimit, 40, 1500),
   detailedLimit = envNumber("FMP_DETAILED_LIMIT", recommendedDetailedLimit, 30, 500),
 }: RunFmpOptions = {}): Promise<AgentRunResult> {
+  const freePlanUniverseLimit = envNumber("FMP_FREE_PLAN_UNIVERSE_LIMIT", 160, 40, 220);
+  const freePlanEnrichmentLimit = envNumber("FMP_FREE_PLAN_ENRICHMENT_LIMIT", 8, 0, 30);
   const configuredMinimumScreenerCount = envNumber(
     "FMP_MIN_SCREENER_ROWS",
     recommendedMinimumScreenerRows,
@@ -1245,19 +1425,34 @@ export async function runFmpDailyRankingAgent({
   const bls = await getBlsMacroContext();
   const treasury = await getTreasuryMacroContext();
   const combinedMacro = combineMacroContexts(macro, bls, treasury);
-  const [benchmarks, screenerRows] = await Promise.all([
-    getBenchmarkContext(asOf),
-    symbols
-      ? Promise.resolve([] as FmpCompanyScreenerRow[])
-      : getBroadFmpScreenerRows(screenerRequestLimit, minimumScreenerCount),
-  ]);
+  const benchmarksPromise = getBenchmarkContext(asOf);
+  let screenerRows: FmpCompanyScreenerRow[] = [];
+  let screenerFailureMessage: string | null = null;
+
+  if (!symbols) {
+    try {
+      screenerRows = await getBroadFmpScreenerRows(screenerRequestLimit, minimumScreenerCount);
+    } catch (error) {
+      screenerFailureMessage = error instanceof Error ? error.message : String(error);
+    }
+  }
+
+  const benchmarks = await benchmarksPromise;
+  const freePlanFallbackActive =
+    !symbols && screenerRows.length === 0 && screenerFailureMessage !== null;
+  const effectiveDetailedLimit = freePlanFallbackActive
+    ? Math.min(freePlanUniverseLimit, detailedLimit, uniqueSymbols(freePlanLiquidUniverseSymbols).length)
+    : detailedLimit;
+  const effectiveEnrichmentLimit = freePlanFallbackActive
+    ? Math.min(enrichmentLimit, freePlanEnrichmentLimit)
+    : enrichmentLimit;
   const universeSymbols =
     symbols?.map((symbol) => symbol.toUpperCase()) ??
     (screenerRows.length > 0
       ? rankScreenerRows(screenerRows)
-          .slice(0, detailedLimit)
+          .slice(0, effectiveDetailedLimit)
           .map((row) => String(row.symbol).toUpperCase())
-      : starterSymbols);
+      : uniqueSymbols(freePlanLiquidUniverseSymbols).slice(0, effectiveDetailedLimit));
   const initialUniverseResult = await getFmpEquityUniverse(
     asOf,
     combinedMacro,
@@ -1285,14 +1480,22 @@ export async function runFmpDailyRankingAgent({
   const coverageWarning =
     symbols
       ? null
-      : screenerRows.length < minimumScreenerCount
+      : freePlanFallbackActive
+        ? `FMP's paid screener is unavailable on the current plan, so SwingFi used the free-plan curated liquid-stock universe (${universeSymbols.length} symbols) with live FMP candles. Upgrade FMP screener access for broad-market discovery.`
+        : screenerRows.length < minimumScreenerCount
         ? `Market coverage gate failed: FMP screener returned ${screenerRows.length} rows, below the required ${minimumScreenerCount}.`
         : initialUniverseResult.candidates.length < minimumDetailedCandidateCount
           ? `Market coverage gate failed: only ${initialUniverseResult.candidates.length} live technical candidates were analyzed, below the required ${minimumDetailedCandidateCount}.`
           : null;
-  const coverageStatus = coverageWarning ? "blocked" : qualityUniverse.length < limit ? "thin" : "healthy";
+  const coverageStatus = coverageWarning
+    ? freePlanFallbackActive
+      ? "thin"
+      : "blocked"
+    : qualityUniverse.length < limit
+      ? "thin"
+      : "healthy";
 
-  if (coverageGateEnabled && coverageWarning) {
+  if (coverageGateEnabled && coverageWarning && !freePlanFallbackActive) {
     throw new Error(
       `${coverageWarning} The daily ranking run was blocked so customers do not receive a thin market scan. Increase FMP coverage, loosen screener limits, or set DISABLE_MARKET_COVERAGE_GATE=true only for temporary testing.`,
     );
@@ -1316,9 +1519,9 @@ export async function runFmpDailyRankingAgent({
             secData: "partial",
             marketCoverage: {
               status: coverageStatus,
-              requestedUniverseLimit: screenerRequestLimit,
-              screenerCount: screenerRows.length,
-              detailedCandidateTarget: detailedLimit,
+              requestedUniverseLimit: freePlanFallbackActive ? universeSymbols.length : screenerRequestLimit,
+              screenerCount: freePlanFallbackActive ? universeSymbols.length : screenerRows.length,
+              detailedCandidateTarget: effectiveDetailedLimit,
               detailedCandidateCount: initialUniverseResult.candidates.length,
               viableCandidateCount: viableUniverse.length,
               qualifiedCandidateCount: qualityUniverse.length,
@@ -1338,7 +1541,7 @@ export async function runFmpDailyRankingAgent({
       : null;
   const enrichmentSymbols =
     preliminaryRanking?.rankings.map((ranking) => ranking.candidate.symbol) ??
-    initialUniverse.slice(0, enrichmentLimit).map((candidate) => candidate.symbol);
+    initialUniverse.slice(0, effectiveEnrichmentLimit).map((candidate) => candidate.symbol);
   const enrichedUniverseResult =
     !symbols && enrichmentSymbols.length > 0
       ? await getFmpEquityUniverse(
@@ -1364,7 +1567,7 @@ export async function runFmpDailyRankingAgent({
       })
       .filter((candidate) => candidate !== undefined),
     ...initialUniverse.filter((candidate) => !selectedSymbols.has(candidate.symbol)),
-  ].slice(0, Math.max(enrichmentLimit, limit));
+  ].slice(0, Math.max(effectiveEnrichmentLimit, limit));
 
   const livePriceCount = initialUniverseResult.livePriceCount;
   const liveFinancialCount = enrichedUniverseResult.liveFinancialCount;
@@ -1386,9 +1589,9 @@ export async function runFmpDailyRankingAgent({
       secData: dataQualityLabel(Math.min(liveSecCount, universe.length), universe.length),
       marketCoverage: {
         status: coverageStatus,
-        requestedUniverseLimit: screenerRequestLimit,
-        screenerCount: screenerRows.length,
-        detailedCandidateTarget: detailedLimit,
+        requestedUniverseLimit: freePlanFallbackActive ? universeSymbols.length : screenerRequestLimit,
+        screenerCount: freePlanFallbackActive ? universeSymbols.length : screenerRows.length,
+        detailedCandidateTarget: effectiveDetailedLimit,
         detailedCandidateCount: initialUniverseResult.candidates.length,
         viableCandidateCount: viableUniverse.length,
         qualifiedCandidateCount: qualityUniverse.length,
@@ -1407,7 +1610,10 @@ export async function runFmpDailyRankingAgent({
           ? `This run used ${universeSymbols.length} explicitly requested symbols.`
           : screenerRows.length > 0
             ? `FMP broad screener reviewed ${screenerRows.length} liquid US candidates, technically scanned ${universeSymbols.length} symbols, and enriched the strongest ${enrichmentSymbols.length} before selecting the top ${limit}.`
-            : `FMP screener was unavailable, so the agent fell back to the ${starterSymbols.length}-symbol starter universe.`,
+            : `FMP screener was unavailable on the current plan, so the agent scanned the free-plan curated liquid universe of ${universeSymbols.length} symbols and enriched the strongest ${enrichmentSymbols.length}.`,
+        ...(freePlanFallbackActive && screenerFailureMessage
+          ? [`FMP screener fallback reason: ${screenerFailureMessage}`]
+          : []),
         `${livePriceCount} of ${initialUniverseResult.candidates.length} technical candidates used live FMP price candles in this run.`,
         `${liveFinancialCount} of ${enrichedUniverseResult.candidates.length} enriched candidates used live FMP fundamental data in this run.`,
         `${liveNewsCount} of ${enrichedUniverseResult.candidates.length} enriched candidates used live FMP stock news for catalyst scoring.`,
