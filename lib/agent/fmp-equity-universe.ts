@@ -337,7 +337,15 @@ function uniqueSymbols(symbols: string[]) {
 }
 
 function isFmpAccessRestricted(message: string) {
-  return /restricted endpoint|current subscription|402/i.test(message);
+  return /restricted endpoint|current subscription|limit reach|429|402/i.test(message);
+}
+
+function fmpPlanMode() {
+  const value = String(process.env.FMP_PLAN_MODE ?? process.env.FMP_MEMBERSHIP_MODE ?? "free")
+    .trim()
+    .toLowerCase();
+
+  return value === "paid" || value === "broad" || value === "screener" ? "paid" : "free";
 }
 
 function sleep(ms: number) {
@@ -1391,6 +1399,7 @@ export async function runFmpDailyRankingAgent({
   universeLimit = envNumber("FMP_UNIVERSE_LIMIT", recommendedUniverseLimit, 40, 1500),
   detailedLimit = envNumber("FMP_DETAILED_LIMIT", recommendedDetailedLimit, 30, 500),
 }: RunFmpOptions = {}): Promise<AgentRunResult> {
+  const freePlanMode = fmpPlanMode() === "free";
   const freePlanUniverseLimit = envNumber("FMP_FREE_PLAN_UNIVERSE_LIMIT", 160, 40, 220);
   const freePlanEnrichmentLimit = envNumber("FMP_FREE_PLAN_ENRICHMENT_LIMIT", 8, 0, 30);
   const configuredMinimumScreenerCount = envNumber(
@@ -1429,7 +1438,10 @@ export async function runFmpDailyRankingAgent({
   let screenerRows: FmpCompanyScreenerRow[] = [];
   let screenerFailureMessage: string | null = null;
 
-  if (!symbols) {
+  if (!symbols && freePlanMode) {
+    screenerFailureMessage =
+      "FMP free-plan mode skips the paid broad screener and scans SwingFi's curated liquid-stock universe.";
+  } else if (!symbols) {
     try {
       screenerRows = await getBroadFmpScreenerRows(screenerRequestLimit, minimumScreenerCount);
     } catch (error) {
@@ -1481,7 +1493,7 @@ export async function runFmpDailyRankingAgent({
     symbols
       ? null
       : freePlanFallbackActive
-        ? `FMP's paid screener is unavailable on the current plan, so SwingFi used the free-plan curated liquid-stock universe (${universeSymbols.length} symbols) with live FMP candles. Upgrade FMP screener access for broad-market discovery.`
+        ? `SwingFi is running in FMP free-plan mode, so it used the curated liquid-stock universe (${universeSymbols.length} symbols) with live FMP candles instead of the paid broad screener. Upgrade FMP screener access and set FMP_PLAN_MODE=paid for broad-market discovery.`
         : screenerRows.length < minimumScreenerCount
         ? `Market coverage gate failed: FMP screener returned ${screenerRows.length} rows, below the required ${minimumScreenerCount}.`
         : initialUniverseResult.candidates.length < minimumDetailedCandidateCount
@@ -1610,7 +1622,7 @@ export async function runFmpDailyRankingAgent({
           ? `This run used ${universeSymbols.length} explicitly requested symbols.`
           : screenerRows.length > 0
             ? `FMP broad screener reviewed ${screenerRows.length} liquid US candidates, technically scanned ${universeSymbols.length} symbols, and enriched the strongest ${enrichmentSymbols.length} before selecting the top ${limit}.`
-            : `FMP screener was unavailable on the current plan, so the agent scanned the free-plan curated liquid universe of ${universeSymbols.length} symbols and enriched the strongest ${enrichmentSymbols.length}.`,
+            : `FMP free-plan mode scanned the curated liquid universe of ${universeSymbols.length} symbols and enriched the strongest ${enrichmentSymbols.length}.`,
         ...(freePlanFallbackActive && screenerFailureMessage
           ? [`FMP screener fallback reason: ${screenerFailureMessage}`]
           : []),
